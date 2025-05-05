@@ -19,6 +19,10 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { base_url } from '../../utils/base_url';
 
+// API base URL
+const API_BASE_URL = 'http://192.168.2.10:3030/api'; // For Android Emulator
+// const API_BASE_URL = 'http://localhost:3030/api'; // For iOS Simulator
+// const API_BASE_URL = 'http://your-actual-server.com/api'; // For production
 
 // AddParticipantModal Component
 const AddParticipantModal = ({ visible, onClose, onAddParticipant, existingParticipants }) => {
@@ -35,7 +39,7 @@ const AddParticipantModal = ({ visible, onClose, onAddParticipant, existingParti
     setLoading(true);
     try {
       const token = await AsyncStorage.getItem('accessToken');
-      const response = await fetch(`${base_url}/api/user/getProfile?search=${encodeURIComponent(query)}`, {
+      const response = await fetch(`${base_url}/user/getProfile?search=${encodeURIComponent(query)}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -158,6 +162,7 @@ const AddExpenseModal = ({ visible, onClose, onAddExpense }) => {
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
   const [isCustomCategory, setIsCustomCategory] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const predefinedCategories = [
     'Food & Dining',
@@ -169,24 +174,49 @@ const AddExpenseModal = ({ visible, onClose, onAddExpense }) => {
     'Other'
   ];
 
-  const handleSubmit = () => {
-    if (!amount || !description || (!category && !isCustomCategory)) {
-      Alert.alert('Error', 'Please fill in all fields');
+  const handleSubmit = async () => {
+    // Validate inputs
+    if (!amount || !description) {
+      Alert.alert('Error', 'Please fill in description and amount');
       return;
     }
 
-    const expenseData = {
-      description,
-      amount: parseFloat(amount),
-      category: isCustomCategory ? category : predefinedCategories[parseInt(category)],
-      date: new Date().toISOString(),
-    };
+    if (!isCustomCategory && category === '') {
+      Alert.alert('Error', 'Please select a category');
+      return;
+    }
 
-    onAddExpense(expenseData);
-    setAmount('');
-    setDescription('');
-    setCategory('');
-    setIsCustomCategory(false);
+    if (isCustomCategory && !category.trim()) {
+      Alert.alert('Error', 'Please enter a custom category');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      
+      const expenseData = {
+        description: description.trim(),
+        amount: parseFloat(amount),
+        category: isCustomCategory ? category.trim() : predefinedCategories[parseInt(category)],
+        date: new Date().toISOString(),
+      };
+
+      await onAddExpense(expenseData);
+      
+      // Reset form
+      setAmount('');
+      setDescription('');
+      setCategory('');
+      setIsCustomCategory(false);
+    } catch (error) {
+      console.error('Error submitting expense:', error);
+      Alert.alert(
+        'Error',
+        'Failed to add expense. Please try again.'
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const renderCategorySection = () => (
@@ -204,7 +234,7 @@ const AddExpenseModal = ({ visible, onClose, onAddExpense }) => {
             !isCustomCategory && styles.categoryToggleTextActive
           ]}>Select Category</Text>
         </TouchableOpacity>
-        {/* <TouchableOpacity
+        <TouchableOpacity
           style={[
             styles.categoryToggleButton,
             isCustomCategory && styles.categoryToggleButtonActive
@@ -215,7 +245,7 @@ const AddExpenseModal = ({ visible, onClose, onAddExpense }) => {
             styles.categoryToggleText,
             isCustomCategory && styles.categoryToggleTextActive
           ]}>Custom Category</Text>
-        </TouchableOpacity> */}
+        </TouchableOpacity>
       </View>
 
       {!isCustomCategory ? (
@@ -273,6 +303,7 @@ const AddExpenseModal = ({ visible, onClose, onAddExpense }) => {
               value={description}
               onChangeText={setDescription}
               placeholderTextColor={colors.fontSecondColor}
+              editable={!isSubmitting}
             />
 
             <TextInput
@@ -282,15 +313,21 @@ const AddExpenseModal = ({ visible, onClose, onAddExpense }) => {
               onChangeText={setAmount}
               keyboardType="numeric"
               placeholderTextColor={colors.fontSecondColor}
+              editable={!isSubmitting}
             />
 
             {renderCategorySection()}
 
             <TouchableOpacity
-              style={styles.submitButton}
+              style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
               onPress={handleSubmit}
+              disabled={isSubmitting}
             >
-              <Text style={styles.submitButtonText}>Add Expense</Text>
+              {isSubmitting ? (
+                <ActivityIndicator color={colors.white} />
+              ) : (
+                <Text style={styles.submitButtonText}>Add Expense</Text>
+              )}
             </TouchableOpacity>
           </ScrollView>
         </View>
@@ -789,27 +826,112 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    padding: 20,
   },
   modalContent: {
     backgroundColor: colors.white,
-    borderRadius: 12,
-    padding: 20,
-    width: '80%',
+    borderRadius: 16,
+    width: '90%',
+    maxHeight: '80%',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.grayBackground,
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     color: colors.fontMainColor,
-    marginBottom: 20,
-    textAlign: 'center',
   },
-  input: {
-    borderWidth: 1,
-    borderColor: colors.grayBackground,
-    borderRadius: 8,
-    padding: 12,
+  modalBody: {
+    padding: 16,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.grayBackground,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.grayLinesColor,
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: 12,
     fontSize: 16,
+    color: colors.fontMainColor,
+    height: 40,
+  },
+  searchResults: {
+    paddingVertical: 8,
+  },
+  userItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.grayLinesColor,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  userInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  userDetails: {
+    marginLeft: 16,
+    flex: 1,
+  },
+  userName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.fontMainColor,
+    marginBottom: 4,
+  },
+  userEmail: {
+    fontSize: 14,
+    color: colors.fontSecondColor,
+  },
+  loadingContainer: {
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyContainer: {
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyText: {
+    fontSize: 16,
+    color: colors.fontSecondColor,
+    textAlign: 'center',
+    lineHeight: 24,
   },
   modalButtons: {
     flexDirection: 'row',
@@ -855,22 +977,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
   },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: colors.fontSecondColor,
-    marginBottom: 16,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   paymentStatus: {
     fontSize: 12,
     fontWeight: '500',
@@ -891,9 +997,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.fontSecondColor,
     marginTop: 4,
-  },
-  modalBody: {
-    padding: 16,
   },
   categorySection: {
     marginVertical: 16,
@@ -971,6 +1074,9 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: 16,
     fontWeight: '600',
+  },
+  submitButtonDisabled: {
+    opacity: 0.7,
   },
 });
 
