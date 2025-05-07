@@ -32,6 +32,7 @@ import FollowersList from './FollowersList/FollowersList'
 import SplitDashboard from './Split/SplitDashboard'
 import CreateSplit from './Split/CreateSplit'
 import SplitDetail from './Split/SplitDetail'
+import ShortsUpload from './ShortsUpload/ShortsUpload'
 
 
 export {
@@ -69,4 +70,5 @@ export {
   SplitDashboard,
   CreateSplit,
   SplitDetail,
+  ShortsUpload
 }

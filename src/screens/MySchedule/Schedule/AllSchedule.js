@@ -1,17 +1,76 @@
-import React from 'react';
-import { View, Text, Image, TouchableOpacity, FlatList } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, Image, TouchableOpacity, FlatList, Alert } from 'react-native';
 import { styles } from './styles';
 import { useNavigation } from '@react-navigation/native'; // Import useNavigation
 import Icon from 'react-native-vector-icons/Ionicons'; // Import vector icons
 import { AntDesign } from '@expo/vector-icons'; // Import AntDesign icons
 import { colors } from '../../../utils';// Import colors
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { base_url } from '../../../utils/base_url';
 
 const AllSchedule = ({item}) => {
   const navigation = useNavigation(); // Access navigation object
+  const [currentUserId, setCurrentUserId] = useState(null);
+  const [isJoining, setIsJoining] = useState(false);
+
+  useEffect(() => {
+    const loadUserId = async () => {
+      try {
+        const user = await AsyncStorage.getItem('user');
+        const parsedUser = user ? JSON.parse(user) : null;
+        if (parsedUser && parsedUser._id) {
+          setCurrentUserId(parsedUser._id);
+        }
+      } catch (error) {
+        console.error('Error loading user ID:', error);
+      }
+    };
+    loadUserId();
+  }, []);
 
   const handleCardPress = (item) => {
     navigation.navigate('TripDetail', { tripData: item }); // Navigate and pass data
   };
+
+  const handleJoin = async () => {
+    try {
+      setIsJoining(true);
+      const token = await AsyncStorage.getItem('accessToken');
+      
+      if (!token) {
+        Alert.alert('Error', 'Authentication token not found');
+        return;
+      }
+
+      const response = await fetch(`${base_url}/schedule/join-un-join`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          scheduleId: item._id,
+          scheduleCreatedBy: item.createdBy
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        Alert.alert('Success', 'Successfully joined the schedule');
+        // You might want to update the UI or refresh the schedule list here
+      } else {
+        Alert.alert('Error', data.message || 'Failed to join schedule');
+      }
+    } catch (error) {
+      console.error('Error joining schedule:', error);
+      Alert.alert('Error', 'Failed to join schedule. Please try again.');
+    } finally {
+      setIsJoining(false);
+    }
+  };
+
+  const isScheduleCreator = currentUserId === item.creatorId;
 
   return (
     <View style={styles.container}>
@@ -54,9 +113,17 @@ const AllSchedule = ({item}) => {
                 <Text style={styles.nameText}>{item.fullName}</Text>
               </View> */}
             </View>
-            <TouchableOpacity style={styles.joinedButton}>
-              <Text style={styles.joinedText}>{item.joined ? 'Joined' : 'Join'}</Text>
-            </TouchableOpacity>
+            {!isScheduleCreator && (
+              <TouchableOpacity 
+                style={[styles.joinedButton, isJoining && styles.disabledButton]} 
+                onPress={handleJoin}
+                disabled={isJoining}
+              >
+                <Text style={styles.joinedText}>
+                  {isJoining ? 'Joining...' : (item.joined ? 'Joined' : 'Join')}
+                </Text>
+              </TouchableOpacity>
+            )}
           </TouchableOpacity>
        
     </View>

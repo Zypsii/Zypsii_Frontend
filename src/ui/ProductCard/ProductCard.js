@@ -5,6 +5,7 @@ import { colors, scale } from '../../utils';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
+import { base_url } from '../../utils/base_url';
 
 function ProductCard(props) {
   const navigation = useNavigation();
@@ -20,15 +21,20 @@ function ProductCard(props) {
       const newLikedStatus = !liked;
       const accessToken = await AsyncStorage.getItem('accessToken'); // Get the access token
       // Make the POST request to update like status
-      const response = await fetch(`http://192.168.85.179:8000/update-like-status?id=${props.id}`, {
+      const response = await fetch(`${base_url}/place/addFavorite`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${accessToken}`, // Attach the JWT token to the request header
         },
-        body:{
-          
-        }
+        body: JSON.stringify({
+          name: props.name,
+          image: props.image,
+          latitude: props.latitude,
+          longitude: props.longitude,
+          address: props.address || "Address not available",
+          rating: props.rating
+        })
       });
 
       if (response.ok) {

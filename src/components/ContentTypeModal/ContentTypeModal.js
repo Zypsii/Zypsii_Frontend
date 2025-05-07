@@ -25,7 +25,10 @@ const ContentTypeModal = ({ visible, onClose, onSelectType }) => {
           
           <TouchableOpacity 
             style={styles.optionButton}
-            onPress={() => onSelectType('reel')}
+            onPress={() => {
+              onSelectType('reel');
+              navigation.navigate('ShortsUpload');
+            }}
           >
             <Ionicons name="videocam" size={24} color={colors.btncolor} />
             <Text style={styles.optionText}>Create Reel</Text>
