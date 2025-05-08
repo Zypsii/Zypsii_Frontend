@@ -15,7 +15,7 @@ import { base_url } from "../../utils/base_url";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from '@react-navigation/native';
 import RecommendCard from "../../components/Recommendation/RecommendCard";
-//const baseUrl = 'https://admin.zypsii.com'; // Backend API base URL
+//const baseUrl = 'http://localhost:3030'; // Backend API base URL
 
 
 
@@ -154,7 +154,9 @@ function SearchPage() {
       
     </TouchableOpacity>
     {activeTab === "Places" && (
-      <RecommendCard title="Suggested Itineraries"
+      <RecommendCard 
+        title="Suggested Itineraries"
+        searchPlaceName={searchText}
         onSchedulePress={() => {
           setSelectedPlace(item);
           setShowScheduleModal(true);

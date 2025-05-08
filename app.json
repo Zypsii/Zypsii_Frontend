@@ -55,7 +55,7 @@
       "androidCollapsedTitle": "Zypsii"
     },
     "android": {
-      "versionCode": 8,
+      "versionCode": 9,
       "package": "com.SmartKal.founder",
       "googleServicesFile": "./google-services.json",
       "userInterfaceStyle": "automatic",

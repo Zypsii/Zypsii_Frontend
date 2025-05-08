@@ -1,11 +1,14 @@
-import React, { useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Image, ScrollView, Dimensions, Animated, Easing } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Image, ScrollView, Dimensions, Animated, Easing, ActivityIndicator } from 'react-native';
 import { colors } from "../../utils";
 import { Ionicons } from '@expo/vector-icons';
 import navigationService from '../../routes/navigationService';
+import { base_url } from "../../utils/base_url";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const { width } = Dimensions.get('window');
-const CARD_WIDTH = width - 30; // Full width minus margins
+const CARD_WIDTH = width - 40; // Adjusted for proper margins
+const PLACE_CARD_WIDTH = CARD_WIDTH - 30; // Width for individual place cards
 
 const DirectionIndicator = ({ duration, distance }) => {
     const animation = useRef(new Animated.Value(0)).current;
@@ -102,11 +105,44 @@ const DirectionIndicator = ({ duration, distance }) => {
 };
 
 // Nearby Places Card Component
-const RecommendedScheduleCard = ({ onSchedulePress, title }) => {
+const RecommendedScheduleCard = ({ onSchedulePress, title, searchPlaceName }) => {
     const scrollViewRef = useRef(null);
     const scrollX = useRef(new Animated.Value(0)).current;
     const currentIndex = useRef(0);
     const autoScrollTimer = useRef(null);
+    const [suggestions, setSuggestions] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        fetchSuggestedItinerary();
+    }, [searchPlaceName]);
+
+    const fetchSuggestedItinerary = async () => {
+        try {
+            setLoading(true);
+            const token = await AsyncStorage.getItem('accessToken');
+            const response = await fetch(
+                `${base_url}/schedule/places/suggestedItinerary?searchPlaceName=${encodeURIComponent(searchPlaceName)}`,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                }
+            );
+
+            const data = await response.json();
+            if (data.success && data.data) {
+                setSuggestions([data.data]);
+            } else {
+                setSuggestions([]);
+            }
+        } catch (error) {
+            console.error('Error fetching suggested itinerary:', error);
+            setSuggestions([]);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const startAutoScroll = () => {
         if (scrollViewRef.current) {
@@ -163,72 +199,6 @@ const RecommendedScheduleCard = ({ onSchedulePress, title }) => {
         });
     };
 
-    const suggestions = [
-       
-        {
-            title: "Cultural Heritage",
-            places: [
-                {
-                    name: "Basilica of Bom Jesus",
-                    time: "9:00 AM - 12:00 PM",
-                    icon: "⛪",
-                    activities: ["Historical Tour", "Photography", "Religious Visit"],
-                    date: "2024-03-17",
-                    rating: "4.7",
-                    price: "Free",
-                    duration: "3 hours",
-                    distance: "12 km",
-                    description: "Explore this UNESCO World Heritage Site and marvel at its Baroque architecture.",
-                    vehicle: "car"
-                },
-                {
-                    name: "Fort Aguada",
-                    time: "2:00 PM - 5:00 PM",
-                    icon: "🏰",
-                    activities: ["Historical Tour", "Photography", "Sunset Viewing"],
-                    date: "2024-03-17",
-                    rating: "4.5",
-                    price: "₹100",
-                    duration: "3 hours",
-                    distance: "15 km",
-                    description: "Visit this 17th-century Portuguese fort with stunning views of the Arabian Sea.",
-                    vehicle: "car"
-                }
-            ]
-        },
-        {
-          title: " Heritage",
-          places: [
-              {
-                  name: "Jesus",
-                  time: "9:00 AM - 12:00 PM",
-                  icon: "⛪",
-                  activities: ["Historical Tour", "Photography", "Religious Visit"],
-                  date: "2024-03-17",
-                  rating: "4.7",
-                  price: "Free",
-                  duration: "3 hours",
-                  distance: "12 km",
-                  description: "Explore this UNESCO World Heritage Site and marvel at its Baroque architecture.",
-                  vehicle: "car"
-              },
-              {
-                  name: " Aguada",
-                  time: "2:00 PM - 5:00 PM",
-                  icon: "🏰",
-                  activities: ["Historical Tour", "Photography", "Sunset Viewing"],
-                  date: "2024-03-17",
-                  rating: "4.5",
-                  price: "₹100",
-                  duration: "3 hours",
-                  distance: "15 km",
-                  description: "Visit this 17th-century Portuguese fort with stunning views of the Arabian Sea.",
-                  vehicle: "car"
-              }
-          ]
-      }
-    ];
-  
     const getVehicleIcon = (vehicle) => {
         switch(vehicle) {
             case 'bike':
@@ -300,26 +270,26 @@ const RecommendedScheduleCard = ({ onSchedulePress, title }) => {
                             <Ionicons name="star" size={16} color="#FFD700" />
                             <Text style={styles.metaText}>{place.rating}</Text>
                         </View>
-                        <View style={styles.metaItem}>
+                        {/* <View style={styles.metaItem}>
                             <Ionicons name="cash-outline" size={16} color="#666" />
                             <Text style={styles.metaText}>{place.price}</Text>
                         </View>
                         <View style={styles.metaItem}>
                             <Ionicons name="time-outline" size={16} color="#666" />
                             <Text style={styles.metaText}>{place.duration}</Text>
-                        </View>
+                        </View> */}
                         <View style={styles.metaItem}>
                             <Ionicons name="location-outline" size={16} color="#666" />
                             <Text style={styles.metaText}>{place.distance}</Text>
                         </View>
                     </View>
-                    <View style={styles.activitiesContainer}>
+                    {/* <View style={styles.activitiesContainer}>
                         {place.activities && place.activities.map((activity, activityIndex) => (
                             <View key={activityIndex} style={styles.activityTag}>
                                 <Text style={styles.activityText}>{activity}</Text>
                             </View>
                         ))}
-                    </View>
+                    </View> */}
                     <TouchableOpacity 
                         style={styles.viewButton}
                         onPress={() => handleViewDetails(place)}
@@ -333,147 +303,161 @@ const RecommendedScheduleCard = ({ onSchedulePress, title }) => {
     );
   
     return (
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>{title}</Text>
-          <TouchableOpacity onPress={() => handleViewAll(suggestions[0])}>
-            <Text style={styles.viewAllText}>View All</Text>
-          </TouchableOpacity>
-        </View>
-
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
-          pagingEnabled
-        >
-          {suggestions.map((suggestion, index) => (
-            <View key={index} style={[styles.suggestionCard, { width: CARD_WIDTH }]}>
-              <View style={styles.suggestionHeader}>
-                <Text style={styles.suggestionTitle}>{suggestion.title}</Text>
-                <TouchableOpacity 
-                  style={styles.addButton}
-                  onPress={() => onSchedulePress(suggestion)}
-                >
-                  <Ionicons name="add-circle-outline" size={16} color={colors.Zypsii_color} />
+        <View style={styles.container}>
+            <View style={styles.header}>
+                <Text style={styles.headerTitle}>{title}</Text>
+                <TouchableOpacity onPress={() => handleViewAll(suggestions[0])}>
+                    <Text style={styles.viewAllText}>View All</Text>
                 </TouchableOpacity>
-              </View>
-
-              <Animated.ScrollView
-                ref={scrollViewRef}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                pagingEnabled
-                contentContainerStyle={styles.placesScrollContent}
-                onScroll={Animated.event(
-                  [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-                  { useNativeDriver: true, listener: handleScroll }
-                )}
-                scrollEventThrottle={16}
-              >
-                {suggestion.places.map((place, placeIndex) => (
-                  <View key={placeIndex} style={styles.placeCardContainer}>
-                    <View style={styles.placeCard}>
-                      <View style={styles.dayHeader}>
-                        <View style={styles.dayMarker}>
-                          <Text style={styles.dayText}>Day {placeIndex + 1}</Text>
-                          <Text style={styles.dateText}>{formatDate(place.date)}</Text>
-                        </View>
-                      </View>
-                      <View style={styles.placeContent}>
-                        <View style={styles.placeHeader}>
-                          <Text style={styles.placeIcon}>{place.icon}</Text>
-                          <View style={styles.placeInfo}>
-                            <View style={styles.nameRow}>
-                              <Text style={styles.placeName}>{place.name}</Text>
-                              {place.vehicle && (
-                                <View style={styles.vehicleContainer}>
-                                  <Text style={styles.vehicleIcon}>
-                                    {place.vehicle === 'bike' ? '🚲' : place.vehicle === 'car' ? '🚗' : '🚙'}
-                                  </Text>
-                                </View>
-                              )}
-                            </View>
-                            <Text style={styles.placeTime}>{place.time}</Text>
-                          </View>
-                        </View>
-                        
-                        <View style={styles.placeMeta}>
-                          <View style={styles.metaItem}>
-                            <Ionicons name="star" size={16} color="#FFD700" />
-                            <Text style={styles.metaText}>{place.rating}</Text>
-                          </View>
-                          <View style={styles.metaItem}>
-                            <Ionicons name="cash-outline" size={16} color="#666" />
-                            <Text style={styles.metaText}>{place.price}</Text>
-                          </View>
-                          <View style={styles.metaItem}>
-                            <Ionicons name="time-outline" size={16} color="#666" />
-                            <Text style={styles.metaText}>{place.duration}</Text>
-                          </View>
-                          <View style={styles.metaItem}>
-                            <Ionicons name="location-outline" size={16} color="#666" />
-                            <Text style={styles.metaText}>{place.distance}</Text>
-                          </View>
-                        </View>
-                        <View style={styles.activitiesContainer}>
-                          {place.activities && place.activities.map((activity, activityIndex) => (
-                            <View key={activityIndex} style={styles.activityTag}>
-                              <Text style={styles.activityText}>{activity}</Text>
-                            </View>
-                          ))}
-                        </View>
-                        <TouchableOpacity 
-                          style={styles.viewButton}
-                          onPress={() => handleViewDetails(place)}
-                        >
-                          <Text style={styles.viewButtonText}>View Details</Text>
-                          <Ionicons name="chevron-forward" size={16} color={colors.Zypsii_color} />
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  </View>
-                ))}
-              </Animated.ScrollView>
-
-              <View style={styles.paginationDots}>
-                {suggestion.places.map((_, index) => {
-                  const inputRange = [
-                    (index - 1) * (CARD_WIDTH - 30),
-                    index * (CARD_WIDTH - 30),
-                    (index + 1) * (CARD_WIDTH - 30),
-                  ];
-                  
-                  const scale = scrollX.interpolate({
-                    inputRange,
-                    outputRange: [0.8, 1.2, 0.8],
-                    extrapolate: 'clamp',
-                  });
-
-                  const opacity = scrollX.interpolate({
-                    inputRange,
-                    outputRange: [0.3, 1, 0.3],
-                    extrapolate: 'clamp',
-                  });
-
-                  return (
-                    <Animated.View
-                      key={index}
-                      style={[
-                        styles.dot,
-                        {
-                          transform: [{ scale }],
-                          opacity,
-                        },
-                      ]}
-                    />
-                  );
-                })}
-              </View>
             </View>
-          ))}
-        </ScrollView>
-      </View>
+
+            {loading ? (
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color={colors.Zypsii_color} />
+                </View>
+            ) : suggestions.length > 0 ? (
+                <ScrollView 
+                    horizontal 
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.scrollContent}
+                    pagingEnabled
+                    snapToInterval={CARD_WIDTH + 20}
+                    decelerationRate="fast"
+                >
+                    {suggestions.map((suggestion, index) => (
+                        <View key={index} style={styles.suggestionCard}>
+                            <View style={styles.suggestionHeader}>
+                                <Text style={styles.suggestionTitle}>{suggestion.title}</Text>
+                                <TouchableOpacity 
+                                    style={styles.addButton}
+                                    onPress={() => onSchedulePress(suggestion)}
+                                >
+                                    <Ionicons name="add-circle-outline" size={16} color={colors.Zypsii_color} />
+                                </TouchableOpacity>
+                            </View>
+
+                            <Animated.ScrollView
+                                ref={scrollViewRef}
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                                pagingEnabled
+                                contentContainerStyle={styles.placesScrollContent}
+                                onScroll={Animated.event(
+                                    [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+                                    { useNativeDriver: true, listener: handleScroll }
+                                )}
+                                scrollEventThrottle={16}
+                                snapToInterval={PLACE_CARD_WIDTH + 15}
+                                decelerationRate="fast"
+                            >
+                                {suggestion.places.map((place, placeIndex) => (
+                                    <View key={placeIndex} style={styles.placeCardContainer}>
+                                        <View style={styles.placeCard}>
+                                            <View style={styles.dayHeader}>
+                                                <View style={styles.dayMarker}>
+                                                    <Text style={styles.dayText}>Day {placeIndex + 1}</Text>
+                                                    <Text style={styles.dateText}>{formatDate(place.date)}</Text>
+                                                </View>
+                                            </View>
+                                            <View style={styles.placeContent}>
+                                                <View style={styles.placeHeader}>
+                                                    <Text style={styles.placeIcon}>{place.icon}</Text>
+                                                    <View style={styles.placeInfo}>
+                                                        <View style={styles.nameRow}>
+                                                            <Text style={styles.placeName}>{place.name}</Text>
+                                                            {place.vehicle && (
+                                                                <View style={styles.vehicleContainer}>
+                                                                    <Text style={styles.vehicleIcon}>
+                                                                        {place.vehicle === 'bike' ? '🚲' : place.vehicle === 'car' ? '🚗' : '🚙'}
+                                                                    </Text>
+                                                                </View>
+                                                            )}
+                                                        </View>
+                                                        <Text style={styles.placeTime}>{place.time}</Text>
+                                                    </View>
+                                                </View>
+                                                
+                                                <View style={styles.placeMeta}>
+                                                    <View style={styles.metaItem}>
+                                                        <Ionicons name="star" size={16} color="#FFD700" />
+                                                        <Text style={styles.metaText}>{place.rating}</Text>
+                                                    </View>
+                                                    {/* <View style={styles.metaItem}>
+                                                        <Ionicons name="cash-outline" size={16} color="#666" />
+                                                        <Text style={styles.metaText}>{place.price}</Text>
+                                                    </View> */}
+                                                    {/* <View style={styles.metaItem}>
+                                                        <Ionicons name="time-outline" size={16} color="#666" />
+                                                        <Text style={styles.metaText}>{place.duration}</Text>
+                                                    </View> */}
+                                                    <View style={styles.metaItem}>
+                                                        <Ionicons name="location-outline" size={16} color="#666" />
+                                                        <Text style={styles.metaText}>{place.distance}</Text>
+                                                    </View>
+                                                </View>
+                                                {/* <View style={styles.activitiesContainer}>
+                                                    {place.activities && place.activities.map((activity, activityIndex) => (
+                                                        <View key={activityIndex} style={styles.activityTag}>
+                                                            <Text style={styles.activityText}>{activity}</Text>
+                                                        </View>
+                                                    ))}
+                                                </View> */}
+                                                <TouchableOpacity 
+                                                    style={styles.viewButton}
+                                                    onPress={() => handleViewDetails(place)}
+                                                >
+                                                    <Text style={styles.viewButtonText}>View Details</Text>
+                                                    <Ionicons name="chevron-forward" size={16} color={colors.Zypsii_color} />
+                                                </TouchableOpacity>
+                                            </View>
+                                        </View>
+                                    </View>
+                                ))}
+                            </Animated.ScrollView>
+
+                            <View style={styles.paginationDots}>
+                                {suggestion.places.map((_, index) => {
+                                    const inputRange = [
+                                        (index - 1) * (PLACE_CARD_WIDTH + 15),
+                                        index * (PLACE_CARD_WIDTH + 15),
+                                        (index + 1) * (PLACE_CARD_WIDTH + 15),
+                                    ];
+                                    
+                                    const scale = scrollX.interpolate({
+                                        inputRange,
+                                        outputRange: [0.8, 1.2, 0.8],
+                                        extrapolate: 'clamp',
+                                    });
+
+                                    const opacity = scrollX.interpolate({
+                                        inputRange,
+                                        outputRange: [0.3, 1, 0.3],
+                                        extrapolate: 'clamp',
+                                    });
+
+                                    return (
+                                        <Animated.View
+                                            key={index}
+                                            style={[
+                                                styles.dot,
+                                                {
+                                                    transform: [{ scale }],
+                                                    opacity,
+                                                },
+                                            ]}
+                                        />
+                                    );
+                                })}
+                            </View>
+                        </View>
+                    ))}
+                </ScrollView>
+            ) : (
+                <View style={styles.emptyContainer}>
+                    <Text style={styles.emptyText}>No suggested itineraries available</Text>
+                </View>
+            )}
+        </View>
     );
 };
 
@@ -481,12 +465,13 @@ const styles = StyleSheet.create({
     container: {
         marginTop: 5,
         paddingBottom: 10,
+        width: '100%',
     },
     header: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: 5,
+        paddingHorizontal: 20,
         marginBottom: 10,
     },
     headerTitle: {
@@ -499,19 +484,19 @@ const styles = StyleSheet.create({
         color: colors.Zypsii_color,
     },
     scrollContent: {
-        paddingHorizontal: 5,
-        paddingBottom: 20,
+        paddingHorizontal: 20,
     },
     suggestionCard: {
         backgroundColor: '#fff',
         borderRadius: 12,
-        marginRight: 15,
+        marginRight: 20,
         padding: 15,
         elevation: 2,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
         shadowRadius: 4,
+        width: CARD_WIDTH,
     },
     suggestionHeader: {
         flexDirection: 'row',
@@ -530,13 +515,11 @@ const styles = StyleSheet.create({
         borderRadius: 12,
     },
     placesScrollContent: {
-        flexDirection: 'row',
         paddingRight: 15,
     },
     placeCardContainer: {
-    
+        width: PLACE_CARD_WIDTH,
         marginRight: 15,
-        paddingHorizontal: 5,
     },
     placeCard: {
         backgroundColor: '#f8f8f8',
@@ -547,6 +530,7 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.1,
         shadowRadius: 4,
         elevation: 3,
+        width: '100%',
     },
     dayHeader: {
         backgroundColor: colors.Zypsii_color,
@@ -831,6 +815,20 @@ const styles = StyleSheet.create({
         borderRadius: 4,
         backgroundColor: colors.Zypsii_color,
         marginHorizontal: 4,
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    emptyContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    emptyText: {
+        fontSize: 16,
+        color: colors.Zypsii_color,
     },
 });
 

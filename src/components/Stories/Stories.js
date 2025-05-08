@@ -7,7 +7,8 @@ import {
   Alert, 
   StyleSheet,
   Button,
-  Modal
+  Modal,
+  Dimensions
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import Entypo from 'react-native-vector-icons/Entypo';
@@ -17,6 +18,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import SkeletonLoader from '../Loader/SkeletonLoader';
 import { base_url } from '../../utils/base_url';
 import InstaStory from 'react-native-insta-story';
+import { Video } from 'expo-av';
+import * as FileSystem from 'expo-file-system';
+
+const { width } = Dimensions.get('window');
 
 const Stories = () => {
   const navigation = useNavigation();
@@ -31,6 +36,7 @@ const Stories = () => {
   const [currentUserStories, setCurrentUserStories] = useState([]);
   const [showImagePickerModal, setShowImagePickerModal] = useState(false);
   const [myStories, setMyStories] = useState([]);
+  const [mediaType, setMediaType] = useState(null);
 
   const loadUserId = async () => {
     try {
@@ -93,63 +99,87 @@ const Stories = () => {
     loadUserId();
   }, []);
 
-  const pickImage = async () => {
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (permissionResult.granted) {
+  const pickMedia = async (type) => {
+    try {
+      let permissionResult;
+      if (type === 'camera') {
+        permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+      } else {
+        permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      }
+
+      if (!permissionResult.granted) {
+        Alert.alert("Permission required", `You need to allow access to ${type === 'camera' ? 'camera' : 'photos'} to upload media.`);
+        return;
+      }
+
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.All,
         allowsEditing: true,
         aspect: [9, 16],
         quality: 1,
+        videoMaxDuration: 30, // 30 seconds max for stories
       });
 
       if (!result.canceled) {
-        setImage(result.assets[0]);
-        uploadStory(result.assets[0]);
+        const asset = result.assets[0];
+        setMediaType(asset.type);
+        setImage(asset);
+        uploadStory(asset);
         setShowImagePickerModal(false);
       }
-    } else {
-      Alert.alert("Permission required", "You need to allow access to your photos to upload media.");
+    } catch (error) {
+      console.error('Error picking media:', error);
+      Alert.alert('Error', 'Failed to pick media. Please try again.');
     }
   };
 
-  const openCamera = async () => {
-    const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
-    if (permissionResult.granted) {
+  const takePhoto = async () => {
+    try {
+      const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permissionResult.granted) {
+        Alert.alert("Permission required", "You need to allow access to your camera to take a photo or video.");
+        return;
+      }
+
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.All,
         allowsEditing: true,
         aspect: [9, 16],
         quality: 1,
+        videoMaxDuration: 30,
       });
 
       if (!result.canceled) {
-        setImage(result.assets[0]);
-        uploadStory(result.assets[0]);
+        const asset = result.assets[0];
+        setMediaType(asset.type);
+        setImage(asset);
+        uploadStory(asset);
         setShowImagePickerModal(false);
       }
-    } else {
-      Alert.alert("Permission required", "You need to allow access to your camera to take a photo or video.");
+    } catch (error) {
+      console.error('Error taking photo:', error);
+      Alert.alert('Error', 'Failed to take photo. Please try again.');
     }
   };
 
-  const uploadStory = async (imageAsset) => {
+  const uploadStory = async (mediaAsset) => {
     try {
       const accessToken = await AsyncStorage.getItem('accessToken');
       
-      // First upload the media file
+      // Create form data
       const uploadFormData = new FormData();
-      const fileUri = imageAsset.uri.replace('file://', '');
+      const fileUri = mediaAsset.uri.replace('file://', '');
       
       // Get file extension and set appropriate MIME type
       const fileExtension = fileUri.split('.').pop().toLowerCase();
-      const mimeType = imageAsset.type === 'video' ? 'video/mp4' : 'image/jpeg';
+      const mimeType = mediaAsset.type === 'video' ? 'video/mp4' : 'image/jpeg';
       
       // Create file object for upload
       uploadFormData.append('mediaFile', {
-        uri: imageAsset.uri,
+        uri: mediaAsset.uri,
         type: mimeType,
-        name: `${imageAsset.type}.${fileExtension}`
+        name: `${mediaAsset.type}.${fileExtension}`
       });
 
       // Upload the media file
@@ -168,12 +198,14 @@ const Stories = () => {
         throw new Error('Failed to upload media file');
       }
 
-      // Now create the story with the uploaded file URL
+      // Create the story with the uploaded file URL
       const storyData = {
-        title: "My Story", // Default title
-        description: "Check out my story!", // Default description
+        title: "My Story",
+        description: "Check out my story!",
         videoUrl: uploadResponseData.urls[0],
-        thumbnailUrl: uploadResponseData.urls[0],
+        thumbnailUrl: mediaAsset.type === 'video' ? uploadResponseData.thumbnailUrl : uploadResponseData.urls[0],
+        mediaType: mediaAsset.type,
+        duration: mediaAsset.duration || 0,
         tags: []
       };
 
@@ -192,20 +224,22 @@ const Stories = () => {
         fetchStories();
         const newStory = {
           user_id: userId,
-          user_image: 'https://via.placeholder.com/150', // Default profile picture
-          user_name: 'User', // Default username
+          user_image: 'https://via.placeholder.com/150',
+          user_name: 'User',
           stories: [{
             story_id: data.data._id,
             story_image: data.data.thumbnailUrl,
+            story_video: data.data.videoUrl,
+            mediaType: data.data.mediaType,
+            duration: data.data.duration,
             swipeText: 'Swipe to view more',
             onPress: () => console.log('story swiped'),
           }]
         };
 
-        // Check if user already exists in stories
+        // Update stories list
         const existingUserIndex = storyInfo.findIndex(story => story.user_id === userId);
         if (existingUserIndex !== -1) {
-          // Update existing user's stories
           setStoryInfo(prev => {
             const updated = [...prev];
             updated[existingUserIndex].stories = [
@@ -215,12 +249,10 @@ const Stories = () => {
             return updated;
           });
         } else {
-          // Add new user with story
           setStoryInfo(prev => [...prev, newStory]);
         }
       } else {
-        console.error('Failed to upload story:', data.message);
-        Alert.alert('Error', 'Failed to upload story. Please try again.');
+        throw new Error(data.message || 'Failed to create story');
       }
     } catch (error) {
       console.error('Error uploading story:', error);
@@ -271,8 +303,29 @@ const Stories = () => {
     setShowStories(true);
   };
 
+  const renderStoryContent = (story) => {
+    if (story.mediaType === 'video') {
+      return (
+        <Video
+          source={{ uri: story.story_video }}
+          style={styles.storyVideo}
+          resizeMode="cover"
+          shouldPlay
+          isLooping
+          useNativeControls={false}
+        />
+      );
+    }
+    return (
+      <Image
+        source={{ uri: story.story_image }}
+        style={styles.storyImage}
+        resizeMode="cover"
+      />
+    );
+  };
+
   const renderStoryItem = ({ item }) => {
-    // Check if the user has any stories
     const hasStories = item.stories && item.stories.length > 0;
     
     return (
@@ -285,10 +338,25 @@ const Stories = () => {
             styles.storyCircle,
             !hasStories && styles.disabledStoryCircle
           ]}>
-            <Image
-              source={{ uri: item.user_image }}
-              style={styles.storyImage}
-            />
+            {item.stories[0]?.mediaType === 'video' ? (
+              <Video
+                source={{ uri: item.stories[0].story_video }}
+                style={styles.storyThumbnail}
+                resizeMode="cover"
+                shouldPlay={false}
+                useNativeControls={false}
+              />
+            ) : (
+              <Image
+                source={{ uri: item.user_image }}
+                style={styles.storyImage}
+              />
+            )}
+            {item.stories[0]?.mediaType === 'video' && (
+              <View style={styles.videoIndicator}>
+                <Ionicons name="videocam" size={12} color="#fff" />
+              </View>
+            )}
           </View>
           <Text style={styles.storyName}>{item.user_name}</Text>
         </View>
@@ -330,17 +398,10 @@ const Stories = () => {
         <View style={styles.modalContent}>
           <TouchableOpacity 
             style={styles.modalButton}
-            onPress={openCamera}
+            onPress={takePhoto}
           >
             <Ionicons name="camera" size={24} color="#000" />
             <Text style={styles.modalButtonText}>Take Photo</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.modalButton}
-            onPress={pickImage}
-          >
-            <Ionicons name="images" size={24} color="#000" />
-            <Text style={styles.modalButtonText}>Choose Story from Library</Text>
           </TouchableOpacity>
           <TouchableOpacity 
             style={styles.modalButton}
@@ -435,7 +496,10 @@ const Stories = () => {
                 <Text style={styles.profileName}>{profileName}</Text>
                 {item.user_id === userId && !item.stories?.length && (
                   <TouchableOpacity
-                    onPress={pickImage}
+                    onPress={() => {
+                      setShowImagePickerModal(true);
+                      setMediaType(null);
+                    }}
                     style={styles.addStoryButton}
                   >
                     <Entypo name="circle-with-plus" style={styles.addIcon} />
@@ -446,7 +510,7 @@ const Stories = () => {
             style={styles.instaStory}
             onAddStoryPress={() => {
               if (userId) {
-                pickImage();
+                pickMedia('camera');
               }
             }}
             showAddStoryButton={true}
@@ -620,6 +684,23 @@ const styles = StyleSheet.create({
   storiesContainer: {
     flexDirection: 'row',
     padding: 10,
+  },
+  storyVideo: {
+    width: '100%',
+    height: '100%',
+  },
+  storyThumbnail: {
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+  },
+  videoIndicator: {
+    position: 'absolute',
+    bottom: 5,
+    right: 5,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 10,
+    padding: 2,
   },
 });
 
