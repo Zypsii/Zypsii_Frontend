@@ -19,11 +19,6 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { base_url } from '../../utils/base_url';
 
-// API base URL
-const API_BASE_URL = 'http://192.168.2.10:3030/api'; // For Android Emulator
-// const API_BASE_URL = 'http://localhost:3030/api'; // For iOS Simulator
-// const API_BASE_URL = 'http://your-actual-server.com/api'; // For production
-
 // AddParticipantModal Component
 const AddParticipantModal = ({ visible, onClose, onAddParticipant, existingParticipants }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -360,7 +355,7 @@ function SplitDetail() {
   const fetchSplitDetails = async () => {
     try {
       const token = await AsyncStorage.getItem('accessToken');
-      const response = await axios.get(`${API_BASE_URL}/splits/${splitId}`, {
+      const response = await axios.get(`${base_url}/api/splits/${splitId}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -421,7 +416,7 @@ function SplitDetail() {
   const handleAddExpense = async (expenseData) => {
     try {
       const token = await AsyncStorage.getItem('accessToken');
-      const response = await axios.post(`${API_BASE_URL}/splits/${splitId}/expenses`, expenseData, {
+      const response = await axios.post(`${base_url}/api/splits/${splitId}/expenses`, expenseData, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -439,7 +434,7 @@ function SplitDetail() {
   const handleMarkAsPaid = async (participantId) => {
     try {
       const token = await AsyncStorage.getItem('accessToken');
-      await axios.put(`${API_BASE_URL}/splits/${splitId}/participants/paid`, {
+      await axios.put(`${base_url}/api/splits/${splitId}/participants/paid`, {
         participantId: participantId
       }, {
         headers: {
@@ -462,7 +457,7 @@ function SplitDetail() {
 
     try {
       const token = await AsyncStorage.getItem('accessToken');
-      await axios.post(`${API_BASE_URL}/splits/${splitId}/participants`, {
+      await axios.post(`${base_url}/api/splits/${splitId}/participants`, {
         email: inviteEmail.trim(),
         amount: split.totalAmount / (split.participants.length + 1)
         }, {
@@ -484,7 +479,7 @@ function SplitDetail() {
   const handleAddParticipant = async (user) => {
     try {
       const token = await AsyncStorage.getItem('accessToken');
-      await axios.post(`${API_BASE_URL}/splits/${splitId}/participants`, {
+      await axios.post(`${base_url}/api/splits/${splitId}/participants`, {
         userId: user._id
       }, {
         headers: {
