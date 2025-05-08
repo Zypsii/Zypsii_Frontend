@@ -15,45 +15,137 @@ function ProductCard(props) {
   // Fetch user data from AsyncStorage on component mount
 
   const handleLikeToggle = async () => {
-    setLoading(true); // Start loading
+    setLoading(true);
 
     try {
       const newLikedStatus = !liked;
-      const accessToken = await AsyncStorage.getItem('accessToken'); // Get the access token
+      const accessToken = await AsyncStorage.getItem('accessToken');
+
+      // First search for the place
+      const searchResponse = await fetch(`${base_url}/schedule/places/getNearest?searchPlaceName=${props.name}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      });
+
+      if (!searchResponse.ok) {
+        throw new Error(`Search failed with status: ${searchResponse.status}`);
+      }
+      const searchResult = await searchResponse.json();
+      
+      if (!searchResult.data || searchResult.data.length === 0) {
+        Alert.alert('Error', 'Place not found');
+        setLoading(false);
+        return;
+      }
+
+      const place = searchResult.data[0]; // Get the first matching place
+
+      // Validate location data
+      if (!place.location || !place.location.lat || !place.location.lng) {
+        Alert.alert('Error', 'Location coordinates are required');
+        setLoading(false);
+        return;
+      }
+
+      // Prepare data for adding to favorites
+      const requestData = {
+        name: place.name,
+        image: place.image,
+        latitude: parseFloat(place.location.lat),
+        longitude: parseFloat(place.location.lng),
+        address: place.address || "Address not available",
+        rating: place.rating
+      };
+
       // Make the POST request to update like status
       const response = await fetch(`${base_url}/place/addFavorite`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`, // Attach the JWT token to the request header
+          'Authorization': `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({
-          name: props.name,
-          image: props.image,
-          latitude: props.latitude,
-          longitude: props.longitude,
-          address: props.address || "Address not available",
-          rating: props.rating
-        })
+        body: JSON.stringify(requestData)
       });
 
       if (response.ok) {
-        const data = await response.json(); // Parse JSON response
+        const data = await response.json();
 
         if (!data.error) {
-          Alert.alert('Success', newLikedStatus ? 'Product liked' : 'Product unliked');
-          setLiked(newLikedStatus); // Update liked state
+          Alert.alert('Success', newLikedStatus ? 'Place added to favorites' : 'Place removed from favorites');
+          setLiked(newLikedStatus);
         } else {
-          Alert.alert('Error', data.message || 'Failed to update like status');
+          console.error('API Error:', data.message);
+          Alert.alert('Error', data.message || 'Failed to update favorite status');
         }
       } else {
-        Alert.alert('Error', 'Failed to update like status, please try again.');
+        const errorData = await response.json().catch(() => null);
+        console.error('Response not OK:', {
+          status: response.status,
+          statusText: response.statusText,
+          errorData
+        });
+        Alert.alert('Error', errorData?.message || 'Failed to update favorite status, please try again.');
       }
     } catch (error) {
-      console.error('Network or fetch error:', error);
-      Alert.alert('Error', 'Failed to update like status due to a network error');
+      console.error('Network or fetch error:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
+      Alert.alert('Error', 'Failed to update favorite status due to a network error');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSearch = async (searchPlaceName) => {
+    try {
+      const accessToken = await AsyncStorage.getItem('accessToken');
+      const response = await fetch(`${base_url}/schedule/places/getNearest?searchPlaceName=${encodeURIComponent(searchPlaceName)}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      if (result.data && result.data.length > 0) {
+        // Handle the search results here
+        // You can navigate to a new screen or update the UI with the results
+        navigation.navigate('SearchResults', {
+          searchResults: result.data,
+          searchQuery: searchPlaceName
+        });
+      } else {
+        Alert.alert('No Results', 'No places found for your search.');
+      }
+    } catch (error) {
+      console.error("Error searching places:", error);
+      Alert.alert('Error', 'Failed to search places. Please try again later.');
+    }
+  };
+
+  const handlePlaceClick = (place) => {
+    if (place.location && place.location.latitude && place.location.longitude) {
+      navigation.navigate('Destination', {
+        id: place._id,
+        image: place.image,
+        cardTitle: place.name,
+        subtitle: place.address,
+        rating: place.rating,
+        distance: place.distanceInKilometer,
+        latitude: place.location.latitude,
+        longitude: place.location.longitude
+      });
+    } else {
+      Alert.alert('Error', 'Location information not available for this place.');
     }
   };
 

@@ -33,6 +33,11 @@ const AllSchedule = ({item}) => {
   };
 
   const handleJoin = async () => {
+    // Prevent joining if already joined or currently joining
+    if (item.joined || isJoining) {
+      return;
+    }
+
     try {
       setIsJoining(true);
       const token = await AsyncStorage.getItem('accessToken');
@@ -42,29 +47,45 @@ const AllSchedule = ({item}) => {
         return;
       }
 
+      // Get the current user's ID from AsyncStorage
+      const user = await AsyncStorage.getItem('user');
+      const parsedUser = user ? JSON.parse(user) : null;
+      
+      if (!parsedUser || !parsedUser._id) {
+        Alert.alert('Error', 'User information not found');
+        return;
+      }
+
+      const postData = {
+        scheduleId: item.id,
+        scheduleCreatedBy: parsedUser._id
+      };
+
       const response = await fetch(`${base_url}/schedule/join-un-join`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({
-          scheduleId: item._id,
-          scheduleCreatedBy: item.createdBy
-        })
+        body: JSON.stringify(postData)
       });
-
+      
       const data = await response.json();
 
-      if (response.ok) {
+      if (response.ok && data.status) {
+        item.joined = true;
         Alert.alert('Success', 'Successfully joined the schedule');
-        // You might want to update the UI or refresh the schedule list here
       } else {
-        Alert.alert('Error', data.message || 'Failed to join schedule');
+        // Handle specific error cases
+        if (data.message === 'Internal Server Error') {
+          Alert.alert('Error', 'Unable to join schedule. Please try again later.');
+        } else {
+          Alert.alert('Error', data.message || 'Failed to join schedule');
+        }
       }
     } catch (error) {
-      console.error('Error joining schedule:', error);
-      Alert.alert('Error', 'Failed to join schedule. Please try again.');
+      console.error('Join Error:', error);
+      Alert.alert('Error', 'Network error. Please check your connection and try again.');
     } finally {
       setIsJoining(false);
     }

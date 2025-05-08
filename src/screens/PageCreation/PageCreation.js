@@ -40,7 +40,7 @@ const ProfilePage = () => {
       if (!accessToken) {
         throw new Error('No access token found');
       }
-
+      console.log(accessToken);
       const response = await fetch(`${base_url}/user/getProfile`, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -53,7 +53,6 @@ const ProfilePage = () => {
       }
 
       const result = await response.json();
-      console.log('Profile data:', result); // Debug log
 
       if (result.success && result.data && result.data.length > 0) {
         const userData = result.data[0];
@@ -117,8 +116,8 @@ const ProfilePage = () => {
         });
       }
 
-      const response = await fetch(`${base_url}/user/profile/update`, {
-        method: 'POST',
+      const response = await fetch(`${base_url}/user/editProfile`, {
+        method: 'put',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'multipart/form-data'

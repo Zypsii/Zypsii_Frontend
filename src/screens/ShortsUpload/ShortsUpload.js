@@ -77,7 +77,7 @@ function ShortsUpload({ navigation }) {
         name: 'video.mp4',
       });
 
-      const videoUploadResponse = await fetch(`${base_url}/uploadFile?mediaType=video`, {
+      const videoUploadResponse = await fetch(`${base_url}/uploadFile?mediaType=shorts`, {
         method: 'POST',
         headers: {
           'Content-Type': 'multipart/form-data',

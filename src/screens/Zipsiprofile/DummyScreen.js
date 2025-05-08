@@ -12,6 +12,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const DummyScreen = ({ navigation }) => {
   const [activeIcon, setActiveIcon] = useState('th-large'); // Default active icon
+  const [userId, setUserId] = useState(null);
   const [profileInfo, setProfileInfo] = useState({
     id: '',
     name: '',
@@ -26,9 +27,9 @@ const DummyScreen = ({ navigation }) => {
   const [all_posts, setAllPosts] = useState([]);
   const [all_shorts, setAllShorts] = useState([]);
 
-  // Fetch data from your API
+  // First useEffect to get user ID
   useEffect(() => {
-    const fetchProfileInfo = async () => {
+    const getUserId = async () => {
       try {
         const accessToken = await AsyncStorage.getItem('accessToken');
         if (!accessToken) {
@@ -36,6 +37,7 @@ const DummyScreen = ({ navigation }) => {
         }
 
         const response = await fetch(`${base_url}/user/getProfile`, {
+          method: 'GET',
           headers: {
             'Authorization': `Bearer ${accessToken}`,
             'Content-Type': 'application/json'
@@ -43,12 +45,14 @@ const DummyScreen = ({ navigation }) => {
         });
 
         if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`);
+          throw new Error(`Profile fetch failed! Status: ${response.status}`);
         }
 
         const result = await response.json();
+
         if (result.success && result.data && result.data.length > 0) {
           const userData = result.data[0];
+          setUserId(userData.id);
           setProfileInfo({
             id: userData.id || '',
             name: userData.fullName || '',
@@ -60,88 +64,213 @@ const DummyScreen = ({ navigation }) => {
           });
         }
       } catch (error) {
+        console.error('Error fetching user ID:', error);
+      }
+    };
+
+    getUserId();
+  }, []);
+
+  // Handle schedule item press
+  const handleSchedulePress = (item) => {
+    console.log('Navigating to trip details with ID:', item.id);
+    navigation.navigate('TripDetails', { tripId: item.id });
+  };
+
+  // Second useEffect to fetch all data
+  useEffect(() => {
+    const fetchAllData = async () => {
+      try {
+        const accessToken = await AsyncStorage.getItem('accessToken');
+        if (!accessToken) {
+          throw new Error('No access token found');
+        }
+
+        // Fetch posts
+        const postsResponse = await fetch(`${base_url}/post/listing/lter?filter=all&limit=20`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (postsResponse.ok) {
+          try {
+            const response = await postsResponse.json();
+            
+            if (response.success && Array.isArray(response.data)) {
+              const postsData = response.data;
+              
+              const processedPosts = postsData
+                .filter(item => item && typeof item === 'object') // Filter out invalid items
+                .map(item => {
+                  try {
+                    return {
+                      id: item._id || '',
+                      postTitle: item.postTitle || '',
+                      postImage: Array.isArray(item.mediaUrl) && item.mediaUrl.length > 0 
+                        ? item.mediaUrl[0] 
+                        : '',
+                      mediaType: item.mediaType || 'image',
+                      likes: String(item.likesCount || 0),
+                      comments: String(item.commentsCount || 0),
+                      shares: String(item.shareCount || 0),
+                      postType: item.postType || 'Public',
+                      createdBy: item.createdBy || '',
+                      createdAt: item.createdAt || '',
+                      updatedAt: item.updatedAt || '',
+                      tags: Array.isArray(item.tags) ? item.tags : []
+                    };
+                  } catch (error) {
+                    console.error('Error processing post item:', error);
+                    return null;
+                  }
+                })
+                .filter(Boolean); // Remove any null items from failed processing
+
+              console.log('Processed Posts:', JSON.stringify(processedPosts, null, 2));
+              setAllPosts(processedPosts);
+
+              // Store pagination info if needed
+              const pagination = {
+                total: response.totalCount || 0,
+                limit: response.limit || 20,
+                offset: response.offset || 0,
+                totalPages: Math.ceil((response.totalCount || 0) / (response.limit || 20))
+              };
+            } else {
+              console.error('Invalid posts response format:', response);
+              setAllPosts([]);
+            }
+          } catch (error) {
+            console.error('Error processing posts response:', error);
+            setAllPosts([]);
+          }
+        } else {
+          console.error('Posts fetch failed:', postsResponse.status);
+          setAllPosts([]);
+        }
+
+        // Fetch schedules with limit
+        const scheduleResponse = await fetch(`${base_url}/schedule/listing/filter?limit=20`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (scheduleResponse.ok) {
+          const response = await scheduleResponse.json();
+          
+          if (response.success && response.data) {
+            const scheduleData = response.data;
+            
+            setAll_schedule(scheduleData.map(item => {
+              // Helper function to format location
+              const formatLocation = (locationObj) => {
+                if (!locationObj) return '';
+                if (typeof locationObj === 'string') return locationObj;
+                if (locationObj.lat && locationObj.lng) {
+                  return `${locationObj.lat}, ${locationObj.lng}`;
+                }
+                return '';
+              };
+
+              // Safely get locations
+              const locationDetails = Array.isArray(item.locationDetails) ? item.locationDetails : [];
+              const firstLocation = locationDetails[0]?.location;
+              const lastLocation = locationDetails[locationDetails.length - 1]?.location;
+
+              // Safely handle Dates array
+              const dates = Array.isArray(item.Dates) ? item.Dates : [];
+
+              return {
+                id: item._id || '',
+                title: item.tripName || '',
+                from: formatLocation(firstLocation),
+                to: formatLocation(lastLocation),
+                date: dates[0]?.date || '',
+                riders: String(item.numberOfDays || 0),
+                joined: item.visible || 'Public',
+                imageUrl: item.bannerImage || '',
+                day1Locations: locationDetails.map(loc => ({
+                  location: formatLocation(loc.location),
+                  description: loc.description || ''
+                })),
+                day2Locations: dates.map(date => ({
+                  date: date.date || '',
+                  description: date.description || ''
+                })),
+                travelMode: item.travelMode || '',
+                createdBy: item.createdBy || '',
+                createdAt: item.createdAt || '',
+                updatedAt: item.updatedAt || ''
+              };
+            }));
+
+          }
+        }
+
+        // Fetch shorts
+        const shortsResponse = await fetch(`${base_url}/shorts/listing`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          }
+        });
+
+        if (shortsResponse.ok) {
+          const response = await shortsResponse.json();
+          console.log('Shorts Response:', response);
+          
+          if (response.status && response.data) {
+            const shortsData = response.data.map(item => ({
+              id: item._id || '',
+              video: item.videoUrl || '',
+              videoTitle: item.title || '',
+              videoImage: item.thumbnailUrl || '',
+              description: item.description || '',
+              likes: String(item.likesCount || 0),
+              views: String(item.viewsCount || 0),
+              comments: String(item.commentsCount || 0),
+              createdBy: item.createdBy || '',
+              createdAt: item.createdAt || '',
+              updatedAt: item.updatedAt || '',
+              tags: item.tags || []
+            }));
+            
+            console.log('Processed Shorts Data:', shortsData);
+            setAllShorts(shortsData);
+          }
+        }
+
+      } catch (error) {
         console.error('Error fetching data:', error);
-        // Keep the default profile data in case of error
       } finally {
         setLoading(false);
       }
     };
 
-    fetchProfileInfo();
-  }, []);
+    fetchAllData();
+  }, []); // Run once when component mounts
+
+  // Add console logs for state changes
+  useEffect(() => {
+  }, [profileInfo]);
 
   useEffect(() => {
-    const fetch_all_schedule = async () => {
-      try {
-        const response = await fetch(baseUrl + '/get_all_schedule');
-        const data = await response.json();
-        const formattedData = data.slice(0, 100).map((item) => ({
-          id: item.id,
-          title: item.title,
-          from: item.from,
-          to: item.to,
-          date: item.date,
-          riders: item.riders,
-          joined: item.joined,
-          imageUrl: item.imageUrl,
-          day1Locations: item.day1Locations,
-          day2Locations: item.day2Locations,
-        }));
-        setAll_schedule(formattedData);
-      } catch (error) {
-        console.error('Error fetching data:', error);
-      }
-    };
-    fetch_all_schedule();
-  }, []);
+    console.log('Current Posts:', all_posts);
+  }, [all_posts]);
 
   useEffect(() => {
-    const fetch_all_posts = async () => {
-      try {
-        const response = await fetch(baseUrl + '/get_all_posts');
-        const data = await response.json();
-        const formattedData = data.slice(0, 100).map(item => ({
-          id: item.id,
-          postPersonImage: item.postPersonImage,
-          postTitle: item.postTitle,
-          postImage: item.postImage,
-          likes: item.likes,
-          isLiked: item.isLiked,
-        }));
-        setAllPosts(formattedData);
-      } catch (error) {
-        console.error('Error fetching data:', error);
-      }
-    };
-    fetch_all_posts();
-  }, []);
+  }, [all_schedule]);
 
   useEffect(() => {
-    const fetch_all_Shorts = async () => {
-      try {
-        const response = await fetch(baseUrl + '/get_all_shorts');
-        const data = await response.json();
-        const formattedData = data.slice(0, 100).map(item => ({
-          id: item.id,
-          video: item.video.url,
-          videoTitle: item.videoTitle,
-          videoImage: item.videoImage,
-          likes: item.likes,
-          isLiked: item.isLiked,
-        }));
-        setAllShorts(formattedData);
-      } catch (error) {
-        console.error('Error fetching data:', error);
-      }
-    };
-    fetch_all_Shorts();
-  }, []);
+    console.log('Current shorts:', all_shorts);
 
-  // Handle card press for schedule items
-  const handleCardPress = (item) => {
-    console.log('Card pressed:', item);
-    // Add navigation or detail view logic here
-  };
+  }, [all_shorts]);
 
   // Local images for grid view (th-large)
   const images = {
@@ -169,30 +298,49 @@ const DummyScreen = ({ navigation }) => {
         return (
           <FlatList
             data={all_posts}
-            renderItem={({ item }) => (
-              <Post
-                postPersonImage={item.postPersonImage}
-                postTitle={item.postTitle}
-                postImage={item.postImage}
-                likes={item.likes}
-                isLiked={item.isLiked}
-              />
-            )}
-            keyExtractor={(item) => item.id.toString()}
+            renderItem={({ item }) => {
+              if (!item) return null;
+              
+              // Add null checks for all required properties
+              const postData = {
+                id: item?.id || '',
+                postTitle: item?.postTitle || '',
+                postImage: item?.postImage || '',
+                mediaType: item?.mediaType || 'image',
+                likes: item?.likes || '0',
+                comments: item?.comments || '0',
+                shares: item?.shares || '0',
+                postType: item?.postType || 'Public',
+                createdBy: item?.createdBy || '',
+                createdAt: item?.createdAt || '',
+              };
+
+              return (
+                <Post
+                  {...postData}
+                />
+              );
+            }}
+            keyExtractor={(item) => item?.id?.toString() || Math.random().toString()}
             contentContainerStyle={{ paddingBottom: 20 }}
+            ListEmptyComponent={() => (
+              <View style={{ padding: 20, alignItems: 'center' }}>
+                <Text>No posts available</Text>
+              </View>
+            )}
           />
         );
       case 'briefcase':
         return (
           <FlatList
-          vertical
-          showsVerticalScrollIndicator={false}
+            vertical
+            showsVerticalScrollIndicator={false}
             data={all_schedule}
             keyExtractor={(item) => item.id.toString()}
             renderItem={({ item }) => (
-              <Schedule
-              item={item} 
-              />
+              <TouchableOpacity onPress={() => handleSchedulePress(item)}>
+                <Schedule item={item} />
+              </TouchableOpacity>
             )}
           />
         );
@@ -202,15 +350,45 @@ const DummyScreen = ({ navigation }) => {
             horizontal
             showsHorizontalScrollIndicator={false}
             data={all_shorts}
-            keyExtractor={(item) => item.id.toString()}
-            renderItem={({ item }) => (
-              <View style={videoStyles.videoContainer}>
-                <WebView
-                  source={{ uri: item.video }}
-                  style={videoStyles.webviewVideo}
-                  allowsFullscreenVideo
-                />
-                <Text style={videoStyles.videoTitle}>{item.videoTitle}</Text>
+            keyExtractor={(item) => item?.id?.toString() || Math.random().toString()}
+            renderItem={({ item }) => {
+              if (!item) return null;
+
+              return (
+                <View style={videoStyles.videoContainer}>
+                  {item.video ? (
+                    <WebView
+                      source={{ uri: item.video }}
+                      style={videoStyles.webviewVideo}
+                      allowsFullscreenVideo
+                      javaScriptEnabled={true}
+                      domStorageEnabled={true}
+                      startInLoadingState={true}
+                      scalesPageToFit={true}
+                      mediaPlaybackRequiresUserAction={false}
+                    />
+                  ) : (
+                    <Image 
+                      source={{ uri: item.videoImage }}
+                      style={videoStyles.webviewVideo}
+                      resizeMode="cover"
+                    />
+                  )}
+                  <View style={videoStyles.videoInfo}>
+                    <Text style={videoStyles.videoTitle}>{item.videoTitle || 'Untitled'}</Text>
+                    <Text style={videoStyles.videoDescription}>{item.description || 'No description'}</Text>
+                    <View style={videoStyles.videoStats}>
+                      <Text style={videoStyles.statText}>{item.views || '0'} views</Text>
+                      <Text style={videoStyles.statText}>{item.likes || '0'} likes</Text>
+                      <Text style={videoStyles.statText}>{item.comments || '0'} comments</Text>
+                    </View>
+                  </View>
+                </View>
+              );
+            }}
+            ListEmptyComponent={() => (
+              <View style={{ padding: 20, alignItems: 'center' }}>
+                <Text>No shorts available</Text>
               </View>
             )}
           />
@@ -401,7 +579,6 @@ const cardStyles = {
 const videoStyles = {
   videoContainer: {
     width: 300,
-    height: 200,
     marginHorizontal: 10,
     marginBottom: 15,
     borderRadius: 10,
@@ -415,14 +592,34 @@ const videoStyles = {
   },
   webviewVideo: {
     width: '100%',
-    height: 180,
+    height: 400, // Increased height for better video visibility
+    backgroundColor: '#000',
+  },
+  videoInfo: {
+    padding: 15,
   },
   videoTitle: {
-    padding: 8,
-    backgroundColor: 'white',
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: 'bold',
+    marginBottom: 8,
+    color: '#333',
   },
+  videoDescription: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 12,
+  },
+  videoStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+    paddingTop: 8,
+  },
+  statText: {
+    fontSize: 12,
+    color: '#666',
+  }
 };
 
 export default DummyScreen;
