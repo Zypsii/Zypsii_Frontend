@@ -456,19 +456,19 @@ function MainLanding(props) {
     try {
       setIsShortsLoading(true);
       const accessToken = await AsyncStorage.getItem('accessToken');
-      
-      const response = await fetch(`${base_url}/shorts/listing`, {
+      // Fetch shorts
+      const shortsResponse = await fetch(`${base_url}/shorts/listing`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${accessToken}`
         }
       });
-
-      const data = await response.json();
-      
-      if (data.status) {
-        const formattedShorts = data.data.map(short => ({
+      const shortsData = await shortsResponse.json();
+      let shortsList = [];
+      if (shortsData.status && Array.isArray(shortsData.data)) {
+        shortsList = shortsData.data.map(short => ({
           id: short._id,
+          type: 'short',
           title: short.title,
           description: short.description,
           videoUrl: short.videoUrl,
@@ -480,15 +480,41 @@ function MainLanding(props) {
           createdAt: short.createdAt,
           updatedAt: short.updatedAt
         }));
-        
-        setAllShorts(formattedShorts);
-        setShortsPagination(data.pagination);
-      } else {
-        console.error('Failed to fetch shorts:', data.message);
-        setAllShorts([]);
       }
+      // Fetch reels (if you have a reels endpoint, e.g. /reels/listing)
+      let reelsList = [];
+      try {
+        const reelsResponse = await fetch(`${base_url}/reels/listing`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`
+          }
+        });
+        const reelsData = await reelsResponse.json();
+        if (reelsData.status && Array.isArray(reelsData.data)) {
+          reelsList = reelsData.data.map(reel => ({
+            id: reel._id,
+            type: 'reel',
+            title: reel.title,
+            description: reel.description,
+            videoUrl: reel.videoUrl,
+            thumbnailUrl: reel.thumbnailUrl,
+            createdBy: reel.createdBy,
+            viewsCount: reel.viewsCount || 0,
+            likesCount: reel.likesCount || 0,
+            commentsCount: reel.commentsCount || 0,
+            createdAt: reel.createdAt,
+            updatedAt: reel.updatedAt
+          }));
+        }
+      } catch (reelError) {
+        // If no reels endpoint, ignore
+      }
+      // Merge shorts and reels
+      setAllShorts([...shortsList, ...reelsList]);
+      setShortsPagination(shortsData.pagination || {});
     } catch (error) {
-      console.error('Error fetching shorts:', error);
+      console.error('Error fetching shorts and reels:', error);
       setAllShorts([]);
     } finally {
       setIsShortsLoading(false);

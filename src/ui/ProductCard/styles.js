@@ -14,7 +14,10 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
     margin: 5,
-    overflow: 'hidden'
+    overflow: 'visible',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    marginBottom: 8,
   },
   topCardContainer: {
     width: '100%',
@@ -22,12 +25,13 @@ const styles = StyleSheet.create({
   },
   imgResponsive: {
     width: '100%',
-    height: 150,
+    height: 200,
     resizeMode: 'cover'
   },
   botCardContainer: {
     padding: 10,
     backgroundColor: colors.white,
+    paddingBottom: 5,
   },
   botSubCardContainer: {
     width: '100%',

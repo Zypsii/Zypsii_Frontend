@@ -53,22 +53,6 @@ const ProfileScreen = ({ navigation }) => {
           <Text style={styles.description}>Digital goodies designer. Everything is designed.</Text>
         </View>
 
-        {/* Stats Section */}
-        <View style={styles.statsContainer}>
-          <View style={styles.stat}>
-            <Text style={styles.statLabel}>Posts</Text>
-            <Text style={styles.statNumber}>100</Text>
-          </View>
-          <View style={styles.stat}>
-            <Text style={styles.statLabel}>Followers</Text>
-            <Text style={styles.statNumber}>120k</Text>
-          </View>
-          <View style={styles.statLast}>
-            <Text style={styles.statLabel}>Following</Text>
-            <Text style={styles.statNumber}>0</Text>
-          </View>
-        </View>
-
         {/* Buttons Section */}
         <View style={styles.buttonsContainer}>
           <TouchableOpacity style={styles.editProfileButton}>
@@ -82,49 +66,14 @@ const ProfileScreen = ({ navigation }) => {
         {/* Gray Line */}
         <View style={styles.separatorLine} />
 
-        {/* Icons Section */}
-        <View style={styles.iconsContainer}>
-          <TouchableOpacity
-            style={[
-              styles.iconBox,
-              activeIcon === 'th-large' && styles.activeIconBox,
-            ]}
-            onPress={() => setActiveIcon('th-large')}
-          >
-            <Icon name="th-large" size={30} color="#870E6B" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.iconBox,
-              activeIcon === 'briefcase' && styles.activeIconBox,
-            ]}
-            onPress={() => setActiveIcon('briefcase')}
-          >
-            <Icon name="briefcase" size={30} color="#870E6B" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.iconBox,
-              activeIcon === 'play-circle' && styles.activeIconBox,
-            ]}
-            onPress={() => setActiveIcon('play-circle')}
-          >
-            <Icon name="play-circle" size={30} color="#870E6B" />
-          </TouchableOpacity>
-        </View>
-
         {/* Images Section */}
         <FlatList
-          data={imageData} // Dynamically load images or placeholders
+          data={images['th-large']} // Always show the default images
           keyExtractor={(item) => item.id}
-          numColumns={3} // Display items in a grid
-          renderItem={({ item }) =>
-            item.isPlaceholder ? (
-              <View style={styles.placeholderBox} />
-            ) : (
-              <Image source={item.uri} style={styles.gridImage} />
-            )
-          }
+          numColumns={3}
+          renderItem={({ item }) => (
+            <Image source={item.uri} style={styles.gridImage} />
+          )}
           contentContainerStyle={styles.gridContainer}
         />
       </ImageBackground>

@@ -89,7 +89,9 @@ function Destination({ route, navigation }) {
         id: item._id,
         image: item.image,
         title: item.name,
-        subtitle: item.subtitle
+        subtitle: item.address || item.subtitle || 'No address',
+        rating: parseFloat(item.rating) || 0,
+        distance: item.distanceInKilometer ? parseFloat(item.distanceInKilometer).toFixed(1) : null
       }));
 
       // Append new data to existing
@@ -616,8 +618,8 @@ function Destination({ route, navigation }) {
                     <DiscoverByNearest
                       styles={styles.itemCardContainer}
                       {...item}
-                      rating={parseInt(item.rating) || 0}
-                      distance={item.distanceInKilometer ? parseFloat(item.distanceInKilometer).toFixed(1) : null}
+                      rating={parseFloat(item.rating) || 0}
+                      distance={item.distanceInKilometer ? parseFloat(item.distanceInKilometer).toFixed(1) : (item.distance || null)}
                     />
                   )}
                 />

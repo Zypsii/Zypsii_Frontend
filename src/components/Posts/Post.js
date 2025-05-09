@@ -34,7 +34,7 @@ const Post = ({ item }) => {
     }
 
     return (
-      <View style={[styles.postImageContainer, { width }]}>
+      <View style={styles.postImageContainer}>
         <Image
           source={{ uri: processedUrl }}
           style={styles.postImage}
@@ -54,6 +54,10 @@ const Post = ({ item }) => {
     }
   };
 
+  // Render image directly if only one image, else use FlatList
+  const hasImages = item.mediaType === 'image' && item.mediaUrl && item.mediaUrl.length > 0;
+  const isSingleImage = hasImages && item.mediaUrl.length === 1;
+
   return (
     <View style={styles.postContainer}>
       <View style={styles.header}>
@@ -64,7 +68,16 @@ const Post = ({ item }) => {
         <Feather name="more-vertical" style={styles.moreIcon} />
       </View>
 
-      {item.mediaType === 'image' && item.mediaUrl && item.mediaUrl.length > 0 && (
+      {isSingleImage && (
+        <View style={styles.postImageContainer}>
+          <Image
+            source={{ uri: item.mediaUrl[0] }}
+            style={styles.postImage}
+            resizeMode="cover"
+          />
+        </View>
+      )}
+      {!isSingleImage && hasImages && (
         <FlatList
           data={item.mediaUrl}
           renderItem={renderImage}
@@ -124,17 +137,24 @@ const Post = ({ item }) => {
 
 const styles = StyleSheet.create({
   postContainer: {
+    width: '96%',
+    // maxWidth: 500,
+    // alignSelf: 'center',
     paddingBottom: 10,
     borderBottomColor: 'gray',
     borderBottomWidth: 0.1,
     backgroundColor: '#fff',
     marginBottom: 10,
+    paddingHorizontal: 0,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 15,
+    paddingLeft: 0,
+    paddingRight: 0,
+    paddingTop: 15,
+    paddingBottom: 15,
   },
   userInfo: {
     flex: 1,
@@ -152,8 +172,14 @@ const styles = StyleSheet.create({
     fontSize: 20,
   },
   postImageContainer: {
-    height: 400,
+    width: '100%',
+    aspectRatio: 1,
     backgroundColor: '#f5f5f5',
+    alignSelf: 'center',
+    borderRadius: 10,
+    overflow: 'hidden',
+    marginLeft: 0,
+    marginRight: 0,
   },
   postImage: {
     width: '100%',
@@ -161,6 +187,8 @@ const styles = StyleSheet.create({
   },
   imageList: {
     width: '100%',
+    padding: 0,
+    margin: 0,
   },
   actionsContainer: {
     flexDirection: 'row',
