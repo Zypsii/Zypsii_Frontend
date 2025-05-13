@@ -19,6 +19,10 @@ export const AuthProvider = ({ children }) => {
     loadUser();
   }, []);
 
+  const getCurrentUserId = () => {
+    return user?._id; // Assuming your user object has _id field
+  };
+
   const login = async (userData) => {
     await AsyncStorage.setItem('user', JSON.stringify(userData));
     setUser(userData);
@@ -30,7 +34,13 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      login, 
+      logout, 
+      loading,
+      getCurrentUserId // Add this to the context value
+    }}>
       {children}
     </AuthContext.Provider>
   );

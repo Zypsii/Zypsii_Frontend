@@ -15,6 +15,8 @@ import { Video } from 'expo-av';
 import styles from './Styles';
 import { colors } from '../../utils';
 import { base_url } from '../../utils/base_url';
+import * as FileSystem from 'expo-file-system';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 function ShortsUpload({ navigation }) {
   const [title, setTitle] = useState('');
@@ -25,6 +27,19 @@ function ShortsUpload({ navigation }) {
 
   const handleBackPress = () => {
     navigation.goBack();
+  };
+
+  const compressVideo = async (uri) => {
+    try {
+      const compressedUri = `${FileSystem.cacheDirectory}compressed_video.mp4`;
+      await FileSystem.copyAsync({
+        from: uri,
+        to: compressedUri
+      });
+      return compressedUri;
+    } catch (error) {
+      throw new Error('Failed to compress video');
+    }
   };
 
   const pickVideo = async () => {
@@ -38,22 +53,28 @@ function ShortsUpload({ navigation }) {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Videos,
         allowsEditing: true,
-        quality: 0.7,
+        quality: 0.5,
         videoMaxDuration: 30,
-        videoExportPreset: ImagePicker.VideoExportPreset.MediumQuality,
-        videoQuality: 0.7,
-        aspect: [9, 16], // For vertical video format
+        videoExportPreset: ImagePicker.VideoExportPreset.LowQuality,
+        videoQuality: 0.5,
+        aspect: [9, 16],
       });
 
       if (!result.canceled) {
-        setVideo(result.assets[0]);
-        // Generate thumbnail from first frame
-        setThumbnail(result.assets[0].uri);
+        const compressedUri = await compressVideo(result.assets[0].uri);
+        setVideo({ ...result.assets[0], uri: compressedUri });
+        setThumbnail(compressedUri);
       }
     } catch (error) {
-      console.error('Error picking video:', error);
       Alert.alert('Error', 'Failed to pick video');
     }
+  };
+
+  const validateMediaType = (mediaType) => {
+    if (typeof mediaType !== 'string') {
+      throw new Error('mediaType must be a string');
+    }
+    return true;
   };
 
   const handleSubmit = async () => {
@@ -68,118 +89,136 @@ function ShortsUpload({ navigation }) {
 
     try {
       setIsUploading(true);
+      validateMediaType('shorts');
+      const accessToken = await AsyncStorage.getItem('accessToken');
 
-      // First upload the video
       const videoFormData = new FormData();
-      videoFormData.append('file', {
+      
+      // Get file extension from video URI
+      const fileExtension = video.uri.split('.').pop().toLowerCase();
+      
+      // Set mime type based on file extension
+      let mimeType;
+      switch (fileExtension) {
+        case 'mp4':
+          mimeType = 'video/mp4';
+          break;
+        case 'mov':
+          mimeType = 'video/quicktime';
+          break;
+        case '3gp':
+          mimeType = 'video/3gpp';
+          break;
+        case 'm4v':
+          mimeType = 'video/x-m4v';
+          break;
+        default:
+          mimeType = 'video/mp4'; // default to mp4
+      }
+      
+      videoFormData.append('mediaFile', {
         uri: video.uri,
-        type: 'video/mp4',
-        name: 'video.mp4',
+        type: mimeType,
+        name: `shorts.${fileExtension}`
       });
 
       const videoUploadResponse = await fetch(`${base_url}/uploadFile?mediaType=shorts`, {
         method: 'POST',
         headers: {
+          'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'multipart/form-data',
         },
         body: videoFormData,
       });
 
-      console.log('Video Upload Response Status:', videoUploadResponse.status);
-      const videoResponseText = await videoUploadResponse.text();
-      console.log('Video Upload Response Text:', videoResponseText);
+      let videoResponseText;
+      try {
+        videoResponseText = await videoUploadResponse.text();
+        console.log('Video Upload Response:', videoResponseText);
+      } catch (error) {
+        console.error('Error reading response:', error);
+        throw new Error('Failed to read server response');
+      }
 
       if (!videoUploadResponse.ok) {
-        console.error('Video Upload Error:', {
-          status: videoUploadResponse.status,
-          statusText: videoUploadResponse.statusText,
-          response: videoResponseText
-        });
+        if (videoUploadResponse.status === 413) {
+          throw new Error('Video file is too large. Please select a smaller video.');
+        }
         throw new Error('Failed to upload video');
       }
 
-      const videoData = JSON.parse(videoResponseText);
-      console.log('Video Upload Success Data:', videoData);
-      const videoUrl = videoData.url;
-
-      // Then upload the thumbnail
-      const thumbnailFormData = new FormData();
-      thumbnailFormData.append('file', {
-        uri: thumbnail,
-        type: 'video/mp4',
-        name: 'thumbnail.mp4',
-      });
-
-      const thumbnailUploadResponse = await fetch(`${base_url}/uploadFile?mediaType=video`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-        body: thumbnailFormData,
-      });
-
-      console.log('Thumbnail Upload Response Status:', thumbnailUploadResponse.status);
-      const thumbnailResponseText = await thumbnailUploadResponse.text();
-      console.log('Thumbnail Upload Response Text:', thumbnailResponseText);
-
-      if (!thumbnailUploadResponse.ok) {
-        console.error('Thumbnail Upload Error:', {
-          status: thumbnailUploadResponse.status,
-          statusText: thumbnailUploadResponse.statusText,
-          response: thumbnailResponseText
-        });
-        throw new Error('Failed to upload thumbnail');
+      let videoData;
+      try {
+        videoData = JSON.parse(videoResponseText);
+        console.log('Parsed Video Data:', videoData);
+      } catch (error) {
+        console.error('Error parsing video response:', error);
+        throw new Error('Invalid server response format');
       }
 
-      const thumbnailData = JSON.parse(thumbnailResponseText);
-      console.log('Thumbnail Upload Success Data:', thumbnailData);
-      const thumbnailUrl = thumbnailData.url[0];
+      if (!videoData || typeof videoData !== 'object') {
+        throw new Error('Invalid response format from server');
+      }
 
-      // Create the short with media type as reels
-      console.log('Creating short with data:', {
-        mediaType: 'reels',
-        media: {
-          video: videoUrl,
-          thumbnail: thumbnailUrl
-        }
-      });
+      const videoUrl = videoData.urls || videoData.data?.urls;
+      if (!videoUrl) {
+        throw new Error('Video URL not found in response');
+      }
+
+      // Handle videoUrl if it's an array
+      const finalVideoUrl = Array.isArray(videoUrl) ? videoUrl[0] : videoUrl;
+      if (!finalVideoUrl) {
+        throw new Error('Invalid video URL format');
+      }
 
       const createShortResponse = await fetch(`${base_url}/shorts/create`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
-          mediaType: 'reels',
-          media: {
-            video: videoUrl,
-            thumbnail: thumbnailUrl
-          }
+          title: title,
+          description: description,
+          videoUrl: finalVideoUrl,
+          thumbnailUrl: finalVideoUrl // Using the same URL for thumbnail as it's a video
         }),
       });
 
-      console.log('Create Short Response Status:', createShortResponse.status);
-      const createShortResponseText = await createShortResponse.text();
-      console.log('Create Short Response Text:', createShortResponseText);
+      let createShortResponseText;
+      try {
+        createShortResponseText = await createShortResponse.text();
+        console.log('Create Short Response:', createShortResponseText);
+      } catch (error) {
+        console.error('Error reading create short response:', error);
+        throw new Error('Failed to read create short response');
+      }
 
       if (!createShortResponse.ok) {
-        console.error('Create Short Error:', {
-          status: createShortResponse.status,
-          statusText: createShortResponse.statusText,
-          response: createShortResponseText
-        });
         throw new Error('Failed to create short');
       }
 
+      let createShortData;
+      try {
+        createShortData = JSON.parse(createShortResponseText);
+        console.log('Parsed Create Short Data:', createShortData);
+      } catch (error) {
+        console.error('Error parsing create short response:', error);
+        throw new Error('Invalid create short response format');
+      }
+
+      if (!createShortData || typeof createShortData !== 'object') {
+        throw new Error('Invalid create short response format');
+      }
+
       Alert.alert('Success', 'Short created successfully');
-      navigation.goBack();
+      navigation.navigate('MainLanding');
     } catch (error) {
-      console.error('Error creating short:', error);
-      console.error('Error details:', {
+      console.error('Error creating short:', {
         message: error.message,
         stack: error.stack
       });
-      Alert.alert('Error', 'Failed to create short');
+      Alert.alert('Error', error.message || 'Failed to create short');
     } finally {
       setIsUploading(false);
     }

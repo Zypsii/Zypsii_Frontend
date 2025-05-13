@@ -11,6 +11,7 @@ import { AuthProvider } from './src/components/Auth/AuthContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Provider } from 'react-redux';
 import { store } from './src/redux/store';
+import { FollowProvider } from './src/components/Follow/FollowContext';
 
 export default function App() {
   const [fontLoaded, setFontLoaded] = useState(false);
@@ -76,7 +77,9 @@ export default function App() {
       <Provider store={store}>
         <AuthProvider>
           <ScheduleProvider>
+            <FollowProvider>
             <AppContainer />
+            </FollowProvider>
           </ScheduleProvider>
         </AuthProvider>
       </Provider>

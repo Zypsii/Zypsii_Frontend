@@ -276,11 +276,14 @@ const styles = StyleSheet.create({
     marginTop: 0
   },
   videoContainer: {
-    marginHorizontal: scale(10),
-    width: 150,
-    height: 200,
+    width: '100%',
+    maxWidth: 500,
+    alignSelf: 'center',
+    height: 280,
     borderRadius: 20,
     overflow: 'hidden',
+    marginRight: 15,
+    backgroundColor: '#000',
   },
   video: {
     width: '100%',
@@ -466,6 +469,109 @@ const styles = StyleSheet.create({
   discoverCardDistance: {
     fontSize: scale(12),
     color: colors.fontThirdColor,
+  },
+  // Shorts Section Styles
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    marginBottom: 15,
+  },
+  shortsListContainer: {
+    paddingHorizontal: 15,
+    paddingBottom: 20,
+  },
+  shortItemContainer: {
+    width: '100%',
+    maxWidth: 500,
+    alignSelf: 'center',
+    borderRadius: 16,
+    backgroundColor: '#fff',
+    marginBottom: 16,
+  },
+  videoWrapper: {
+    width: '100%',
+    height: '100%',
+    position: 'relative',
+  },
+  videoPlayer: {
+    width: '100%',
+    height: '100%',
+  },
+  playButtonOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.2)',
+  },
+  thumbnailImage: {
+    width: '100%',
+    height: '100%',
+  },
+  shortInfoContainer: {
+    padding: 15,
+  },
+  shortTitleContainer: {
+    marginBottom: 10,
+  },
+  description: {
+    marginTop: 5,
+    opacity: 0.8,
+  },
+  shortStatsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.gray,
+  },
+  shortStat: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 30,
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    marginHorizontal: 15,
+  },
+  loadingContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.1)',
+  },
+  localVideoContainer: {
+    width: '100%',
+    height: '100%',
+    position: 'relative',
+  },
+  errorContainer: {
+    width: '100%',
+    height: '100%',
+    position: 'relative',
+    backgroundColor: colors.gray,
+  },
+  errorMessageContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    padding: 10,
+    alignItems: 'center',
   },
 })
 export default styles

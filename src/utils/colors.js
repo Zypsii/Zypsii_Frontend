@@ -1,4 +1,5 @@
 export const colors = {
+  primary: '#A60F93',
   Zypsii_color:'#A60F93',
   btncolor: '#870E6B',
   lightpink: '#ffe3f0',

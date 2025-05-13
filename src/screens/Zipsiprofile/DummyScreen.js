@@ -73,7 +73,6 @@ const DummyScreen = ({ navigation }) => {
 
   // Handle schedule item press
   const handleSchedulePress = (item) => {
-    console.log('Navigating to trip details with ID:', item.id);
     navigation.navigate('TripDetails', { tripId: item.id });
   };
 
@@ -87,7 +86,7 @@ const DummyScreen = ({ navigation }) => {
         }
 
         // Fetch posts
-        const postsResponse = await fetch(`${base_url}/post/listing/lter?filter=all&limit=20`, {
+        const postsResponse = await fetch(`${base_url}/post/listing/filter?filter=all&limit=20`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${accessToken}`,
@@ -101,6 +100,7 @@ const DummyScreen = ({ navigation }) => {
             
             if (response.success && Array.isArray(response.data)) {
               const postsData = response.data;
+              console.log(postsData);
               
               const processedPosts = postsData
                 .filter(item => item && typeof item === 'object') // Filter out invalid items
@@ -109,8 +109,8 @@ const DummyScreen = ({ navigation }) => {
                     return {
                       id: item._id || '',
                       postTitle: item.postTitle || '',
-                      postImage: Array.isArray(item.mediaUrl) && item.mediaUrl.length > 0 
-                        ? item.mediaUrl[0] 
+                      imageUrl: Array.isArray(item.mediaUrl) && item.mediaUrl.length > 0 
+                        ? item.mediaUrl 
                         : '',
                       mediaType: item.mediaType || 'image',
                       likes: String(item.likesCount || 0),
@@ -129,7 +129,6 @@ const DummyScreen = ({ navigation }) => {
                 })
                 .filter(Boolean); // Remove any null items from failed processing
 
-              console.log('Processed Posts:', JSON.stringify(processedPosts, null, 2));
               setAllPosts(processedPosts);
 
               // Store pagination info if needed
@@ -223,7 +222,6 @@ const DummyScreen = ({ navigation }) => {
 
         if (shortsResponse.ok) {
           const response = await shortsResponse.json();
-          console.log('Shorts Response:', response);
           
           if (response.status && response.data) {
             const shortsData = response.data.map(item => ({
@@ -241,7 +239,6 @@ const DummyScreen = ({ navigation }) => {
               tags: item.tags || []
             }));
             
-            console.log('Processed Shorts Data:', shortsData);
             setAllShorts(shortsData);
           }
         }
@@ -261,14 +258,12 @@ const DummyScreen = ({ navigation }) => {
   }, [profileInfo]);
 
   useEffect(() => {
-    console.log('Current Posts:', all_posts);
   }, [all_posts]);
 
   useEffect(() => {
   }, [all_schedule]);
 
   useEffect(() => {
-    console.log('Current shorts:', all_shorts);
 
   }, [all_shorts]);
 
@@ -305,20 +300,21 @@ const DummyScreen = ({ navigation }) => {
               const postData = {
                 id: item?.id || '',
                 postTitle: item?.postTitle || '',
-                postImage: item?.postImage || '',
+                imageUrl: item?.imageUrl || [], // This is already an array from the API
                 mediaType: item?.mediaType || 'image',
-                likes: item?.likes || '0',
-                comments: item?.comments || '0',
-                shares: item?.shares || '0',
+                likesCount: item?.likes || '0',
+                commentsCount: item?.comments || '0',
+                shareCount: item?.shares || '0',
                 postType: item?.postType || 'Public',
                 createdBy: item?.createdBy || '',
                 createdAt: item?.createdAt || '',
+                tags: item?.tags || []
               };
 
               return (
-                <Post
-                  {...postData}
-                />
+                <View style={{ marginBottom: 10 }}>
+                  <Post item={postData} />
+                </View>
               );
             }}
             keyExtractor={(item) => item?.id?.toString() || Math.random().toString()}
@@ -417,7 +413,7 @@ const DummyScreen = ({ navigation }) => {
       {/* Profile Section */}
       <TouchableOpacity
         style={styles.profileContainer}
-        onPress={() => navigation.navigate('PageCreation')}
+        onPress={() => navigation.goBack()}
       >
         <Image
           source={{uri:profileInfo.image}} // Local profile image

@@ -9,14 +9,13 @@ import {
   Alert,
   ScrollView,
   ActivityIndicator,
-  Video,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { colors } from "../../utils";
 import { useNavigation } from "@react-navigation/native";
-import AsyncStorage from "@react-native-async-storage/async-storage"; // Import AsyncStorage
-import * as ImagePicker from 'expo-image-picker'; // Import ImagePicker
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as ImagePicker from 'expo-image-picker';
 import styles from "./Styles";
 import { base_url } from "../../utils/base_url";
 import NotificationService from "../../services/NotificationService";
@@ -29,7 +28,6 @@ function ReelUpload() {
   const [showContentTypeModal, setShowContentTypeModal] = useState(true);
   const [contentType, setContentType] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [mediaType, setMediaType] = useState('image'); // Add media type state
   const navigation = useNavigation();
 
   useEffect(() => {
@@ -42,12 +40,7 @@ function ReelUpload() {
   };
 
   const handleBackPress = () => {
-    // if (contentType) {
-    //   setShowContentTypeModal(true);
-    //   setContentType(null);
-    // } else {
-      navigation.goBack();
-    //}
+    navigation.goBack();
   };
 
   const pickImage = async () => {
@@ -76,7 +69,7 @@ function ReelUpload() {
     const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
     if (permissionResult.granted) {
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: contentType === 'post' ? ImagePicker.MediaTypeOptions.Images : ImagePicker.MediaTypeOptions.Videos,
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [4, 3],
         quality: 0.7,
@@ -84,11 +77,9 @@ function ReelUpload() {
 
       if (!result.canceled) {
         setImage(result.assets[0]);
-        // Set media type based on the selected file
-        setMediaType(result.assets[0].type === 'video' ? 'video' : 'image');
       }
     } else {
-      Alert.alert("Permission required", "You need to allow camera access to take photos/videos.");
+      Alert.alert("Permission required", "You need to allow camera access to take photos.");
     }
   };
 
@@ -96,7 +87,7 @@ function ReelUpload() {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (permissionResult.granted) {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: contentType === 'post' ? ImagePicker.MediaTypeOptions.Images : ImagePicker.MediaTypeOptions.Videos,
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [4, 3],
         quality: 0.7,
@@ -104,18 +95,15 @@ function ReelUpload() {
 
       if (!result.canceled) {
         setImage(result.assets[0]);
-        // Set media type based on the selected file
-        setMediaType(result.assets[0].type === 'video' ? 'video' : 'image');
       }
     } else {
       Alert.alert("Permission required", "You need to allow access to your media library.");
     }
   };
 
-  // Function to handle form submission
   const handleSubmit = async () => {
     if (!image) {
-      Alert.alert("Error", "Please select a media file to upload.");
+      Alert.alert("Error", "Please select an image to upload.");
       return;
     }
   
@@ -129,39 +117,28 @@ function ReelUpload() {
         return;
       }
 
-      // First upload the media file
       const uploadFormData = new FormData();
       const fileUri = image.uri.replace('file://', '');
       
-      // Get file extension and set appropriate MIME type
       const fileExtension = fileUri.split('.').pop().toLowerCase();
-      let mimeType = mediaType === 'video' ? 'video/mp4' : 'image/jpeg';
+      let mimeType = 'image/jpeg';
       
-      if (mediaType === 'image') {
-        if (fileExtension === 'png') {
-          mimeType = 'image/png';
-        } else if (fileExtension === 'gif') {
-          mimeType = 'image/gif';
-        } else if (fileExtension === 'webp') {
-          mimeType = 'image/webp';
-        }
-      } else if (mediaType === 'video') {
-        if (fileExtension === 'mov') {
-          mimeType = 'video/quicktime';
-        } else if (fileExtension === 'avi') {
-          mimeType = 'video/x-msvideo';
-        }
+      if (fileExtension === 'png') {
+        mimeType = 'image/png';
+      } else if (fileExtension === 'gif') {
+        mimeType = 'image/gif';
+      } else if (fileExtension === 'webp') {
+        mimeType = 'image/webp';
       }
 
-      // Create file object for upload
       uploadFormData.append('mediaFile', {
         uri: image.uri,
         type: mimeType,
-        name: `${mediaType}.${fileExtension}`
+        name: `image.${fileExtension}`
       });
 
       try {
-        const uploadResponse = await fetch(`${base_url}/uploadFile?mediaType=${contentType}`, {
+        const uploadResponse = await fetch(`${base_url}/uploadFile?mediaType=post`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${accessToken}`,
@@ -199,11 +176,10 @@ function ReelUpload() {
           return;
         }
 
-        // Now create the post with the uploaded file URL
         const postFormData = new FormData();
         postFormData.append('postTitle', title);
         postFormData.append('postType', 'Public');
-        postFormData.append('mediaType', mediaType);
+        postFormData.append('mediaType', 'image');
         postFormData.append('mediaUrl[]', uploadResponseData.urls[0]);
         postFormData.append('tags[]', 'new');
 
@@ -241,13 +217,11 @@ function ReelUpload() {
     }
   };
 
-  // Function to test notifications
   const testNotification = async () => {
     try {
       const userData = await AsyncStorage.getItem('user');
       const user = JSON.parse(userData);
       
-      // Get the expoPushToken from AsyncStorage
       const expoPushToken = await AsyncStorage.getItem('expoPushToken');
       
       if (!expoPushToken) {
@@ -255,7 +229,6 @@ function ReelUpload() {
         return;
       }
 
-      // Send test notification
       await NotificationService.sendReelNotification(user.fullName, expoPushToken);
       Alert.alert("Success", "Test notification sent!");
     } catch (error) {
@@ -283,39 +256,29 @@ function ReelUpload() {
 
       {contentType && (
         <ScrollView>
-          {/* Media Selection Section */}
           <TouchableOpacity 
             style={styles.imageContainer} 
             onPress={pickImage}
           >
             {image ? (
-              mediaType === 'video' ? (
-                <Video
-                  source={{ uri: image.uri }}
-                  style={styles.selectedImage}
-                  resizeMode="cover"
-                />
-              ) : (
-                <Image 
-                  source={{ uri: image.uri }} 
-                  style={styles.selectedImage} 
-                />
-              )
+              <Image 
+                source={{ uri: image.uri }} 
+                style={styles.selectedImage} 
+              />
             ) : (
               <View style={styles.placeholderContainer}>
                 <Ionicons 
-                  name={contentType === 'post' ? "camera" : "videocam"} 
+                  name="camera"
                   size={50} 
                   color={colors.btncolor} 
                 />
                 <Text style={styles.placeholderText}>
-                  Tap to add {contentType === 'post' ? 'photo' : 'video'}
+                  Tap to add photo
                 </Text>
               </View>
             )}
           </TouchableOpacity>
 
-          {/* Title Input */}
           <View style={styles.inputContainer}>
             <TextInput
               style={styles.titleInput}
@@ -326,7 +289,6 @@ function ReelUpload() {
             />
           </View>
 
-          {/* Description Input */}
           <View style={styles.inputContainer}>
             <TextInput
               style={styles.descriptionInput}
@@ -339,7 +301,6 @@ function ReelUpload() {
             />
           </View>
 
-          {/* Submit Button */}
           <TouchableOpacity 
             style={[styles.submitButton, isLoading && styles.submitButtonDisabled]} 
             onPress={handleSubmit}

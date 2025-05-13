@@ -160,7 +160,6 @@ function MainLanding(props) {
           allDestinationResponse,
           allScheduleResponse,
           allPostsResponse,
-          allShortsResponse,
           discoverByNearestResponse
         ] = await Promise.all([
           Promise.race([
@@ -208,15 +207,7 @@ function MainLanding(props) {
             }),
             timeoutPromise(10000)
           ]),
-          Promise.race([
-            fetch(`${base_url}/schedule/places/getNearest`, {
-              method: 'GET',
-              headers: {
-                'Authorization': `Bearer ${accessToken}`
-              }
-            }),
-            timeoutPromise(10000)
-          ]),
+          
           Promise.race([
             fetch(`${base_url}/schedule/places/getNearest`, {
               method: 'GET',
@@ -235,7 +226,6 @@ function MainLanding(props) {
           allDestinationResponse,
           allScheduleResponse,
           allPostsResponse,
-          allShortsResponse,
           discoverByNearestResponse
         ];
 
@@ -252,7 +242,6 @@ function MainLanding(props) {
           allDestinationData,
           allScheduleData,
           allPostsData,
-          allShortsData,
           discoverByNearestData
         ] = await Promise.all([
           discoverByInterestResponse.json(),
@@ -260,7 +249,6 @@ function MainLanding(props) {
           allDestinationResponse.json(),
           allScheduleResponse.json(),
           allPostsResponse.json(),
-          allShortsResponse.json(),
           discoverByNearestResponse.json()
         ]);
 
@@ -378,6 +366,7 @@ function MainLanding(props) {
               postType: item.postType,
               mediaType: item.mediaType,
               mediaUrl: mediaUrls,
+              imageUrl: mediaUrls,
               createdBy: item.createdBy,
               tags: Array.isArray(item.tags) ? item.tags : [],
               likesCount: item.likesCount || 0,
@@ -391,18 +380,6 @@ function MainLanding(props) {
           setAllPosts([]);
         }
 
-        if (Array.isArray(allShortsData)) {
-          setAllShorts(allShortsData.slice(0, 100).map(item => ({
-            id: item.id,
-            video: item.video.url,
-            videoTitle: item.videoTitle,
-            videoImage: item.videoImage,
-            likes: item.likes,
-            isLiked: item.isLiked
-          })));
-        } else {
-          setAllShorts([]);
-        }
 
         if (Array.isArray(discoverByNearestData?.data)) {
           const formattedData = discoverByNearestData.data.slice(0, 100).map(item => ({
@@ -426,7 +403,6 @@ function MainLanding(props) {
         setAll_destination([]);
         setAll_schedule([]);
         setAllPosts([]);
-        setAllShorts([]);
         setDiscoverbyNearest([]);
         
         // Log specific error details
@@ -456,17 +432,25 @@ function MainLanding(props) {
     try {
       setIsShortsLoading(true);
       const accessToken = await AsyncStorage.getItem('accessToken');
+      
       // Fetch shorts
       const shortsResponse = await fetch(`${base_url}/shorts/listing`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${accessToken}`
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         }
       });
+
+      if (!shortsResponse.ok) {
+        throw new Error(`API request failed with status ${shortsResponse.status}`);
+      }
+
       const shortsData = await shortsResponse.json();
-      let shortsList = [];
+      
       if (shortsData.status && Array.isArray(shortsData.data)) {
-        shortsList = shortsData.data.map(short => ({
+        const shortsList = shortsData.data.map(short => ({
           id: short._id,
           type: 'short',
           title: short.title,
@@ -480,41 +464,18 @@ function MainLanding(props) {
           createdAt: short.createdAt,
           updatedAt: short.updatedAt
         }));
+        
+        // Filter only mp4 videos
+        const mp4ShortsList = shortsList.filter(
+          item => typeof item.videoUrl === 'string' && item.videoUrl.toLowerCase().endsWith('.mp4')
+        );
+        setAllShorts(mp4ShortsList);
+        setShortsPagination(shortsData.pagination || {});
+      } else {
+        setAllShorts([]);
       }
-      // Fetch reels (if you have a reels endpoint, e.g. /reels/listing)
-      let reelsList = [];
-      try {
-        const reelsResponse = await fetch(`${base_url}/reels/listing`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`
-          }
-        });
-        const reelsData = await reelsResponse.json();
-        if (reelsData.status && Array.isArray(reelsData.data)) {
-          reelsList = reelsData.data.map(reel => ({
-            id: reel._id,
-            type: 'reel',
-            title: reel.title,
-            description: reel.description,
-            videoUrl: reel.videoUrl,
-            thumbnailUrl: reel.thumbnailUrl,
-            createdBy: reel.createdBy,
-            viewsCount: reel.viewsCount || 0,
-            likesCount: reel.likesCount || 0,
-            commentsCount: reel.commentsCount || 0,
-            createdAt: reel.createdAt,
-            updatedAt: reel.updatedAt
-          }));
-        }
-      } catch (reelError) {
-        // If no reels endpoint, ignore
-      }
-      // Merge shorts and reels
-      setAllShorts([...shortsList, ...reelsList]);
-      setShortsPagination(shortsData.pagination || {});
     } catch (error) {
-      console.error('Error fetching shorts and reels:', error);
+      console.error('Error fetching shorts:', error);
       setAllShorts([]);
     } finally {
       setIsShortsLoading(false);
@@ -523,7 +484,11 @@ function MainLanding(props) {
 
   useEffect(() => {
     fetchShorts();
-  }, []);
+  }, []); // Empty dependency array means it runs once on mount
+
+  // Add a debug effect to monitor all_shorts state
+  useEffect(() => {
+  }, [all_shorts]);
 
   // Loader components
   const HorizontalListLoader = ({ count = 8 }) => (
@@ -557,58 +522,182 @@ function MainLanding(props) {
   );
 
   // Render functions
-  const renderVideoShorts = () => (
-    <View style={styles.titleSpacer}>
-      <TextDefault textColor={colors.fontMainColor} H4>
-        {'Shorts'}
-      </TextDefault>
-      {isShortsLoading ? (
-        <VerticalListLoader count={3} />
-      ) : (
+  const renderVideoShorts = () => {
+    
+    const isValidVideoUrl = (url) => {
+      if (!url) return false;
+      // Removed 3gp format and added more common web formats
+      const videoExtensions = ['.mp4', '.mov', '.webm', '.m4v'];
+      const isSupportedFormat = videoExtensions.some(ext => url.toLowerCase().endsWith(ext));
+      const isHttpUrl = url.startsWith('http');
+      const isHttpsUrl = url.startsWith('https');
+      
+      return (isSupportedFormat || isHttpUrl || isHttpsUrl) && !url.toLowerCase().endsWith('.3gp');
+    };
+
+    const getVideoSource = (videoUrl) => {
+      if (!videoUrl) return null;
+      
+      // Skip 3GP format videos
+      if (videoUrl.toLowerCase().endsWith('.3gp')) {
+        return null;
+      }
+      
+      // Handle different video URL formats
+      if (videoUrl.startsWith('http') || videoUrl.startsWith('https')) {
+        return { uri: videoUrl };
+      } else if (videoUrl.startsWith('file://')) {
+        return { uri: videoUrl };
+      } else if (videoUrl.startsWith('data:')) {
+        return { uri: videoUrl };
+      }
+      
+      return null;
+    };
+
+    if (isShortsLoading) {
+      return (
+        <View style={styles.titleSpacer}>
+          <View style={styles.sectionHeader}>
+            <TextDefault textColor={colors.fontMainColor} H4 bold>
+              {'Shorts'}
+            </TextDefault>
+            <TouchableOpacity onPress={() => navigation.navigate('AllShorts')}>
+              <TextDefault textColor={colors.btncolor} H5>
+                {'View All'}
+              </TextDefault>
+            </TouchableOpacity>
+          </View>
+          <VerticalListLoader count={3} />
+        </View>
+      );
+    }
+
+    if (!all_shorts || all_shorts.length === 0) {
+      return (
+        <View style={styles.titleSpacer}>
+          <View style={styles.sectionHeader}>
+            <TextDefault textColor={colors.fontMainColor} H4 bold>
+              {'Shorts'}
+            </TextDefault>
+          </View>
+          <View style={styles.emptyContainer}>
+            <Icon name="videocam-outline" size={48} color={colors.fontSecondColor} />
+            <TextDefault textColor={colors.fontMainColor} H5 style={{ marginTop: 10 }}>
+              No shorts available
+            </TextDefault>
+          </View>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.titleSpacer}>
+        <View style={styles.sectionHeader}>
+          <TextDefault textColor={colors.fontMainColor} H4 bold>
+            {'Shorts'}
+          </TextDefault>
+          <TouchableOpacity onPress={() => navigation.navigate('AllShorts')}>
+            <TextDefault textColor={colors.btncolor} H5>
+              {'View All'}
+            </TextDefault>
+          </TouchableOpacity>
+        </View>
         <FlatList
           data={all_shorts}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <View style={styles.shortItemContainer}>
-              <Image
-                source={{ uri: item.thumbnailUrl }}
-                style={styles.shortThumbnail}
-              />
-              <View style={styles.shortInfoContainer}>
-                <TextDefault textColor={colors.fontMainColor} H5 bold>
-                  {item.title}
-                </TextDefault>
-                <TextDefault textColor={colors.fontSecondColor} H6>
-                  {item.description}
-                </TextDefault>
-                <View style={styles.shortStatsContainer}>
-                  <View style={styles.shortStat}>
-                    <Ionicons name="eye-outline" size={16} color={colors.fontSecondColor} />
-                    <TextDefault textColor={colors.fontSecondColor} H6>
-                      {item.viewsCount}
+          contentContainerStyle={{ alignItems: 'center', paddingBottom: 20 }}
+          renderItem={({ item }) => {
+            const videoSource = getVideoSource(item.videoUrl);
+            const isValidVideo = isValidVideoUrl(item.videoUrl);
+            
+            return (
+              <TouchableOpacity 
+                style={styles.shortItemContainer}
+                onPress={() => navigation.navigate('ShortDetail', { short: item })}
+                activeOpacity={0.9}
+              >
+                <View style={styles.videoContainer}>
+                  {isValidVideo && videoSource ? (
+                    <View style={styles.videoWrapper}>
+                      <WebView
+                        source={videoSource}
+                        style={styles.videoPlayer}
+                        allowsFullscreenVideo={true}
+                        javaScriptEnabled={true}
+                        domStorageEnabled={true}
+                        startInLoadingState={true}
+                        mediaPlaybackRequiresUserAction={false}
+                        allowsInlineMediaPlayback={true}
+                        onError={(syntheticEvent) => {
+                          const { nativeEvent } = syntheticEvent;
+                          console.warn('WebView error: ', nativeEvent);
+                        }}
+                        renderLoading={() => (
+                          <View style={styles.loadingContainer}>
+                            <ActivityIndicator size="large" color={colors.btncolor} />
+                          </View>
+                        )}
+                      />
+                      <View style={styles.playButtonOverlay}>
+                        <Icon name="play-circle" size={48} color="rgba(255,255,255,0.8)" />
+                      </View>
+                    </View>
+                  ) : (
+                    <View style={styles.errorContainer}>
+                      <Image
+                        source={{ uri: item.thumbnailUrl }}
+                        style={styles.thumbnailImage}
+                        resizeMode="cover"
+                      />
+                      <View style={styles.playButtonOverlay}>
+                        <Icon name="alert-circle" size={48} color="rgba(255,255,255,0.8)" />
+                      </View>
+                      <View style={styles.errorMessageContainer}>
+                        <TextDefault textColor={colors.white} H6>
+                          {!item.videoUrl ? 'No video available' : 'Unsupported video format'}
+                        </TextDefault>
+                      </View>
+                    </View>
+                  )}
+                </View>
+                <View style={styles.shortInfoContainer}>
+                  <View style={styles.shortTitleContainer}>
+                    <TextDefault textColor={colors.fontMainColor} H5 bold numberOfLines={2}>
+                      {item.title}
+                    </TextDefault>
+                    <TextDefault textColor={colors.fontSecondColor} H6 numberOfLines={2} style={styles.description}>
+                      {item.description}
                     </TextDefault>
                   </View>
-                  <View style={styles.shortStat}>
-                    <Ionicons name="heart-outline" size={16} color={colors.fontSecondColor} />
-                    <TextDefault textColor={colors.fontSecondColor} H6>
-                      {item.likesCount}
-                    </TextDefault>
-                  </View>
-                  <View style={styles.shortStat}>
-                    <Ionicons name="chatbubble-outline" size={16} color={colors.fontSecondColor} />
-                    <TextDefault textColor={colors.fontSecondColor} H6>
-                      {item.commentsCount}
-                    </TextDefault>
+                  <View style={styles.shortStatsContainer}>
+                    <View style={styles.shortStat}>
+                      <Icon name="eye-outline" size={16} color={colors.fontSecondColor} />
+                      <TextDefault textColor={colors.fontSecondColor} H6>
+                        {item.viewsCount}
+                      </TextDefault>
+                    </View>
+                    <View style={styles.shortStat}>
+                      <Icon name="heart-outline" size={16} color={colors.fontSecondColor} />
+                      <TextDefault textColor={colors.fontSecondColor} H6>
+                        {item.likesCount}
+                      </TextDefault>
+                    </View>
+                    <View style={styles.shortStat}>
+                      <Icon name="chatbubble-outline" size={16} color={colors.fontSecondColor} />
+                      <TextDefault textColor={colors.fontSecondColor} H6>
+                        {item.commentsCount}
+                      </TextDefault>
+                    </View>
                   </View>
                 </View>
-              </View>
-            </View>
-          )}
-          contentContainerStyle={{ paddingBottom: 20 }}
+              </TouchableOpacity>
+            );
+          }}
         />
-      )}
-    </View>
-  );
+      </View>
+    );
+  };
 
   const renderScheduleContainer = () => {
     if (!all_schedule || all_schedule.length === 0) {
@@ -808,7 +897,7 @@ function MainLanding(props) {
           data={all_posts}
           renderItem={renderItem}
           keyExtractor={(item) => item._id}
-          contentContainerStyle={{ paddingBottom: 20 }}
+          contentContainerStyle={{ alignItems: 'center', paddingBottom: 20 }}
         />
       )}
     </View>

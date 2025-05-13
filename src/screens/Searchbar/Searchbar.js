@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import FollowButton from "../../components/Follow/FollowButton";
 import {
   View,
   TextInput,
@@ -114,6 +115,8 @@ function SearchPage() {
               location: item.location
             }
           });
+        } else {
+          navigation.navigate('UserProfile', { userId: item.id });
         }
       }}
     >
@@ -123,14 +126,18 @@ function SearchPage() {
           style={styles.avatar}
         />
         <View style={styles.personDetails}>
-          <Text style={styles.personName}>{item.name}</Text>
-          {activeTab === "People" ?
+        <View style={styles.nameRow}>
+            <Text style={styles.personName}>{item.name}</Text>
+            {/* Add the FollowButton here for People tab */}
+            {activeTab === "People" && <FollowButton userId={item.id} />}
+          </View>
+
+          {activeTab === "People" ? (
             <Text style={styles.personTagline}>
               {item.tagline}
             </Text>
-            :
-            null
-          }
+          ) : null}
+          
           {activeTab === "Places" && (
             <>
               <View style={styles.ratingContainer}>
@@ -269,6 +276,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f8f8f8",
+  },
+  nameRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  followButton: {
+    marginLeft: 10,
   },
   headerContainer: {
     flexDirection: "row",
