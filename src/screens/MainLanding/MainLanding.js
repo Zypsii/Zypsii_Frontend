@@ -738,10 +738,6 @@ function MainLanding(props) {
           showsHorizontalScrollIndicator={false}
           keyExtractor={(item) => item.id}
           data={all_schedule}
-          // contentContainerStyle={{
-          //   paddingHorizontal: 10,
-          //   gap: 10
-          // }}
           renderItem={({ item }) => (
             <View style={{ marginRight: 0 }}>
               <AllSchedule item={item} />
@@ -751,7 +747,56 @@ function MainLanding(props) {
       </View>
     );
   };
+
+  const renderVerticalScheduleList = () => {
+    if (!all_schedule || all_schedule.length === 0) {
+      return (
+        <View style={styles.scheduleContainer}>
+          <View style={styles.scheduleheadContainer}>
+            <TextDefault textColor={colors.fontMainColor} H5 bold>
+              {'Schedule'}
+            </TextDefault>
+            <TouchableOpacity onPress={() => navigation.navigate('MySchedule')}>
+              <TextDefault textColor={colors.btncolor} H5>
+                {'View All'}
+              </TextDefault>
+            </TouchableOpacity>
+          </View>
+          <TextDefault style={{ marginLeft: 20, color: colors.fontSecondColor }}>
+            No schedule available
+          </TextDefault>
+        </View>
+      );
+    }
   
+    return (
+      <View style={styles.scheduleContainer}>
+        <View style={styles.scheduleheadContainer}>
+          <TextDefault textColor={colors.fontMainColor} H5 bold>
+            {'Schedule'}
+          </TextDefault>
+          <TouchableOpacity onPress={() => navigation.navigate('MySchedule')}>
+            <TextDefault textColor={colors.btncolor} H5>
+              {'View All'}
+            </TextDefault>
+          </TouchableOpacity>
+        </View>
+  
+        <FlatList
+          vertical
+          showsVerticalScrollIndicator={false}
+          keyExtractor={(item) => item.id}
+          data={all_schedule}
+          contentContainerStyle={{ paddingBottom: 20 }}
+          renderItem={({ item }) => (
+            <View style={{ marginBottom: 15 }}>
+              <AllSchedule item={item} />
+            </View>
+          )}
+        />
+      </View>
+    );
+  };
 
   const renderDiscoverByInterest = () => (
     <View style={styles.titleSpaceredge}>
@@ -913,9 +958,9 @@ function MainLanding(props) {
         );
       case 'Schedule':
         return isScheduleLoading ? (
-          <HorizontalListLoader count={5} />
+          <VerticalListLoader count={5} />
         ) : (
-          renderScheduleContainer()
+          renderVerticalScheduleList()
         );
       case 'Posts':
         return isPostsLoading ? (

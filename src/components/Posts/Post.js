@@ -1,16 +1,53 @@
 import React, { useState } from 'react';
-import { View, Text, Image, TouchableOpacity, TextInput, StyleSheet, FlatList, Dimensions } from 'react-native';
+import { View, Text, Image, TouchableOpacity, TextInput, StyleSheet, FlatList, Dimensions, Modal, Alert } from 'react-native';
 import Feather from 'react-native-vector-icons/Feather';
 import AntDesign from 'react-native-vector-icons/AntDesign';
 import Ionic from 'react-native-vector-icons/Ionicons';
 import Entypo from 'react-native-vector-icons/Entypo';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { base_url } from '../../utils/base_url';
 
 const { width } = Dimensions.get('window');
 
-const Post = ({ item }) => {
-  console.log('Post item:', item); // Log the entire post item for debugging
+const Post = ({ item, isFromProfile }) => {
   const [like, setLike] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   
+  const handleDelete = async () => {
+    try {
+      setIsDeleting(true);
+      setShowMenu(false);
+      const token = await AsyncStorage.getItem('accessToken');
+      
+      if (!token) {
+        Alert.alert('Error', 'Authentication token not found');
+        return;
+      }
+
+      const response = await fetch(`${base_url}/post/delete/${item.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.status) {
+        Alert.alert('Success', 'Post deleted successfully');
+      } else {
+        Alert.alert('Error', data.message || 'Failed to delete post');
+      }
+    } catch (error) {
+      console.error('Delete Error:', error);
+      Alert.alert('Error', 'Network error. Please check your connection and try again.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const renderImage = ({ item: imageUrl }) => {
     let processedUrl = imageUrl;
     
@@ -66,8 +103,6 @@ const Post = ({ item }) => {
       : 'https://via.placeholder.com/150';
 
   // Log the URL before rendering
-  console.log('Rendering post image:', firstImageUrl);
-
   return (
     <View style={styles.postContainer}>
       <View style={styles.header}>
@@ -75,7 +110,11 @@ const Post = ({ item }) => {
           <Text style={styles.userName}>{item.postTitle}</Text>
           <Text style={styles.dateText}>{formatDate(item.createdAt)}</Text>
         </View>
-        <Feather name="more-vertical" style={styles.moreIcon} />
+        {isFromProfile && (
+          <TouchableOpacity onPress={() => setShowMenu(true)}>
+            <Feather name="more-vertical" style={styles.moreIcon} />
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Only render the image if the URL is a non-empty string */}
@@ -131,6 +170,33 @@ const Post = ({ item }) => {
           <Entypo name="emoji-sad" style={[styles.emojiIcon, { color: 'red' }]} />
         </View>
       </View>
+
+      {/* Menu Modal */}
+      <Modal
+        visible={showMenu}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowMenu(false)}
+      >
+        <TouchableOpacity 
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowMenu(false)}
+        >
+          <View style={styles.menuContainer}>
+            <TouchableOpacity 
+              style={[styles.menuItem, styles.deleteMenuItem]}
+              onPress={handleDelete}
+              disabled={isDeleting}
+            >
+              <Feather name="trash-2" size={20} color="#FF3B30" />
+              <Text style={[styles.menuText, styles.deleteMenuText]}>
+                {isDeleting ? 'Deleting...' : 'Delete'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 };
@@ -254,6 +320,43 @@ const styles = StyleSheet.create({
   emojiIcon: {
     fontSize: 20,
     marginLeft: 10,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  menuContainer: {
+    backgroundColor: 'white',
+    borderRadius: 10,
+    padding: 10,
+    width: 200,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 8,
+  },
+  menuText: {
+    marginLeft: 10,
+    fontSize: 16,
+    color: '#333',
+  },
+  deleteMenuItem: {
+    marginTop: 5,
+  },
+  deleteMenuText: {
+    color: '#FF3B30',
   },
 });
 

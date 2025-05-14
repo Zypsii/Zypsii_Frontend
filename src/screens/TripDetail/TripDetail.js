@@ -1,35 +1,145 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, Image, StyleSheet, TouchableOpacity, FlatList, ScrollView } from 'react-native';
 import { BackHeader, BottomTab } from '../../components';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons'; // For location icons
 import { alignment, colors } from '../../utils'; // Ensure you define appropriate colors in your utils.
 import { useNavigation } from '@react-navigation/native';
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { base_url } from '../../utils/base_url';
 
 const TripDetail = ({ route }) => {
   const navigation = useNavigation();
   const { tripData } = route.params;
   const [activeDay, setActiveDay] = useState(1);
+  const [scheduleData, setScheduleData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [placeDescriptions, setPlaceDescriptions] = useState([]);
   
+  useEffect(() => {
+    fetchScheduleData();
+    getPlaceDescriptions();
+  }, []);
+
+  const fetchScheduleData = async () => {
+    try {
+      const token = await AsyncStorage.getItem('accessToken');
+      const response = await axios.get(
+        `${base_url}/schedule/listing/scheduleDescription/${tripData.id}?offset=0&limit=10`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+      
+      if (response.data && response.data.data) {
+        // Transform the data to organize by days
+        const transformedData = response.data.data.map((item, index) => ({
+          day: index + 1,
+          description: item.Description,
+          date: item.date,
+          locations: item.planDescription || []
+        }));
+        setScheduleData(transformedData);
+      }
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching schedule data:', error);
+      setLoading(false);
+      // Set empty array as fallback
+      setScheduleData([]);
+    }
+  };
+
+  const getPlaceDescriptions = async () => {
+    try {
+      const token = await AsyncStorage.getItem('accessToken');
+      const response = await axios.get(
+        `${base_url}/places/descriptions`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+      
+      if (response.data && response.data.data) {
+        const descriptions = response.data.data.map(place => ({
+          id: place.id,
+          name: place.name,
+          description: place.description,
+          location: place.location
+        }));
+        setPlaceDescriptions(descriptions);
+      }
+    } catch (error) {
+      console.error('Error fetching place descriptions:', error);
+      // Set empty array as fallback
+      setPlaceDescriptions([]);
+    }
+  };
+
   const backPressed = () => {
     navigation.goBack();
   };
 
   // Function to get locations for current day
   const getLocationsForDay = (day) => {
+    // First check if we have schedule data for this day
+    if (scheduleData && scheduleData.length > 0) {
+      const dayData = scheduleData.find(item => item.day === day);
+      if (dayData && dayData.locations && dayData.locations.length > 0) {
+        // Enhance locations with place descriptions
+        return dayData.locations.map(location => {
+          const placeInfo = placeDescriptions.find(place => place.id === location.id);
+          return {
+            ...location,
+            description: placeInfo?.description || location.description
+          };
+        });
+      }
+    }
+    
+    // Fallback to original logic if no schedule data for this day
     const locationsPerDay = Math.ceil(tripData.locationDetails.length / parseInt(tripData.numberOfDays));
     const startIndex = (day - 1) * locationsPerDay;
     const endIndex = Math.min(startIndex + locationsPerDay, tripData.locationDetails.length);
-    return tripData.locationDetails.slice(startIndex, endIndex);
+    const locations = tripData.locationDetails.slice(startIndex, endIndex);
+    
+    // Enhance locations with place descriptions
+    return locations.map(location => {
+      const placeInfo = placeDescriptions.find(place => place.id === location.id);
+      return {
+        ...location,
+        description: placeInfo?.description || location.description
+      };
+    });
   };
 
-  // Function to get day title (first location of the day)
+  // Function to get day title
   const getDayTitle = (day) => {
+    // First check if we have schedule data for this day
+    if (scheduleData && scheduleData.length > 0) {
+      const dayData = scheduleData.find(item => item.day === day);
+      if (dayData && dayData.description) {
+        return dayData.description;
+      }
+    }
+    
+    // Fallback to original logic
     const dayLocations = getLocationsForDay(day);
     if (dayLocations.length > 0) {
-      return dayLocations[0].name;
+      return dayLocations[0].name || `Day ${day}`;
     }
     return `Day ${day}`;
   };
+
+  // Get all days that have locations
+  const daysWithLocations = Array.from(
+    { length: parseInt(tripData.numberOfDays) }, 
+    (_, i) => i + 1
+  ).filter(day => getLocationsForDay(day).length > 0);
 
   const renderDayPlan = ({ item, index, arrayLength }) => (
     <View style={styles.dayPlanItem}>
@@ -45,10 +155,6 @@ const TripDetail = ({ route }) => {
     </View>
   );
 
-  // Get all days that have locations
-  const daysWithLocations = Array.from({ length: parseInt(tripData.numberOfDays) }, (_, i) => i + 1)
-    .filter(day => getLocationsForDay(day).length > 0);
-
   return (
     <View style={styles.container}>
       <View style={styles.protractorShape} />
@@ -61,12 +167,16 @@ const TripDetail = ({ route }) => {
             <View style={styles.fromToSection}>
               <View style={styles.locationInfo}>
                 <Icon name="map-marker-outline" size={20} color={colors.darkGray} />
-                <Text style={styles.locationText}>{getLocationsForDay(activeDay)[0]?.name.slice(0, 5)+'...' || 'Starting Point'}</Text>
+                <Text style={styles.locationText}>
+                  {getLocationsForDay(activeDay)[0]?.name?.slice(0, 5) + '...' || 'Starting Point'}
+                </Text>
               </View>
               <Text style={styles.dottedLineHorizontal}></Text>
               <View style={styles.locationInfo}>
                 <Icon name="map-marker-outline" size={20} color={colors.darkGray} />
-                <Text style={styles.locationText}>{tripData.locationDetails[tripData.locationDetails.length - 1]?.name.slice(0, 5)+'...' || 'End Point'}</Text>
+                <Text style={styles.locationText}>
+                  {getLocationsForDay(activeDay)[getLocationsForDay(activeDay).length - 1]?.name?.slice(0, 5) + '...' || 'End Point'}
+                </Text>
               </View>
             </View>
 
@@ -75,7 +185,10 @@ const TripDetail = ({ route }) => {
 
           <View style={styles.ridersDateContainer}>
             <Text style={styles.date}>
-              <Icon name="calendar-outline" size={20} color={colors.darkGray} /> {tripData.date}
+              <Icon name="calendar-outline" size={20} color={colors.darkGray} /> 
+              {scheduleData[activeDay - 1]?.date 
+                ? new Date(scheduleData[activeDay - 1].date).toLocaleDateString() 
+                : tripData.date}
             </Text>
             <Text style={styles.riders}>
               🏍️ Riders: {tripData.riders}
@@ -142,8 +255,12 @@ const TripDetail = ({ route }) => {
           style={styles.button}
           onPress={() =>
             navigation.navigate('Map', { 
-              fromLocation: tripData.from, 
-              toLocation: tripData.to 
+              locations: getLocationsForDay(activeDay).map(location => ({
+                name: location.name,
+                address: location.address,
+                location: location.location,
+                distanceInKilometer: location.distanceInKilometer
+              }))
             })
           }
         >

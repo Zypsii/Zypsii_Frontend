@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text,FlatList, StyleSheet, Dimensions, ScrollView, Image } from "react-native";
+import { View, Text, FlatList, StyleSheet, Dimensions, ScrollView, Image } from "react-native";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import { BackHeader, BottomTab } from "../../components";
 import { alignment, colors } from "../../utils";
@@ -13,46 +13,65 @@ import { base_url } from '../../utils/base_url';
 const Map = ({ route }) => {
   const navigation = useNavigation();
   const backPressed = () => {
-    navigation.goBack(); // Navigate to the previous screen when the back arrow is pressed
+    navigation.goBack();
   };
   const [discoverbynearest, setDiscoverbyNearest] = useState([]);
+  const { locations = [] } = route.params || {};
 
-    // Fetch data from an open-source API (JSONPlaceholder API for demonstration)
-    useEffect(() => {
-      const fetchDiscoverbyNearest = async () => {
-        try {
-          const response = await fetch(`${base_url}/schedule/places/getNearest`);
-          const data = await response.json();
-  
-          // Log to verify the data structure
-         // console.log(data);
-  
-          const formattedData = data.slice(0, 100).map(item => ({
-            id: item.id,
-            image: item.image,
-            title: item.name,
-            subtitle: item.subtitle,
-          }));
-  
-          //console.log(formattedData); // Check the formatted data with image URLs
-  
-          setDiscoverbyNearest(formattedData);
-        } catch (error) {
-          console.error('Error fetching data:', error);
-        }
+  // Calculate initial region based on locations
+  const getInitialRegion = () => {
+    if (locations.length === 0) {
+      return {
+        latitude: 13.0827,
+        longitude: 80.2707,
+        latitudeDelta: 4.5,
+        longitudeDelta: 4.5,
       };
-  
-      fetchDiscoverbyNearest();
-    }, []);
-  // Destructure the route params and set default values if they are undefined
-  const { fromLocation = 'Unknown', toLocation = 'Unknown' } = route.params || {};
+    }
 
-  // Route coordinates dynamically adjusted for "from" and "to" locations
-  const routeCoordinates = [
-    { latitude: 13.0827, longitude: 80.2707 }, // Chennai (default starting point)
-    { latitude: 12.9716, longitude: 77.5946 }, // Bangalore (mid-point)
-    { latitude: 12.2958, longitude: 76.6394 }, // Mysore (default destination)
-  ];
+    const latitudes = locations.map(loc => loc.location.lat);
+    const longitudes = locations.map(loc => loc.location.lng);
+    
+    const minLat = Math.min(...latitudes);
+    const maxLat = Math.max(...latitudes);
+    const minLng = Math.min(...longitudes);
+    const maxLng = Math.max(...longitudes);
+
+    return {
+      latitude: (minLat + maxLat) / 2,
+      longitude: (minLng + maxLng) / 2,
+      latitudeDelta: Math.abs(maxLat - minLat) * 1.5,
+      longitudeDelta: Math.abs(maxLng - minLng) * 1.5,
+    };
+  };
+
+  // Get route coordinates from locations
+  const getRouteCoordinates = () => {
+    return locations.map(loc => ({
+      latitude: loc.location.lat,
+      longitude: loc.location.lng
+    }));
+  };
+
+  useEffect(() => {
+    const fetchDiscoverbyNearest = async () => {
+      try {
+        const response = await fetch(`${base_url}/schedule/places/getNearest`);
+        const data = await response.json();
+        const formattedData = data.slice(0, 100).map(item => ({
+          id: item.id,
+          image: item.image,
+          title: item.name,
+          subtitle: item.subtitle,
+        }));
+        setDiscoverbyNearest(formattedData);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      }
+    };
+
+    fetchDiscoverbyNearest();
+  }, []);
 
   return (
     <View style={styles.container}>
@@ -62,63 +81,52 @@ const Map = ({ route }) => {
       {/* Back Header */}
       <BackHeader backPressed={backPressed} /> 
 
-      {/* Scrollable Content */}
-      <ScrollView style={styles.scrollContainer}>
-        {/* Title */}
-        <Text style={styles.title}>Trip Starts</Text>
+      <View style={styles.mainContent}>
+        <Text style={styles.title}>Trip Locations</Text>
 
-        {/* From-To Section */}
         <View style={styles.fromToContainer}>
-          <View style={styles.locationInfo}>
-            <MaterialCommunityIcons name="map-marker-outline" size={20} color={colors.darkGray} />
-            <Text style={styles.locationText}>
-            {fromLocation.length > 7 ? fromLocation.slice(0, 15) + '...' : fromLocation}
-          </Text>
-          </View>
-          <MaterialCommunityIcons name="arrow-right" size={20} color={colors.darkGray} style={styles.arrowIcon} />
-          <View style={styles.locationInfo}>
-            <MaterialCommunityIcons name="map-marker-outline" size={20} color={colors.darkGray} />
-            <Text style={styles.locationText}>
-        {toLocation && toLocation.length > 7
-          ? toLocation.slice(0, 15) + '...'
-          : toLocation}
-      </Text>
-          </View>
+          {locations.length > 0 && (
+            <>
+              <View style={styles.locationInfo}>
+                <MaterialCommunityIcons name="map-marker-outline" size={20} color={colors.darkGray} />
+                <Text style={styles.locationText}>
+                  {locations[0].name}
+                </Text>
+              </View>
+              <MaterialCommunityIcons name="arrow-right" size={20} color={colors.darkGray} style={styles.arrowIcon} />
+              <View style={styles.locationInfo}>
+                <MaterialCommunityIcons name="map-marker-outline" size={20} color={colors.darkGray} />
+                <Text style={styles.locationText}>
+                  {locations[locations.length - 1].name}
+                </Text>
+              </View>
+            </>
+          )}
         </View>
 
-        {/* Map View */}
         <MapView
           style={styles.map}
-          initialRegion={{
-            latitude: routeCoordinates[0].latitude, // Initial latitude
-            longitude: routeCoordinates[0].longitude, // Initial longitude
-            latitudeDelta: 4.5,
-            longitudeDelta: 4.5,
-          }}
+          initialRegion={getInitialRegion()}
         >
-          {/* Markers */}
-          <Marker
-            coordinate={routeCoordinates[0]}
-            title="Chennai"
-            description="Starting Point"
-          />
-          <Marker
-            coordinate={routeCoordinates[1]}
-            title="Bangalore"
-            description="Stopover"
-          />
-          <Marker
-            coordinate={routeCoordinates[2]}
-            title="Mysore"
-            description="Destination"
-          /> 
+          {locations.map((location, index) => (
+            <Marker
+              key={location._id}
+              coordinate={{
+                latitude: location.location.lat,
+                longitude: location.location.lng
+              }}
+              title={location.name}
+              description={location.address}
+            />
+          ))}
 
-          {/* Route */}
-          <Polyline
-            coordinates={routeCoordinates}
-            strokeColor="#007AFF"
-            strokeWidth={4}
-          />
+          {locations.length > 1 && (
+            <Polyline
+              coordinates={getRouteCoordinates()}
+              strokeColor="#007AFF"
+              strokeWidth={4}
+            />
+          )}
         </MapView>
 
         <Text style={styles.explore}>Explore Travel</Text>
@@ -129,19 +137,19 @@ const Map = ({ route }) => {
             <TextDefault style={styles.viewAllText}>View All</TextDefault>
           </TouchableOpacity>
         </View>
-        <FlatList
-          horizontal={true}
-          showsHorizontalScrollIndicator={false}
-          keyExtractor={(item, index) => item.id}
-          data={discoverbynearest}
-          renderItem={({ item, index }) => (
-            <DiscoverByNearest styles={styles.itemCardContainer} {...item} />
-          )}
-        />
+      </View>
 
-      </ScrollView>
+      <FlatList
+        horizontal={true}
+        showsHorizontalScrollIndicator={false}
+        keyExtractor={(item, index) => item.id}
+        data={discoverbynearest}
+        renderItem={({ item, index }) => (
+          <DiscoverByNearest styles={styles.itemCardContainer} {...item} />
+        )}
+        style={styles.discoverList}
+      />
 
-      {/* Bottom Tab */}
       <View style={styles.bottomTabContainer}>
         <BottomTab screen={"WhereToGo"} />
       </View>
@@ -174,11 +182,10 @@ const styles = StyleSheet.create({
     zIndex: 1,
     overflow: "hidden",
   },
-  scrollContainer: {
-    flexGrow: 1,
-    paddingBottom: 80,
+  mainContent: {
+    flex: 1,
+    paddingTop: 90,
     zIndex: 2,
-    top: 90,
   },
   fromToContainer: {
     flexDirection: "row",
@@ -229,12 +236,21 @@ const styles = StyleSheet.create({
     color: colors.btncolor,
     fontWeight: "500",
   },
- 
   explore: {
     ...alignment.Psmall,
     fontWeight: "bold",
     alignSelf: "center",
     fontSize: 16,
+  },
+  discoverList: {
+    marginBottom: 80,
+  },
+  bottomTabContainer: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 3,
   },
 });
 

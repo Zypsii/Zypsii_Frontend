@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Image, TouchableOpacity, FlatList, ScrollView } from 'react-native';
+import { View, Text, Image, TouchableOpacity, FlatList, ScrollView, Modal, Dimensions, StatusBar } from 'react-native';
 import { WebView } from 'react-native-webview';
 import styles from './styles';
 import Icon from 'react-native-vector-icons/FontAwesome';
@@ -9,6 +9,8 @@ import Post from '../../components/Posts/Post';
 import Schedule from '../MySchedule/Schedule/AllSchedule';
 import { base_url } from '../../utils/base_url';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 const DummyScreen = ({ navigation }) => {
   const [activeIcon, setActiveIcon] = useState('th-large'); // Default active icon
@@ -26,6 +28,8 @@ const DummyScreen = ({ navigation }) => {
   const [all_schedule, setAll_schedule] = useState([]);
   const [all_posts, setAllPosts] = useState([]);
   const [all_shorts, setAllShorts] = useState([]);
+  const [selectedVideo, setSelectedVideo] = useState(null);
+  const [isFullScreen, setIsFullScreen] = useState(false);
 
   // First useEffect to get user ID
   useEffect(() => {
@@ -224,20 +228,22 @@ const DummyScreen = ({ navigation }) => {
           const response = await shortsResponse.json();
           
           if (response.status && response.data) {
-            const shortsData = response.data.map(item => ({
-              id: item._id || '',
-              video: item.videoUrl || '',
-              videoTitle: item.title || '',
-              videoImage: item.thumbnailUrl || '',
-              description: item.description || '',
-              likes: String(item.likesCount || 0),
-              views: String(item.viewsCount || 0),
-              comments: String(item.commentsCount || 0),
-              createdBy: item.createdBy || '',
-              createdAt: item.createdAt || '',
-              updatedAt: item.updatedAt || '',
-              tags: item.tags || []
-            }));
+            const shortsData = response.data
+              .filter(item => typeof item.videoUrl === 'string' && item.videoUrl.toLowerCase().endsWith('.mp4'))
+              .map(item => ({
+                id: item._id || '',
+                video: item.videoUrl || '',
+                videoTitle: item.title || '',
+                videoImage: item.thumbnailUrl || '',
+                description: item.description || '',
+                likes: String(item.likesCount || 0),
+                views: String(item.viewsCount || 0),
+                comments: String(item.commentsCount || 0),
+                createdBy: item.createdBy || '',
+                createdAt: item.createdAt || '',
+                updatedAt: item.updatedAt || '',
+                tags: item.tags || []
+              }));
             
             setAllShorts(shortsData);
           }
@@ -286,6 +292,101 @@ const DummyScreen = ({ navigation }) => {
           .map((_, index) => ({ id: `${index + 1}`, isPlaceholder: true }));
   };
 
+  const handleVideoPress = (item) => {
+    setSelectedVideo(item);
+    setIsFullScreen(true);
+    StatusBar.setHidden(true);
+  };
+
+  const handleCloseFullScreen = () => {
+    setIsFullScreen(false);
+    setSelectedVideo(null);
+    StatusBar.setHidden(false);
+  };
+
+  const renderFullScreenVideo = () => {
+    if (!selectedVideo) return null;
+
+    return (
+      <Modal
+        visible={isFullScreen}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={handleCloseFullScreen}
+      >
+        <View style={fullScreenStyles.container}>
+          <TouchableOpacity 
+            style={fullScreenStyles.closeButton}
+            onPress={handleCloseFullScreen}
+          >
+            <Ionicons name="close" size={30} color="white" />
+          </TouchableOpacity>
+          
+          <WebView
+            source={{ uri: selectedVideo.video }}
+            style={fullScreenStyles.video}
+            allowsFullscreenVideo
+            javaScriptEnabled={true}
+            domStorageEnabled={true}
+            startInLoadingState={true}
+            scalesPageToFit={true}
+            mediaPlaybackRequiresUserAction={false}
+          />
+
+          <View style={fullScreenStyles.videoInfo}>
+            <Text style={fullScreenStyles.videoTitle}>{selectedVideo.videoTitle || 'Untitled'}</Text>
+            <Text style={fullScreenStyles.videoDescription}>{selectedVideo.description || 'No description'}</Text>
+            <View style={fullScreenStyles.videoStats}>
+              <Text style={fullScreenStyles.statText}>{selectedVideo.views || '0'} views</Text>
+              <Text style={fullScreenStyles.statText}>{selectedVideo.likes || '0'} likes</Text>
+              <Text style={fullScreenStyles.statText}>{selectedVideo.comments || '0'} comments</Text>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    );
+  };
+
+  // Modify the renderItem in the FlatList
+  const renderShortItem = ({ item }) => {
+    if (!item) return null;
+
+    return (
+      <TouchableOpacity 
+        style={videoStyles.videoContainer}
+        onPress={() => handleVideoPress(item)}
+      >
+        {item.video ? (
+          <WebView
+            source={{ uri: item.video }}
+            style={videoStyles.webviewVideo}
+            allowsFullscreenVideo
+            javaScriptEnabled={true}
+            domStorageEnabled={true}
+            startInLoadingState={true}
+            scalesPageToFit={true}
+            mediaPlaybackRequiresUserAction={false}
+          />
+        ) : (
+          <Image 
+            source={{ uri: item.videoImage }}
+            style={videoStyles.webviewVideo}
+            resizeMode="cover"
+          />
+        )}
+        <View style={videoStyles.videoInfo}>
+          <Text style={videoStyles.videoTitle}>{item.videoTitle || 'Untitled'}</Text>
+          <Text style={videoStyles.videoDescription}>{item.description || 'No description'}</Text>
+          <View style={videoStyles.videoStats}>
+            <Text style={videoStyles.statText}>{item.views || '0'} views</Text>
+            <Text style={videoStyles.statText}>{item.likes || '0'} likes</Text>
+            <Text style={videoStyles.statText}>{item.comments || '0'} comments</Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
   // Render content based on active icon
   const renderContent = () => {
     switch (activeIcon) {
@@ -313,7 +414,7 @@ const DummyScreen = ({ navigation }) => {
 
               return (
                 <View style={{ marginBottom: 10 }}>
-                  <Post item={postData} />
+                  <Post item={postData} isFromProfile={true} />
                 </View>
               );
             }}
@@ -335,59 +436,28 @@ const DummyScreen = ({ navigation }) => {
             keyExtractor={(item) => item.id.toString()}
             renderItem={({ item }) => (
               <TouchableOpacity onPress={() => handleSchedulePress(item)}>
-                <Schedule item={item} />
+                <Schedule item={item} isFromProfile={true} />
               </TouchableOpacity>
             )}
           />
         );
       case 'play-circle':
         return (
-          <FlatList
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            data={all_shorts}
-            keyExtractor={(item) => item?.id?.toString() || Math.random().toString()}
-            renderItem={({ item }) => {
-              if (!item) return null;
-
-              return (
-                <View style={videoStyles.videoContainer}>
-                  {item.video ? (
-                    <WebView
-                      source={{ uri: item.video }}
-                      style={videoStyles.webviewVideo}
-                      allowsFullscreenVideo
-                      javaScriptEnabled={true}
-                      domStorageEnabled={true}
-                      startInLoadingState={true}
-                      scalesPageToFit={true}
-                      mediaPlaybackRequiresUserAction={false}
-                    />
-                  ) : (
-                    <Image 
-                      source={{ uri: item.videoImage }}
-                      style={videoStyles.webviewVideo}
-                      resizeMode="cover"
-                    />
-                  )}
-                  <View style={videoStyles.videoInfo}>
-                    <Text style={videoStyles.videoTitle}>{item.videoTitle || 'Untitled'}</Text>
-                    <Text style={videoStyles.videoDescription}>{item.description || 'No description'}</Text>
-                    <View style={videoStyles.videoStats}>
-                      <Text style={videoStyles.statText}>{item.views || '0'} views</Text>
-                      <Text style={videoStyles.statText}>{item.likes || '0'} likes</Text>
-                      <Text style={videoStyles.statText}>{item.comments || '0'} comments</Text>
-                    </View>
-                  </View>
+          <>
+            <FlatList
+              vertical
+              showsVerticalScrollIndicator={false}
+              data={all_shorts}
+              keyExtractor={(item) => item?.id?.toString() || Math.random().toString()}
+              renderItem={renderShortItem}
+              ListEmptyComponent={() => (
+                <View style={{ padding: 20, alignItems: 'center' }}>
+                  <Text>No shorts available</Text>
                 </View>
-              );
-            }}
-            ListEmptyComponent={() => (
-              <View style={{ padding: 20, alignItems: 'center' }}>
-                <Text>No shorts available</Text>
-              </View>
-            )}
-          />
+              )}
+            />
+            {renderFullScreenVideo()}
+          </>
         );
       default:
         return null;
@@ -574,8 +644,7 @@ const cardStyles = {
 // Styles for video/shorts
 const videoStyles = {
   videoContainer: {
-    width: 300,
-    marginHorizontal: 10,
+    width: '100%',
     marginBottom: 15,
     borderRadius: 10,
     overflow: 'hidden',
@@ -588,7 +657,7 @@ const videoStyles = {
   },
   webviewVideo: {
     width: '100%',
-    height: 400, // Increased height for better video visibility
+    height: 300,
     backgroundColor: '#000',
   },
   videoInfo: {
@@ -615,6 +684,58 @@ const videoStyles = {
   statText: {
     fontSize: 12,
     color: '#666',
+  }
+};
+
+// Add new styles for full-screen view
+const fullScreenStyles = {
+  container: {
+    flex: 1,
+    backgroundColor: 'black',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  video: {
+    width: screenWidth,
+    height: screenHeight,
+    backgroundColor: 'black',
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 40,
+    right: 20,
+    zIndex: 1000,
+    padding: 10,
+  },
+  videoInfo: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 20,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  videoTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: 'white',
+    marginBottom: 8,
+  },
+  videoDescription: {
+    fontSize: 14,
+    color: 'white',
+    marginBottom: 12,
+  },
+  videoStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.2)',
+    paddingTop: 8,
+  },
+  statText: {
+    fontSize: 12,
+    color: 'white',
   }
 };
 

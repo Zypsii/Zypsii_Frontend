@@ -123,7 +123,70 @@ export const styles = StyleSheet.create({
     marginTop: scale(90),
   },
   joinedText: {
-    color: '#fff',
-    fontSize: scale(12),
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  deleteButton: {
+    backgroundColor: '#FF3B30',
+    padding: scale(8),
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: scale(20),
+    width: scale(36),
+    height: scale(36),
+    position: 'absolute',
+    right: scale(10),
+    top: scale(10),
+  },
+  deleteText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  disabledButton: {
+    opacity: 0.5,
+  },
+  moreButton: {
+    position: 'absolute',
+    right: scale(10),
+    top: scale(10),
+    zIndex: 1,
+    padding: scale(5),
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  menuContainer: {
+    backgroundColor: 'white',
+    borderRadius: scale(10),
+    padding: scale(10),
+    width: scale(200),
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: scale(12),
+    borderRadius: scale(8),
+  },
+  menuText: {
+    marginLeft: scale(10),
+    fontSize: scale(16),
+    color: '#333',
+  },
+  deleteMenuItem: {
+    marginTop: scale(5),
+  },
+  deleteMenuText: {
+    color: '#FF3B30',
   },
 });

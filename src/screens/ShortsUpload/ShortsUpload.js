@@ -31,14 +31,48 @@ function ShortsUpload({ navigation }) {
 
   const compressVideo = async (uri) => {
     try {
+      // Get file info to check size
+      const fileInfo = await FileSystem.getInfoAsync(uri);
+      console.log('Original video size:', fileInfo.size / (1024 * 1024), 'MB');
+
+      // If file is larger than 50MB, we need to compress it
+      if (fileInfo.size > 50 * 1024 * 1024) {
+        console.log('Video is too large, attempting compression...');
+        Alert.alert(
+          'Large Video',
+          'The video is quite large. We will try to compress it, but please consider selecting a shorter video.',
+          [{ text: 'OK' }]
+        );
+      }
+
       const compressedUri = `${FileSystem.cacheDirectory}compressed_video.mp4`;
-      await FileSystem.copyAsync({
-        from: uri,
-        to: compressedUri
+      
+      // Use more aggressive compression settings
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+        allowsEditing: true,
+        quality: 0.3, // Reduced quality for better compression
+        videoMaxDuration: 30,
+        videoExportPreset: ImagePicker.VideoExportPreset.LowQuality,
+        videoQuality: 0.3, // Reduced quality for better compression
+        aspect: [9, 16],
       });
-      return compressedUri;
+
+      if (!result.canceled) {
+        const compressedInfo = await FileSystem.getInfoAsync(result.assets[0].uri);
+        console.log('Compressed video size:', compressedInfo.size / (1024 * 1024), 'MB');
+        
+        if (compressedInfo.size > 50 * 1024 * 1024) {
+          throw new Error('Video is still too large after compression. Please select a shorter video.');
+        }
+        
+        return result.assets[0].uri;
+      }
+      
+      throw new Error('Video compression was canceled');
     } catch (error) {
-      throw new Error('Failed to compress video');
+      console.error('Video compression error:', error);
+      throw new Error('Failed to compress video: ' + error.message);
     }
   };
 
@@ -53,10 +87,10 @@ function ShortsUpload({ navigation }) {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Videos,
         allowsEditing: true,
-        quality: 0.5,
+        quality: 0.3, // Reduced quality for better compression
         videoMaxDuration: 30,
         videoExportPreset: ImagePicker.VideoExportPreset.LowQuality,
-        videoQuality: 0.5,
+        videoQuality: 0.3, // Reduced quality for better compression
         aspect: [9, 16],
       });
 
@@ -66,7 +100,8 @@ function ShortsUpload({ navigation }) {
         setThumbnail(compressedUri);
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to pick video');
+      console.error('Video picker error:', error);
+      Alert.alert('Error', error.message || 'Failed to pick video');
     }
   };
 
@@ -106,9 +141,6 @@ function ShortsUpload({ navigation }) {
         case 'mov':
           mimeType = 'video/quicktime';
           break;
-        case '3gp':
-          mimeType = 'video/3gpp';
-          break;
         case 'm4v':
           mimeType = 'video/x-m4v';
           break;
@@ -141,10 +173,15 @@ function ShortsUpload({ navigation }) {
       }
 
       if (!videoUploadResponse.ok) {
+        console.error('Video Upload Error:', {
+          status: videoUploadResponse.status,
+          statusText: videoUploadResponse.statusText,
+          response: videoResponseText
+        });
         if (videoUploadResponse.status === 413) {
           throw new Error('Video file is too large. Please select a smaller video.');
         }
-        throw new Error('Failed to upload video');
+        throw new Error(`Failed to upload video: ${videoResponseText}`);
       }
 
       let videoData;
@@ -195,7 +232,12 @@ function ShortsUpload({ navigation }) {
       }
 
       if (!createShortResponse.ok) {
-        throw new Error('Failed to create short');
+        console.error('Create Short Error:', {
+          status: createShortResponse.status,
+          statusText: createShortResponse.statusText,
+          response: createShortResponseText
+        });
+        throw new Error(`Failed to create short: ${createShortResponseText}`);
       }
 
       let createShortData;
@@ -216,7 +258,8 @@ function ShortsUpload({ navigation }) {
     } catch (error) {
       console.error('Error creating short:', {
         message: error.message,
-        stack: error.stack
+        stack: error.stack,
+        response: error.response || 'No response data'
       });
       Alert.alert('Error', error.message || 'Failed to create short');
     } finally {
