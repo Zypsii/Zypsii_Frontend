@@ -802,7 +802,7 @@ function MainLanding(props) {
     <View style={styles.titleSpaceredge}>
 
 
-<RecommendCard  title="Itineraries Suggested by Nearest" />
+<RecommendCard  title="Itineraries Suggested by Interest" />
       {/* <TextDefault textColor={colors.fontMainColor} H5 bold style={styles.titleSpacer}>
         {'Discover by Interest'}
       </TextDefault>

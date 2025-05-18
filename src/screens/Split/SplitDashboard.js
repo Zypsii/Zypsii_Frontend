@@ -25,6 +25,8 @@ function SplitDashboard() {
     fetchSplits();
   }, []);
 
+
+
   const fetchSplits = async () => {
     try {
       const accessToken = await AsyncStorage.getItem('accessToken');

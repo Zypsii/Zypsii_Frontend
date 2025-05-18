@@ -80,25 +80,33 @@ const AddParticipantModal = ({ visible, onClose, onAddParticipant, existingParti
     return () => clearTimeout(delayDebounceFn);
   }, [searchQuery]);
 
+
+
   const renderUserItem = ({ item }) => (
     <TouchableOpacity
-      style={styles.userItem}
+      style={styles.userItemContainer}
       onPress={() => onAddParticipant(item)}
     >
-      <View style={styles.userInfo}>
-        <View style={styles.avatarContainer}>
-          <Text style={styles.avatarText}>
+      <View style={styles.userInfoWrapper}>
+        <View style={styles.userAvatarContainer}>
+          <Text style={styles.userAvatarText}>
             {item.name ? item.name.charAt(0).toUpperCase() : '?'}
           </Text>
         </View>
-        <View style={styles.userDetails}>
-          <Text style={styles.userName}>{item.name || 'Unknown User'}</Text>
-          <Text style={styles.userEmail}>{item.email}</Text>
+        <View style={styles.userDetailsContainer}>
+          <Text style={styles.userNameText}>{item.name || 'Unknown User'}</Text>
+          <Text style={styles.userEmailText}>{item.email}</Text>
         </View>
       </View>
-      <Ionicons name="add-circle-outline" size={24} color={colors.Zypsii_color} />
+      <View style={styles.addIconContainer}>
+        <Ionicons name="add-circle-outline" size={24} color={colors.Zypsii_color} />
+      </View>
     </TouchableOpacity>
   );
+
+  
+ 
+
 
   return (
     <Modal
@@ -107,115 +115,244 @@ const AddParticipantModal = ({ visible, onClose, onAddParticipant, existingParti
       transparent={true}
       onRequestClose={onClose}
     >
-      <View style={styles.modalContainer}>
-        <View style={styles.modalContent}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Add Participant</Text>
-            <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close" size={24} color={colors.fontMainColor} />
-            </TouchableOpacity>
-          </View>
+      <SafeAreaView style={styles.modalSafeArea}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeaderWithSearch}>
+              <View style={styles.modalHeaderTop}>
+                <Text style={styles.modalTitle}>Add Participant</Text>
+                <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                  <Ionicons name="close" size={24} color={colors.fontMainColor} />
+                </TouchableOpacity>
+              </View>
 
-          <View style={styles.searchContainer}>
-            <Ionicons name="search" size={20} color={colors.fontSecondColor} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search users..."
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholderTextColor={colors.fontSecondColor}
-            />
-          </View>
-
-          {loading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={colors.Zypsii_color} />
-            </View>
-          ) : (
-            <FlatList
-              data={searchResults}
-              renderItem={renderUserItem}
-              keyExtractor={(item) => item._id}
-              contentContainerStyle={styles.searchResults}
-              ListEmptyComponent={
-                <View style={styles.emptyContainer}>
-                  <Text style={styles.emptyText}>
-                    {searchQuery ? 'No users found' : 'Start typing to search users'}
-                  </Text>
+              <View style={styles.searchWrapper}>
+                <View style={styles.searchInputContainer}>
+                  <Ionicons name="search" size={20} color={colors.fontSecondColor} style={styles.searchIcon} />
+                  <TextInput
+                    style={styles.searchInputField}
+                    placeholder="Search users..."
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    placeholderTextColor={colors.fontSecondColor}
+                    autoFocus={true}
+                  />
+                  {searchQuery.length > 0 && (
+                    <TouchableOpacity 
+                      onPress={() => setSearchQuery('')}
+                      style={styles.clearSearchButton}
+                    >
+                      <Ionicons name="close-circle" size={20} color={colors.fontSecondColor} />
+                    </TouchableOpacity>
+                  )}
                 </View>
-              }
-            />
-          )}
+              </View>
+            </View>
+
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={colors.Zypsii_color} />
+              </View>
+            ) : (
+              <FlatList
+                data={searchResults}
+                renderItem={renderUserItem}
+                keyExtractor={(item) => item._id}
+                contentContainerStyle={styles.searchResultsContainer}
+                ListEmptyComponent={
+                  <View style={styles.emptyResultsContainer}>
+                    <Text style={styles.emptyResultsText}>
+                      {searchQuery ? 'No users found' : 'Start typing to search users'}
+                    </Text>
+                  </View>
+                }
+              />
+            )}
+          </View>
         </View>
-      </View>
+      </SafeAreaView>
     </Modal>
   );
 };
 
-const AddExpenseModal = ({ visible, onClose, onAddExpense }) => {
+const AddExpenseModal = ({ visible, onClose, onAddExpense, participants }) => {
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
   const [isCustomCategory, setIsCustomCategory] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [paidBy, setPaidBy] = useState('');
+  const [currentStep, setCurrentStep] = useState(1); // 1: Basic Info, 2: Category, 3: Paid By
+  const [errors, setErrors] = useState({});
 
   const predefinedCategories = [
     'Food & Dining',
     'Transportation',
     'Accommodation',
-    'Shopping',
     'Entertainment',
-    'Utilities',
+    'Shopping',
     'Other'
   ];
 
+  const resetForm = () => {
+    setAmount('');
+    setDescription('');
+    setCategory('');
+    setIsCustomCategory(false);
+    setPaidBy('');
+    setCurrentStep(1);
+    setIsSubmitting(false);
+    setErrors({});
+  };
+
+  const validateAmount = (value) => {
+    const numValue = parseFloat(value);
+    if (!value || isNaN(numValue) || numValue <= 0) {
+      return 'Please enter a valid amount';
+    }
+    return null;
+  };
+
+  const validateDescription = (value) => {
+    if (!value || !value.trim()) {
+      return 'Description is required';
+    }
+    if (value.trim().length < 3) {
+      return 'Description must be at least 3 characters';
+    }
+    return null;
+  };
+
+  const handleAmountChange = (value) => {
+    // Remove any non-numeric characters except decimal point
+    const cleanedValue = value.replace(/[^0-9.]/g, '');
+    
+    // Ensure only one decimal point
+    const parts = cleanedValue.split('.');
+    if (parts.length > 2) {
+      return;
+    }
+    
+    // Limit decimal places to 2
+    if (parts[1] && parts[1].length > 2) {
+      return;
+    }
+    
+    setAmount(cleanedValue);
+    setErrors(prev => ({ ...prev, amount: validateAmount(cleanedValue) }));
+  };
+
+  const handleDescriptionChange = (value) => {
+    setDescription(value);
+    setErrors(prev => ({ ...prev, description: validateDescription(value) }));
+  };
+
+  const handleNextStep = () => {
+    if (currentStep === 1) {
+      const amountError = validateAmount(amount);
+      const descriptionError = validateDescription(description);
+      
+      if (amountError || descriptionError) {
+        setErrors({
+          amount: amountError,
+          description: descriptionError
+        });
+        return;
+      }
+      setCurrentStep(2);
+    } else if (currentStep === 2) {
+      if (!category.trim()) {
+        setErrors(prev => ({ ...prev, category: 'Please select or enter a category' }));
+        return;
+      }
+      setCurrentStep(3);
+    }
+  };
+
   const handleSubmit = async () => {
-    // Validate inputs
-    if (!amount || !description) {
-      Alert.alert('Error', 'Please fill in description and amount');
-      return;
-    }
-
-    if (!isCustomCategory && category === '') {
-      Alert.alert('Error', 'Please select a category');
-      return;
-    }
-
-    if (isCustomCategory && !category.trim()) {
-      Alert.alert('Error', 'Please enter a custom category');
-      return;
-    }
-
     try {
+      if (!paidBy) {
+        setErrors(prev => ({ ...prev, paidBy: 'Please select who paid' }));
+        return;
+      }
+
       setIsSubmitting(true);
       
       const expenseData = {
         description: description.trim(),
         amount: parseFloat(amount),
-        category: isCustomCategory ? category.trim() : predefinedCategories[parseInt(category)],
-        date: new Date().toISOString(),
+        category: isCustomCategory ? category.trim() : category,
+        paidBy: paidBy,
+        date: new Date().toISOString()
       };
 
       await onAddExpense(expenseData);
-      
-      // Reset form
-      setAmount('');
-      setDescription('');
-      setCategory('');
-      setIsCustomCategory(false);
+      handleClose();
     } catch (error) {
       console.error('Error submitting expense:', error);
-      Alert.alert(
-        'Error',
-        'Failed to add expense. Please try again.'
-      );
+      Alert.alert('Error', error.message || 'Failed to add expense');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const renderCategorySection = () => (
-    <View style={styles.categorySection}>
+  const handleClose = () => {
+    resetForm();
+    onClose();
+  };
+
+  const renderBasicInfoStep = () => (
+    <View style={styles.stepContainer}>
+      <Text style={styles.stepTitle}>Add Expense Details</Text>
+      <View style={styles.inputContainer}>
+        <Text style={styles.inputLabel}>Description</Text>
+        <TextInput
+          style={[styles.input, errors.description && styles.inputError]}
+          placeholder="What was this expense for?"
+          value={description}
+          onChangeText={handleDescriptionChange}
+          placeholderTextColor={colors.fontSecondColor}
+          editable={!isSubmitting}
+        />
+        {errors.description && (
+          <Text style={styles.errorText}>{errors.description}</Text>
+        )}
+      </View>
+      <View style={styles.inputContainer}>
+        <Text style={styles.inputLabel}>Amount (₹)</Text>
+        <TextInput
+          style={[styles.input, errors.amount && styles.inputError]}
+          placeholder="0.00"
+          value={amount}
+          onChangeText={handleAmountChange}
+          keyboardType="numeric"
+          placeholderTextColor={colors.fontSecondColor}
+          editable={!isSubmitting}
+        />
+        {errors.amount && (
+          <Text style={styles.errorText}>{errors.amount}</Text>
+        )}
+      </View>
+      <View style={styles.navigationButtonsContainer}>
+        <TouchableOpacity
+          style={[
+            styles.navigationButton,
+            styles.nextButton,
+            (!description || !amount) && styles.disabledButton
+          ]}
+          onPress={handleNextStep}
+          disabled={!description || !amount || isSubmitting}
+        >
+          <Text style={styles.buttonText}>Next</Text>
+          <Ionicons name="arrow-forward" size={16} color={colors.white} />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const renderCategoryStep = () => (
+    <View style={styles.stepContainer}>
+      <Text style={styles.stepTitle}>Select Category</Text>
       <View style={styles.categoryToggleContainer}>
         <TouchableOpacity
           style={[
@@ -227,7 +364,7 @@ const AddExpenseModal = ({ visible, onClose, onAddExpense }) => {
           <Text style={[
             styles.categoryToggleText,
             !isCustomCategory && styles.categoryToggleTextActive
-          ]}>Select Category</Text>
+          ]}>Predefined</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[
@@ -239,39 +376,116 @@ const AddExpenseModal = ({ visible, onClose, onAddExpense }) => {
           <Text style={[
             styles.categoryToggleText,
             isCustomCategory && styles.categoryToggleTextActive
-          ]}>Custom Category</Text>
+          ]}>Custom</Text>
         </TouchableOpacity>
       </View>
 
       {!isCustomCategory ? (
-        <View style={styles.predefinedCategoriesContainer}>
-          {predefinedCategories.map((cat, index) => (
-            <TouchableOpacity
-              key={index}
-              style={[
-                styles.categoryOption,
-                category === index.toString() && styles.selectedCategory
-              ]}
-              onPress={() => setCategory(index.toString())}
-            >
-              <Text style={[
-                styles.categoryText,
-                category === index.toString() && styles.selectedCategoryText
-              ]}>{cat}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        <ScrollView style={styles.categoriesScrollView}>
+          <View style={styles.predefinedCategoriesContainer}>
+            {predefinedCategories.map((cat, index) => (
+              <TouchableOpacity
+                key={index}
+                style={[
+                  styles.categoryOption,
+                  category === cat && styles.selectedCategory
+                ]}
+                onPress={() => setCategory(cat)}
+              >
+                <Text style={[
+                  styles.categoryText,
+                  category === cat && styles.selectedCategoryText
+                ]}>{cat}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </ScrollView>
       ) : (
-        <View style={styles.customCategoryContainer}>
+        <View style={styles.inputContainer}>
+          <Text style={styles.inputLabel}>Custom Category</Text>
           <TextInput
             style={styles.input}
-            placeholder="Enter your custom category"
+            placeholder="Enter category name"
             value={category}
             onChangeText={setCategory}
             placeholderTextColor={colors.fontSecondColor}
+            editable={!isSubmitting}
           />
         </View>
       )}
+
+      <View style={styles.navigationButtonsContainer}>
+        <TouchableOpacity
+          style={[styles.navigationButton, styles.backButton]}
+          onPress={() => setCurrentStep(currentStep - 1)}
+        >
+          <Ionicons name="arrow-back" size={20} color={colors.fontMainColor} />
+          <Text style={styles.backButtonText}>Back</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.navigationButton, styles.nextButton]}
+          onPress={handleNextStep}
+          disabled={!category}
+        >
+          <Text style={styles.buttonText}>Next</Text>
+          <Ionicons name="arrow-forward" size={20} color={colors.white} />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const renderPaidByStep = () => (
+    <View style={styles.stepContainer}>
+      <Text style={styles.stepTitle}>Who paid for this expense?</Text>
+      <ScrollView style={styles.participantList}>
+        {participants.map((participant) => (
+          <TouchableOpacity
+            key={participant.user._id}
+            style={[
+              styles.participantItem,
+              paidBy === participant.user._id && styles.selectedParticipant
+            ]}
+            onPress={() => setPaidBy(participant.user._id)}
+          >
+            <View style={styles.participantAvatar}>
+              <Text style={styles.avatarText}>
+                {participant.user.name ? participant.user.name.charAt(0).toUpperCase() : '?'}
+              </Text>
+            </View>
+            <View style={styles.participantInfo}>
+              <Text style={styles.participantName}>{participant.user.name}</Text>
+              <Text style={styles.participantEmail}>{participant.user.email}</Text>
+            </View>
+            {paidBy === participant.user._id && (
+              <Ionicons name="checkmark-circle" size={24} color={colors.Zypsii_color} />
+            )}
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
+      <View style={styles.navigationButtonsContainer}>
+        <TouchableOpacity
+          style={[styles.navigationButton, styles.backButton]}
+          onPress={() => setCurrentStep(currentStep - 1)}
+        >
+          <Ionicons name="arrow-back" size={20} color={colors.fontMainColor} />
+          <Text style={styles.backButtonText}>Back</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.navigationButton, styles.submitButton]}
+          onPress={handleSubmit}
+          disabled={!paidBy || isSubmitting}
+        >
+          {isSubmitting ? (
+            <ActivityIndicator color={colors.white} />
+          ) : (
+            <>
+              <Text style={styles.buttonText}>Submit</Text>
+              <Ionicons name="checkmark" size={20} color={colors.white} />
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
     </View>
   );
 
@@ -280,51 +494,35 @@ const AddExpenseModal = ({ visible, onClose, onAddExpense }) => {
       visible={visible}
       animationType="slide"
       transparent={true}
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
     >
       <View style={styles.modalContainer}>
         <View style={styles.modalContent}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Add Expense</Text>
-            <TouchableOpacity onPress={onClose}>
+            <TouchableOpacity onPress={handleClose}>
               <Ionicons name="close" size={24} color={colors.fontMainColor} />
             </TouchableOpacity>
+            <Text style={styles.modalTitle}>Add Expense</Text>
+            <View style={{ width: 24 }} />
           </View>
 
-          <ScrollView style={styles.modalBody}>
-            <TextInput
-              style={styles.input}
-              placeholder="Description"
-              value={description}
-              onChangeText={setDescription}
-              placeholderTextColor={colors.fontSecondColor}
-              editable={!isSubmitting}
-            />
+          <View style={styles.progressContainer}>
+            {[1, 2, 3].map((step) => (
+              <View
+                key={step}
+                style={[
+                  styles.progressStep,
+                  currentStep >= step && styles.progressStepActive,
+                ]}
+              />
+            ))}
+          </View>
 
-            <TextInput
-              style={styles.input}
-              placeholder="Amount"
-              value={amount}
-              onChangeText={setAmount}
-              keyboardType="numeric"
-              placeholderTextColor={colors.fontSecondColor}
-              editable={!isSubmitting}
-            />
-
-            {renderCategorySection()}
-
-            <TouchableOpacity
-              style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
-              onPress={handleSubmit}
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? (
-                <ActivityIndicator color={colors.white} />
-              ) : (
-                <Text style={styles.submitButtonText}>Add Expense</Text>
-              )}
-            </TouchableOpacity>
-          </ScrollView>
+          <View style={styles.modalBody}>
+            {currentStep === 1 && renderBasicInfoStep()}
+            {currentStep === 2 && renderCategoryStep()}
+            {currentStep === 3 && renderPaidByStep()}
+          </View>
         </View>
       </View>
     </Modal>
@@ -342,6 +540,11 @@ function SplitDetail() {
   const [loading, setLoading] = useState(true);
   const [isAddParticipantModalVisible, setIsAddParticipantModalVisible] = useState(false);
   const [isAddExpenseModalVisible, setIsAddExpenseModalVisible] = useState(false);
+
+  // State for expense editing
+  const [editingExpenseId, setEditingExpenseId] = useState(null);
+  const [editedAmount, setEditedAmount] = useState('');
+  const [isUpdatingExpense, setIsUpdatingExpense] = useState(false);
 
   // State for invite modal
   const [isInviteModalVisible, setIsInviteModalVisible] = useState(false);
@@ -361,6 +564,7 @@ function SplitDetail() {
         }
       });
       setSplit(response.data);
+      console.log(response.data);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching split details:', error);
@@ -369,21 +573,140 @@ function SplitDetail() {
     }
   };
 
-  const renderExpenseItem = ({ item }) => (
-    <View style={styles.expenseItem}>
-      <View style={styles.expenseInfo}>
-        <Text style={styles.expenseDescription}>{item.description}</Text>
-        <Text style={styles.expenseDate}>{new Date(item.date).toLocaleDateString()}</Text>
-        <Text style={styles.expenseCategory}>{item.category}</Text>
+  const handleUpdateExpense = async (expenseId, newAmount) => {
+    try {
+      if (!newAmount || isNaN(parseFloat(newAmount)) || parseFloat(newAmount) <= 0) {
+        Alert.alert('Error', 'Please enter a valid amount');
+        return;
+      }
+
+      setIsUpdatingExpense(true);
+      const token = await AsyncStorage.getItem('accessToken');
+      const response = await axios.put(
+        `${base_url}/api/splits/${splitId}/expenses/${expenseId}`,
+        {
+          newAmount: parseFloat(newAmount)
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (response.data) {
+        setSplit(response.data);
+        setEditingExpenseId(null);
+        setEditedAmount('');
+        Alert.alert('Success', 'Expense amount updated successfully');
+      }
+    } catch (error) {
+      console.error('Error updating expense:', error);
+      Alert.alert('Error', error.response?.data?.error || 'Failed to update expense');
+    } finally {
+      setIsUpdatingExpense(false);
+    }
+  };
+
+  const renderExpenseItem = ({ item }) => {
+    // Get paidBy user directly from the expense since it's now populated
+    const paidByUser = item.paidBy;
+    
+    // Format date properly
+    const expenseDate = item.date ? new Date(item.date).toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    }) : 'No date';
+
+    return (
+      <View style={styles.expenseItem}>
+        <View style={styles.expenseHeader}>
+          <View style={styles.expenseMainInfo}>
+            <Text style={styles.expenseDescription} numberOfLines={2}>
+              {item.description || 'No description'}
+            </Text>
+            {editingExpenseId === item._id ? (
+              <View style={styles.amountEditContainer}>
+                <TextInput
+                  style={styles.amountInput}
+                  value={editedAmount}
+                  onChangeText={setEditedAmount}
+                  keyboardType="numeric"
+                  autoFocus
+                  placeholder="Enter amount"
+                  placeholderTextColor={colors.fontSecondColor}
+                />
+                <View style={styles.amountEditButtons}>
+                  {isUpdatingExpense ? (
+                    <ActivityIndicator size="small" color={colors.Zypsii_color} />
+                  ) : (
+                    <>
+                      <TouchableOpacity
+                        style={[styles.amountEditButton, styles.saveButton]}
+                        onPress={() => handleUpdateExpense(item._id, editedAmount)}
+                      >
+                        <Ionicons name="checkmark" size={20} color={colors.white} />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.amountEditButton, styles.cancelButton]}
+                        onPress={() => {
+                          setEditingExpenseId(null);
+                          setEditedAmount('');
+                        }}
+                      >
+                        <Ionicons name="close" size={20} color={colors.white} />
+                      </TouchableOpacity>
+                    </>
+                  )}
+                </View>
+              </View>
+            ) : (
+              <TouchableOpacity 
+                onPress={() => {
+                  setEditingExpenseId(item._id);
+                  setEditedAmount(item.amount.toString());
+                }}
+              >
+                <Text style={styles.expenseAmount}>₹{parseFloat(item.amount).toFixed(2)}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        <View style={styles.expenseDetails}>
+          <View style={styles.expenseDetailRow}>
+            <View style={styles.expenseDetailItem}>
+              <Ionicons name="calendar-outline" size={16} color={colors.fontSecondColor} />
+              <Text style={styles.expenseDetailText}>{expenseDate}</Text>
+            </View>
+            <View style={styles.expenseDetailItem}>
+              <Ionicons name="pricetag-outline" size={16} color={colors.fontSecondColor} />
+              <Text style={styles.expenseDetailText}>{item.category || 'Other'}</Text>
+            </View>
+          </View>
+
+          <View style={styles.paidByContainer}>
+            <View style={styles.paidByInfo}>
+              <View style={styles.paidByAvatar}>
+                <Text style={styles.paidByAvatarText}>
+                  {paidByUser?.name ? paidByUser.name.charAt(0).toUpperCase() : 
+                   paidByUser?.email ? paidByUser.email.charAt(0).toUpperCase() : '?'}
+                </Text>
+              </View>
+              <View style={styles.paidByTextContainer}>
+                <Text style={styles.paidByLabel}>Paid by</Text>
+                <Text style={styles.paidByEmail} numberOfLines={1}>
+                  {paidByUser?.name || paidByUser?.email || 'Unknown user'}
+                </Text>
+              </View>
+            </View>
+          </View>
+        </View>
       </View>
-      <View style={styles.expenseAmount}>
-        <Text style={styles.amountText}>₹{item.amount}</Text>
-        <Text style={styles.paidByText}>
-          Paid by {split.participants.find(p => p.user._id === item.paidBy)?.user.email}
-        </Text>
-      </View>
-    </View>
-  );
+    );
+  };
 
   const renderParticipantItem = ({ item }) => (
     <View style={styles.participantItem}>
@@ -412,22 +735,72 @@ function SplitDetail() {
       )}
     </View>
   );
+  
 
   const handleAddExpense = async (expenseData) => {
     try {
       const token = await AsyncStorage.getItem('accessToken');
-      const response = await axios.post(`${base_url}/api/splits/${splitId}/expenses`, expenseData, {
-        headers: {
-          'Authorization': `Bearer ${token}`
+      if (!token) {
+        throw new Error('No auth token found');
+      }
+
+      // Validate expense data
+      if (!expenseData.description || !expenseData.description.trim()) {
+        throw new Error('Description is required');
+      }
+
+      if (!expenseData.amount || isNaN(expenseData.amount) || expenseData.amount <= 0) {
+        throw new Error('Please enter a valid amount');
+      }
+
+      if (!expenseData.category || !expenseData.category.trim()) {
+        throw new Error('Category is required');
+      }
+
+      // Format the data
+      const formattedExpenseData = {
+        ...expenseData,
+        amount: parseFloat(expenseData.amount),
+        description: expenseData.description.trim(),
+        category: expenseData.category.trim(),
+        date: new Date().toISOString(), // Ensure proper date format
+        splitId: splitId
+      };
+
+      const response = await axios.post(
+        `${base_url}/api/splits/${splitId}/expenses`,
+        formattedExpenseData,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
         }
-      });
-      
-      setSplit(response.data);
-      setIsAddExpenseModalVisible(false);
-      Alert.alert('Success', 'Expense added successfully');
+      );
+
+      if (response.data) {
+        // Update the split details in state
+        await fetchSplitDetails();
+        setSplit(response.data);
+        Alert.alert('Success', 'Expense added successfully');
+      } else {
+        throw new Error('Failed to add expense');
+      }
     } catch (error) {
       console.error('Error adding expense:', error);
-      Alert.alert('Error', error.response?.data?.message || 'Failed to add expense');
+      let errorMessage = 'Failed to add expense';
+      
+      if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      Alert.alert(
+        'Error',
+        errorMessage
+      );
+      throw error;
     }
   };
 
@@ -636,6 +1009,7 @@ function SplitDetail() {
         visible={isAddExpenseModalVisible}
         onClose={() => setIsAddExpenseModalVisible(false)}
         onAddExpense={handleAddExpense}
+        participants={split?.participants || []}
       />
     </SafeAreaView>
   );
@@ -735,18 +1109,15 @@ const styles = StyleSheet.create({
   },
   participantItem: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
+    padding: 12,
     backgroundColor: colors.white,
-    borderRadius: 8,
-    marginBottom: 12,
     borderWidth: 1,
-    borderColor: colors.grayBackground,
+    borderColor: colors.grayLinesColor,
+    borderRadius: 8,
+    marginBottom: 8,
   },
   participantInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
     flex: 1,
   },
   avatarContainer: {
@@ -780,62 +1151,100 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   expenseItem: {
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    marginBottom: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.grayLinesColor,
+  },
+  expenseHeader: {
+    marginBottom: 12,
+  },
+  expenseMainInfo: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: colors.white,
-    borderRadius: 8,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: colors.grayBackground,
-  },
-  expenseInfo: {
-    flex: 1,
+    alignItems: 'flex-start',
   },
   expenseDescription: {
     fontSize: 16,
     fontWeight: '600',
     color: colors.fontMainColor,
-    marginBottom: 4,
-  },
-  expenseDate: {
-    fontSize: 12,
-    color: colors.fontSecondColor,
+    flex: 1,
+    marginRight: 12,
   },
   expenseAmount: {
-    alignItems: 'flex-end',
-  },
-  amountText: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: colors.fontMainColor,
-    marginBottom: 4,
+    fontWeight: '700',
+    color: colors.Zypsii_color,
   },
-  paidByText: {
+  expenseDetails: {
+    borderTopWidth: 1,
+    borderTopColor: colors.grayBackground,
+    paddingTop: 12,
+    gap: 12,
+  },
+  expenseDetailRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    gap: 16,
+  },
+  expenseDetailItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  expenseDetailText: {
+    fontSize: 13,
+    color: colors.fontSecondColor,
+  },
+  paidByContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  paidByInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  paidByAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.Zypsii_color,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  paidByAvatarText: {
+    color: colors.white,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  paidByTextContainer: {
+    justifyContent: 'center',
+  },
+  paidByLabel: {
     fontSize: 12,
     color: colors.fontSecondColor,
+    marginBottom: 2,
+  },
+  paidByEmail: {
+    fontSize: 13,
+    color: colors.fontMainColor,
+    fontWeight: '500',
   },
   modalContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    padding: 20,
+    justifyContent: 'flex-end',
   },
   modalContent: {
     backgroundColor: colors.white,
-    borderRadius: 16,
-    width: '90%',
-    maxHeight: '80%',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '90%',
+    minHeight: '50%',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -851,65 +1260,186 @@ const styles = StyleSheet.create({
     color: colors.fontMainColor,
   },
   modalBody: {
-    padding: 16,
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.grayBackground,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: colors.grayLinesColor,
-  },
-  searchInput: {
     flex: 1,
-    marginLeft: 12,
-    fontSize: 16,
-    color: colors.fontMainColor,
-    height: 40,
   },
-  searchResults: {
-    paddingVertical: 8,
-  },
-  userItem: {
+  progressContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    gap: 8,
+  },
+  progressStep: {
+    width: 50,
+    height: 4,
+    backgroundColor: colors.grayBackground,
+    borderRadius: 2,
+  },
+  progressStepActive: {
+    backgroundColor: colors.Zypsii_color,
+  },
+  stepContainer: {
+    flex: 1,
     padding: 16,
+  },
+  stepTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: colors.fontMainColor,
+    marginBottom: 20,
+  },
+  inputContainer: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.fontMainColor,
+    marginBottom: 6,
+  },
+  input: {
     backgroundColor: colors.white,
-    borderRadius: 12,
-    marginBottom: 12,
     borderWidth: 1,
     borderColor: colors.grayLinesColor,
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 14,
+    color: colors.fontMainColor,
+  },
+  navigationButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    marginTop: 20,
+  },
+  navigationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    minWidth: 120,
+    gap: 8,
+  },
+  backButton: {
+    backgroundColor: colors.grayBackground,
+    marginRight: 8,
+  },
+  nextButton: {
+    backgroundColor: colors.Zypsii_color,
+  },
+  submitButton: {
+    backgroundColor: colors.Zypsii_color,
+  },
+  disabledButton: {
+    opacity: 0.5,
+  },
+  buttonText: {
+    color: colors.white,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  backButtonText: {
+    color: colors.fontMainColor,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  categoryToggleContainer: {
+    flexDirection: 'row',
+    backgroundColor: colors.grayBackground,
+    borderRadius: 8,
+    padding: 4,
+    marginBottom: 16,
+  },
+  categoryToggleButton: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  categoryToggleButtonActive: {
+    backgroundColor: colors.white,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
-    elevation: 2,
+    elevation: 1,
   },
-  userInfo: {
+  categoryToggleText: {
+    fontSize: 14,
+    color: colors.fontSecondColor,
+    fontWeight: '500',
+  },
+  categoryToggleTextActive: {
+    color: colors.Zypsii_color,
+    fontWeight: '600',
+  },
+  categoriesScrollView: {
+    flex: 1,
+    marginBottom: 16,
+  },
+  predefinedCategoriesContainer: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingBottom: 16,
+  },
+  categoryOption: {
+    flex: 1,
+    minWidth: '45%',
+    padding: 12,
+    borderWidth: 1,
+    borderColor: colors.grayLinesColor,
+    borderRadius: 8,
     alignItems: 'center',
-    flex: 1,
   },
-  userDetails: {
-    marginLeft: 16,
-    flex: 1,
+  selectedCategory: {
+    backgroundColor: colors.Zypsii_color,
+    borderColor: colors.Zypsii_color,
   },
-  userName: {
+  categoryText: {
+    fontSize: 14,
+    color: colors.fontMainColor,
+    fontWeight: '500',
+  },
+  selectedCategoryText: {
+    color: colors.white,
+    fontWeight: '600',
+  },
+  participantList: {
+    flex: 1,
+    marginBottom: 16,
+  },
+  selectedParticipant: {
+    borderColor: colors.Zypsii_color,
+    backgroundColor: `${colors.Zypsii_color}10`,
+  },
+  participantAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.Zypsii_color,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  avatarText: {
+    color: colors.white,
     fontSize: 16,
+    fontWeight: 'bold',
+  },
+  participantInfo: {
+    flex: 1,
+  },
+  participantName: {
+    fontSize: 14,
     fontWeight: '600',
     color: colors.fontMainColor,
-    marginBottom: 4,
+    marginBottom: 2,
   },
-  userEmail: {
-    fontSize: 14,
+  participantEmail: {
+    fontSize: 12,
     color: colors.fontSecondColor,
   },
   loadingContainer: {
@@ -988,90 +1518,176 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  expenseCategory: {
-    fontSize: 12,
-    color: colors.fontSecondColor,
-    marginTop: 4,
+  searchWrapper: {
+    paddingHorizontal: 16,
   },
-  categorySection: {
-    marginVertical: 16,
-  },
-  categoryToggleContainer: {
+  searchInputContainer: {
     flexDirection: 'row',
-    backgroundColor: colors.grayBackground,
-    borderRadius: 8,
-    padding: 4,
-    marginBottom: 16,
-  },
-  categoryToggleButton: {
-    flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 6,
     alignItems: 'center',
+    backgroundColor: colors.grayBackground,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 44,
   },
-  categoryToggleButtonActive: {
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInputField: {
+    flex: 1,
+    fontSize: 16,
+    color: colors.fontMainColor,
+    height: '100%',
+    paddingVertical: 8,
+  },
+  clearSearchButton: {
+    padding: 4,
+  },
+  closeButton: {
+    padding: 8,
+  },
+  userItemContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.grayBackground,
     backgroundColor: colors.white,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.41,
-    elevation: 2,
   },
-  categoryToggleText: {
+  userInfoWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  userAvatarContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.Zypsii_color,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  userAvatarText: {
+    color: colors.white,
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  userDetailsContainer: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  userNameText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.fontMainColor,
+    marginBottom: 4,
+  },
+  userEmailText: {
     fontSize: 14,
     color: colors.fontSecondColor,
-    fontWeight: '500',
   },
-  categoryToggleTextActive: {
-    color: colors.btncolor,
-    fontWeight: '600',
+  addIconContainer: {
+    padding: 8,
   },
-  predefinedCategoriesContainer: {
+  searchResultsContainer: {
+    flexGrow: 1,
+    paddingTop: 8,
+  },
+  emptyResultsContainer: {
+    flex: 1,
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyResultsText: {
+    fontSize: 16,
+    color: colors.fontSecondColor,
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  modalHeaderWithSearch: {
+    backgroundColor: colors.white,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.grayBackground,
+    paddingBottom: 12,
+  },
+  modalHeaderTop: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    paddingBottom: 8,
   },
-  categoryOption: {
-    padding: 12,
+  modalSafeArea: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  inputError: {
+    borderColor: colors.error,
+    borderWidth: 1,
+  },
+  errorText: {
+    color: colors.error,
+    fontSize: 12,
+    marginTop: 4,
+    marginLeft: 4,
+  },
+  categoryError: {
+    marginTop: 8,
+    marginBottom: 4,
+    color: colors.error,
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  paidByError: {
+    color: colors.error,
+    fontSize: 12,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  amountEditContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: colors.white,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+  },
+  amountInput: {
     borderWidth: 1,
     borderColor: colors.grayLinesColor,
     borderRadius: 8,
-    minWidth: '48%',
-    marginBottom: 8,
-  },
-  selectedCategory: {
-    backgroundColor: colors.btncolor,
-    borderColor: colors.btncolor,
-  },
-  categoryText: {
-    fontSize: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    minWidth: 100,
     color: colors.fontMainColor,
-    textAlign: 'center',
-  },
-  selectedCategoryText: {
-    color: colors.white,
-  },
-  customCategoryContainer: {
-    marginTop: 8,
-  },
-  submitButton: {
-    backgroundColor: colors.btncolor,
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 16,
-  },
-  submitButtonText: {
-    color: colors.white,
     fontSize: 16,
     fontWeight: '600',
   },
-  submitButtonDisabled: {
-    opacity: 0.7,
+  amountEditButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  amountEditButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  saveButton: {
+    backgroundColor: colors.Zypsii_color,
+  },
+  cancelButton: {
+    backgroundColor: colors.error,
   },
 });
 

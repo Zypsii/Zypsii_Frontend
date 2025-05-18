@@ -26,7 +26,7 @@ const getEnvVars = () => {
   } else if (env === 'staging') {
     return ENV.staging;
   } else {
-    return ENV.development; // Default to development if no env is specified
+    return ENV.development;
   }
 }
 
