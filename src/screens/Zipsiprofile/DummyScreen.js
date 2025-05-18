@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Image, TouchableOpacity, FlatList, ScrollView, Modal, Dimensions, StatusBar } from 'react-native';
+import { View, Text, Image, TouchableOpacity, FlatList, ScrollView, Modal, Dimensions, StatusBar, ActivityIndicator } from 'react-native';
 import { WebView } from 'react-native-webview';
 import styles from './styles';
 import Icon from 'react-native-vector-icons/FontAwesome';
@@ -9,6 +9,7 @@ import Post from '../../components/Posts/Post';
 import Schedule from '../MySchedule/Schedule/AllSchedule';
 import { base_url } from '../../utils/base_url';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Location from 'expo-location';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -25,11 +26,13 @@ const DummyScreen = ({ navigation }) => {
     notes: ''
   });
   const [loading, setLoading] = useState(true);
+  const [scheduleLoading, setScheduleLoading] = useState(false);
   const [all_schedule, setAll_schedule] = useState([]);
   const [all_posts, setAllPosts] = useState([]);
   const [all_shorts, setAllShorts] = useState([]);
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [isFullScreen, setIsFullScreen] = useState(false);
+  const [placeNames, setPlaceNames] = useState({});
 
   // First useEffect to get user ID
   useEffect(() => {
@@ -77,7 +80,75 @@ const DummyScreen = ({ navigation }) => {
 
   // Handle schedule item press
   const handleSchedulePress = (item) => {
+    if (!item || !item.id) {
+      console.error('Invalid schedule item:', item);
+      return;
+    }
     navigation.navigate('TripDetails', { tripId: item.id });
+  };
+
+  // Function to get place name from coordinates
+  const getPlaceName = async (lat, lng) => {
+    try {
+      const response = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=AIzaSyDxXqXQZQZQZQZQZQZQZQZQZQZQZQZQZQZQ`
+      );
+      const data = await response.json();
+      if (data.results && data.results.length > 0) {
+        return data.results[0].formatted_address;
+      }
+      return `${lat}, ${lng}`;
+    } catch (error) {
+      console.error('Error getting place name:', error);
+      return `${lat}, ${lng}`;
+    }
+  };
+
+  // Function to process location data
+  const processLocationData = async (scheduleData) => {
+    try {
+      const processedData = await Promise.all(
+        scheduleData.map(async (item) => {
+          if (!item) return null;
+
+          const locationDetails = Array.isArray(item.locationDetails) ? item.locationDetails : [];
+          const firstLocation = locationDetails[0]?.location;
+          const lastLocation = locationDetails[locationDetails.length - 1]?.location;
+
+          let fromPlace = '';
+          let toPlace = '';
+
+          if (firstLocation) {
+            fromPlace = await getPlaceName(firstLocation.lat, firstLocation.lng);
+          }
+
+          if (lastLocation) {
+            toPlace = await getPlaceName(lastLocation.lat, lastLocation.lng);
+          }
+
+          return {
+            id: item._id || Math.random().toString(),
+            title: item.tripName || 'Untitled Trip',
+            fromPlace: fromPlace || 'Location not available',
+            toPlace: toPlace || 'Location not available',
+            date: Array.isArray(item.Dates) && item.Dates.length > 0 ? item.Dates[0].date : '',
+            riders: String(item.numberOfDays || 0),
+            imageUrl: item.bannerImage || '',
+            travelMode: item.travelMode || '',
+            createdBy: item.createdBy || '',
+            createdAt: item.createdAt || '',
+            updatedAt: item.updatedAt || ''
+          };
+        })
+      );
+
+      // Filter out any null items
+      const validData = processedData.filter(item => item !== null);
+      setAll_schedule(validData);
+    } catch (error) {
+      console.error('Error processing location data:', error);
+      setAll_schedule([]);
+    }
   };
 
   // Second useEffect to fetch all data
@@ -107,7 +178,7 @@ const DummyScreen = ({ navigation }) => {
               console.log(postsData);
               
               const processedPosts = postsData
-                .filter(item => item && typeof item === 'object') // Filter out invalid items
+                .filter(item => item && typeof item === 'object')
                 .map(item => {
                   try {
                     return {
@@ -131,7 +202,7 @@ const DummyScreen = ({ navigation }) => {
                     return null;
                   }
                 })
-                .filter(Boolean); // Remove any null items from failed processing
+                .filter(Boolean);
 
               setAllPosts(processedPosts);
 
@@ -156,6 +227,7 @@ const DummyScreen = ({ navigation }) => {
         }
 
         // Fetch schedules with limit
+        setScheduleLoading(true);
         const scheduleResponse = await fetch(`${base_url}/schedule/listing/filter?limit=20`, {
           method: 'GET',
           headers: {
@@ -168,53 +240,10 @@ const DummyScreen = ({ navigation }) => {
           const response = await scheduleResponse.json();
           
           if (response.success && response.data) {
-            const scheduleData = response.data;
-            
-            setAll_schedule(scheduleData.map(item => {
-              // Helper function to format location
-              const formatLocation = (locationObj) => {
-                if (!locationObj) return '';
-                if (typeof locationObj === 'string') return locationObj;
-                if (locationObj.lat && locationObj.lng) {
-                  return `${locationObj.lat}, ${locationObj.lng}`;
-                }
-                return '';
-              };
-
-              // Safely get locations
-              const locationDetails = Array.isArray(item.locationDetails) ? item.locationDetails : [];
-              const firstLocation = locationDetails[0]?.location;
-              const lastLocation = locationDetails[locationDetails.length - 1]?.location;
-
-              // Safely handle Dates array
-              const dates = Array.isArray(item.Dates) ? item.Dates : [];
-
-              return {
-                id: item._id || '',
-                title: item.tripName || '',
-                from: formatLocation(firstLocation),
-                to: formatLocation(lastLocation),
-                date: dates[0]?.date || '',
-                riders: String(item.numberOfDays || 0),
-                joined: item.visible || 'Public',
-                imageUrl: item.bannerImage || '',
-                day1Locations: locationDetails.map(loc => ({
-                  location: formatLocation(loc.location),
-                  description: loc.description || ''
-                })),
-                day2Locations: dates.map(date => ({
-                  date: date.date || '',
-                  description: date.description || ''
-                })),
-                travelMode: item.travelMode || '',
-                createdBy: item.createdBy || '',
-                createdAt: item.createdAt || '',
-                updatedAt: item.updatedAt || ''
-              };
-            }));
-
+            await processLocationData(response.data);
           }
         }
+        setScheduleLoading(false);
 
         // Fetch shorts
         const shortsResponse = await fetch(`${base_url}/shorts/listing`, {
@@ -394,32 +423,47 @@ const DummyScreen = ({ navigation }) => {
         return (
           <FlatList
             data={all_posts}
+            numColumns={3}
+            key="grid"
             renderItem={({ item }) => {
               if (!item) return null;
               
-              // Add null checks for all required properties
-              const postData = {
-                id: item?.id || '',
-                postTitle: item?.postTitle || '',
-                imageUrl: item?.imageUrl || [], // This is already an array from the API
-                mediaType: item?.mediaType || 'image',
-                likesCount: item?.likes || '0',
-                commentsCount: item?.comments || '0',
-                shareCount: item?.shares || '0',
-                postType: item?.postType || 'Public',
-                createdBy: item?.createdBy || '',
-                createdAt: item?.createdAt || '',
-                tags: item?.tags || []
-              };
-
               return (
-                <View style={{ marginBottom: 10 }}>
-                  <Post item={postData} isFromProfile={true} />
-                </View>
+                <TouchableOpacity 
+                  style={gridStyles.gridItem}
+                  onPress={() => navigation.navigate('PostDetail', { post: item })}
+                >
+                  {item.imageUrl && item.imageUrl.length > 0 ? (
+                    <Image
+                      source={{ uri: item.imageUrl[0] }}
+                      style={gridStyles.gridImage}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View style={[gridStyles.gridImage, gridStyles.placeholderImage]}>
+                      <MaterialIcons name="image" size={40} color="#ccc" />
+                    </View>
+                  )}
+                  <View style={gridStyles.gridItemInfo}>
+                    <Text style={gridStyles.gridItemTitle} numberOfLines={1}>
+                      {item.postTitle || 'Untitled'}
+                    </Text>
+                    <View style={gridStyles.gridItemStats}>
+                      <View style={gridStyles.statItem}>
+                        <MaterialIcons name="favorite" size={14} color="#870E6B" />
+                        <Text style={gridStyles.statText}>{item.likes || '0'}</Text>
+                      </View>
+                      <View style={gridStyles.statItem}>
+                        <MaterialIcons name="comment" size={14} color="#870E6B" />
+                        <Text style={gridStyles.statText}>{item.comments || '0'}</Text>
+                      </View>
+                    </View>
+                  </View>
+                </TouchableOpacity>
               );
             }}
             keyExtractor={(item) => item?.id?.toString() || Math.random().toString()}
-            contentContainerStyle={{ paddingBottom: 20 }}
+            contentContainerStyle={gridStyles.gridContainer}
             ListEmptyComponent={() => (
               <View style={{ padding: 20, alignItems: 'center' }}>
                 <Text>No posts available</Text>
@@ -430,14 +474,70 @@ const DummyScreen = ({ navigation }) => {
       case 'briefcase':
         return (
           <FlatList
-            vertical
-            showsVerticalScrollIndicator={false}
             data={all_schedule}
-            keyExtractor={(item) => item.id.toString()}
-            renderItem={({ item }) => (
-              <TouchableOpacity onPress={() => handleSchedulePress(item)}>
-                <Schedule item={item} isFromProfile={true} />
-              </TouchableOpacity>
+            key="schedule"
+            keyExtractor={(item) => item?.id?.toString() || Math.random().toString()}
+            renderItem={({ item }) => {
+              if (!item) return null;
+              
+              return (
+                <TouchableOpacity 
+                  onPress={() => handleSchedulePress(item)}
+                  style={scheduleStyles.scheduleCard}
+                >
+                  <Image
+                    source={{ uri: item.imageUrl }}
+                    style={scheduleStyles.scheduleImage}
+                    resizeMode="cover"
+                  />
+                  <View style={scheduleStyles.scheduleContent}>
+                    <Text style={scheduleStyles.scheduleTitle}>{item.title}</Text>
+                    <View style={scheduleStyles.routeContainer}>
+                      <View style={scheduleStyles.routeItem}>
+                        <Text style={scheduleStyles.routeLabel}>From</Text>
+                        <View style={scheduleStyles.locationRow}>
+                          <MaterialIcons name="location-on" size={16} color="#870E6B" />
+                          <Text style={scheduleStyles.routeText} numberOfLines={2}>
+                            {item.fromPlace}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={scheduleStyles.routeItem}>
+                        <Text style={scheduleStyles.routeLabel}>To</Text>
+                        <View style={scheduleStyles.locationRow}>
+                          <MaterialIcons name="location-on" size={16} color="#870E6B" />
+                          <Text style={scheduleStyles.routeText} numberOfLines={2}>
+                            {item.toPlace}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                    <View style={scheduleStyles.scheduleFooter}>
+                      <View style={scheduleStyles.dateContainer}>
+                        <MaterialIcons name="event" size={16} color="#666" />
+                        <Text style={scheduleStyles.dateText}>{item.date}</Text>
+                      </View>
+                      <View style={scheduleStyles.ridersContainer}>
+                        <MaterialIcons name="group" size={16} color="#666" />
+                        <Text style={scheduleStyles.ridersText}>{item.riders} Riders</Text>
+                      </View>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            }}
+            contentContainerStyle={scheduleStyles.scheduleList}
+            ListEmptyComponent={() => (
+              <View style={{ padding: 20, alignItems: 'center' }}>
+                {scheduleLoading ? (
+                  <View style={scheduleStyles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#870E6B" />
+                    <Text style={scheduleStyles.loadingText}>Loading schedules...</Text>
+                  </View>
+                ) : (
+                  <Text>No schedules available</Text>
+                )}
+              </View>
             )}
           />
         );
@@ -445,11 +545,48 @@ const DummyScreen = ({ navigation }) => {
         return (
           <>
             <FlatList
-              vertical
-              showsVerticalScrollIndicator={false}
               data={all_shorts}
+              numColumns={3}
+              key="shorts-grid"
+              renderItem={({ item }) => {
+                if (!item) return null;
+                
+                return (
+                  <TouchableOpacity 
+                    style={gridStyles.gridItem}
+                    onPress={() => handleVideoPress(item)}
+                  >
+                    {item.videoImage ? (
+                      <Image
+                        source={{ uri: item.videoImage }}
+                        style={gridStyles.gridImage}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View style={[gridStyles.gridImage, gridStyles.placeholderImage]}>
+                        <MaterialIcons name="play-circle" size={40} color="#ccc" />
+                      </View>
+                    )}
+                    <View style={gridStyles.gridItemInfo}>
+                      <Text style={gridStyles.gridItemTitle} numberOfLines={1}>
+                        {item.videoTitle || 'Untitled'}
+                      </Text>
+                      <View style={gridStyles.gridItemStats}>
+                        <View style={gridStyles.statItem}>
+                          <MaterialIcons name="favorite" size={14} color="#870E6B" />
+                          <Text style={gridStyles.statText}>{item.likes || '0'}</Text>
+                        </View>
+                        <View style={gridStyles.statItem}>
+                          <MaterialIcons name="visibility" size={14} color="#870E6B" />
+                          <Text style={gridStyles.statText}>{item.views || '0'}</Text>
+                        </View>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                );
+              }}
               keyExtractor={(item) => item?.id?.toString() || Math.random().toString()}
-              renderItem={renderShortItem}
+              contentContainerStyle={gridStyles.gridContainer}
               ListEmptyComponent={() => (
                 <View style={{ padding: 20, alignItems: 'center' }}>
                   <Text>No shorts available</Text>
@@ -513,7 +650,7 @@ const DummyScreen = ({ navigation }) => {
       <View style={styles.buttonsContainer}>
         <TouchableOpacity style={styles.editProfileButton}>
           <Text style={styles.buttonText}>Edit Profile</Text>
-        </TouchableOpacity>
+      </TouchableOpacity>
         <TouchableOpacity style={styles.shareButton}>
           <Text style={styles.buttonText}>Share</Text>
         </TouchableOpacity>
@@ -691,13 +828,13 @@ const videoStyles = {
 const fullScreenStyles = {
   container: {
     flex: 1,
-    backgroundColor: 'black',
+    backgroundColor: 'rgba(0,0,0,0.9)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   video: {
     width: screenWidth,
-    height: screenHeight,
+    height: screenHeight * 0.7,
     backgroundColor: 'black',
   },
   closeButton: {
@@ -706,6 +843,8 @@ const fullScreenStyles = {
     right: 20,
     zIndex: 1000,
     padding: 10,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 20,
   },
   videoInfo: {
     position: 'absolute',
@@ -713,7 +852,7 @@ const fullScreenStyles = {
     left: 0,
     right: 0,
     padding: 20,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.7)',
   },
   videoTitle: {
     fontSize: 18,
@@ -737,6 +876,146 @@ const fullScreenStyles = {
     fontSize: 12,
     color: 'white',
   }
+};
+
+// Add new styles for grid layout
+const gridStyles = {
+  gridContainer: {
+    padding: 5,
+  },
+  gridItem: {
+    flex: 1/3,
+    margin: 5,
+    backgroundColor: 'white',
+    borderRadius: 8,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  gridImage: {
+    width: '100%',
+    aspectRatio: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  placeholderImage: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f0f0f0',
+  },
+  gridItemInfo: {
+    padding: 8,
+  },
+  gridItemTitle: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#333',
+    marginBottom: 4,
+  },
+  gridItemStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  statItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statText: {
+    fontSize: 10,
+    color: '#666',
+    marginLeft: 2,
+  },
+};
+
+// Add new styles for schedule
+const scheduleStyles = {
+  scheduleList: {
+    padding: 15,
+  },
+  scheduleCard: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    marginBottom: 15,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    overflow: 'hidden',
+  },
+  scheduleImage: {
+    width: '100%',
+    height: 180,
+  },
+  scheduleContent: {
+    padding: 15,
+  },
+  scheduleTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 12,
+  },
+  routeContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 15,
+  },
+  routeItem: {
+    flex: 1,
+  },
+  routeLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 4,
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  routeText: {
+    fontSize: 14,
+    color: '#333',
+    marginLeft: 4,
+    flex: 1,
+  },
+  scheduleFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+    paddingTop: 12,
+  },
+  dateContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  dateText: {
+    fontSize: 14,
+    color: '#666',
+    marginLeft: 4,
+  },
+  ridersContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  ridersText: {
+    fontSize: 14,
+    color: '#666',
+    marginLeft: 4,
+  },
+  loadingContainer: {
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    color: '#666',
+    fontSize: 16,
+  },
 };
 
 export default DummyScreen;

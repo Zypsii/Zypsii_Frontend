@@ -11,7 +11,8 @@ import {
   ActivityIndicator,
   BackHandler,
   StyleSheet,
-  Text
+  Text,
+  Dimensions
 } from 'react-native';
 import SwiperFlatList from 'react-native-swiper-flatlist';
 import styles from './styles';
@@ -40,7 +41,7 @@ import FloatingSupportButton from '../../components/FloatingChatButton/FloatingC
 import AllSchedule from '../MySchedule/Schedule/AllSchedule';
 import RecommendCard from '../../components/Recommendation/RecommendCard';
 
-
+const { height, width } = Dimensions.get('window');
 
 function MainLanding(props) { 
   const navigation = useNavigation();
@@ -523,10 +524,8 @@ function MainLanding(props) {
 
   // Render functions
   const renderVideoShorts = () => {
-    
     const isValidVideoUrl = (url) => {
       if (!url) return false;
-      // Removed 3gp format and added more common web formats
       const videoExtensions = ['.mp4', '.mov', '.webm', '.m4v'];
       const isSupportedFormat = videoExtensions.some(ext => url.toLowerCase().endsWith(ext));
       const isHttpUrl = url.startsWith('http');
@@ -537,13 +536,8 @@ function MainLanding(props) {
 
     const getVideoSource = (videoUrl) => {
       if (!videoUrl) return null;
+      if (videoUrl.toLowerCase().endsWith('.3gp')) return null;
       
-      // Skip 3GP format videos
-      if (videoUrl.toLowerCase().endsWith('.3gp')) {
-        return null;
-      }
-      
-      // Handle different video URL formats
       if (videoUrl.startsWith('http') || videoUrl.startsWith('https')) {
         return { uri: videoUrl };
       } else if (videoUrl.startsWith('file://')) {
@@ -551,7 +545,6 @@ function MainLanding(props) {
       } else if (videoUrl.startsWith('data:')) {
         return { uri: videoUrl };
       }
-      
       return null;
     };
 
@@ -592,37 +585,27 @@ function MainLanding(props) {
     }
 
     return (
-      <View style={styles.titleSpacer}>
-        <View style={styles.sectionHeader}>
-          <TextDefault textColor={colors.fontMainColor} H4 bold>
-            {'Shorts'}
-          </TextDefault>
-          <TouchableOpacity onPress={() => navigation.navigate('AllShorts')}>
-            <TextDefault textColor={colors.btncolor} H5>
-              {'View All'}
-            </TextDefault>
-          </TouchableOpacity>
-        </View>
-        <FlatList
+      <View style={[styles.shortsListContainer, { height: height }]}>
+        <SwiperFlatList
           data={all_shorts}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={{ alignItems: 'center', paddingBottom: 20 }}
+          vertical
+          pagingEnabled
+          showsVerticalScrollIndicator={false}
+          snapToInterval={height}
+          decelerationRate="fast"
           renderItem={({ item }) => {
             const videoSource = getVideoSource(item.videoUrl);
             const isValidVideo = isValidVideoUrl(item.videoUrl);
             
             return (
-              <TouchableOpacity 
-                style={styles.shortItemContainer}
-                onPress={() => navigation.navigate('ShortDetail', { short: item })}
-                activeOpacity={0.9}
-              >
+              <View style={[styles.shortItemContainer, { height: height }]}>
                 <View style={styles.videoContainer}>
                   {isValidVideo && videoSource ? (
                     <View style={styles.videoWrapper}>
                       <WebView
                         source={videoSource}
-                        style={styles.videoPlayer}
+                        style={[styles.videoPlayer, { height: height }]}
                         allowsFullscreenVideo={true}
                         javaScriptEnabled={true}
                         domStorageEnabled={true}
@@ -639,20 +622,14 @@ function MainLanding(props) {
                           </View>
                         )}
                       />
-                      <View style={styles.playButtonOverlay}>
-                        <Icon name="play-circle" size={48} color="rgba(255,255,255,0.8)" />
-                      </View>
                     </View>
                   ) : (
                     <View style={styles.errorContainer}>
                       <Image
                         source={{ uri: item.thumbnailUrl }}
-                        style={styles.thumbnailImage}
+                        style={[styles.thumbnailImage, { height: height }]}
                         resizeMode="cover"
                       />
-                      <View style={styles.playButtonOverlay}>
-                        <Icon name="alert-circle" size={48} color="rgba(255,255,255,0.8)" />
-                      </View>
                       <View style={styles.errorMessageContainer}>
                         <TextDefault textColor={colors.white} H6>
                           {!item.videoUrl ? 'No video available' : 'Unsupported video format'}
@@ -661,37 +638,45 @@ function MainLanding(props) {
                     </View>
                   )}
                 </View>
-                <View style={styles.shortInfoContainer}>
-                  <View style={styles.shortTitleContainer}>
-                    <TextDefault textColor={colors.fontMainColor} H5 bold numberOfLines={2}>
-                      {item.title}
+
+                {/* Right side interaction buttons */}
+                <View style={styles.interactionButtonsContainer}>
+                  <TouchableOpacity style={styles.interactionButton}>
+                    <Icon name="heart-outline" size={28} color={colors.white} />
+                    <TextDefault textColor={colors.white} H6 style={styles.interactionCount}>
+                      {item.likesCount}
                     </TextDefault>
-                    <TextDefault textColor={colors.fontSecondColor} H6 numberOfLines={2} style={styles.description}>
-                      {item.description}
+                  </TouchableOpacity>
+
+                  <TouchableOpacity style={styles.interactionButton}>
+                    <Icon name="chatbubble-outline" size={28} color={colors.white} />
+                    <TextDefault textColor={colors.white} H6 style={styles.interactionCount}>
+                      {item.commentsCount}
                     </TextDefault>
-                  </View>
-                  <View style={styles.shortStatsContainer}>
-                    <View style={styles.shortStat}>
-                      <Icon name="eye-outline" size={16} color={colors.fontSecondColor} />
-                      <TextDefault textColor={colors.fontSecondColor} H6>
-                        {item.viewsCount}
-                      </TextDefault>
-                    </View>
-                    <View style={styles.shortStat}>
-                      <Icon name="heart-outline" size={16} color={colors.fontSecondColor} />
-                      <TextDefault textColor={colors.fontSecondColor} H6>
-                        {item.likesCount}
-                      </TextDefault>
-                    </View>
-                    <View style={styles.shortStat}>
-                      <Icon name="chatbubble-outline" size={16} color={colors.fontSecondColor} />
-                      <TextDefault textColor={colors.fontSecondColor} H6>
-                        {item.commentsCount}
-                      </TextDefault>
-                    </View>
-                  </View>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity style={styles.interactionButton}>
+                    <Icon name="share-social-outline" size={28} color={colors.white} />
+                    <TextDefault textColor={colors.white} H6 style={styles.interactionCount}>
+                      {item.shareCount || 0}
+                    </TextDefault>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity style={styles.interactionButton}>
+                    <Icon name="bookmark-outline" size={28} color={colors.white} />
+                  </TouchableOpacity>
                 </View>
-              </TouchableOpacity>
+
+                {/* Video info overlay */}
+                <View style={styles.videoInfoOverlay}>
+                  <TextDefault textColor={colors.white} H5 bold numberOfLines={2} style={styles.videoTitle}>
+                    {item.title}
+                  </TextDefault>
+                  <TextDefault textColor={colors.white} H6 numberOfLines={2} style={styles.videoDescription}>
+                    {item.description}
+                  </TextDefault>
+                </View>
+              </View>
             );
           }}
         />

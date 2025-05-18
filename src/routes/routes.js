@@ -6,6 +6,7 @@ import * as Notifications from 'expo-notifications';
 import * as Screen from '../screens';
 import TripMap from '../screens/TripMap/TripMap';
 import PlaceDetailsScreen from '../screens/Searchbar/PlaceDetailsScreen';
+import PostDetail from '../screens/Zipsiprofile/PostDetail';
 
 const NavigationStack = createStackNavigator();
 const MainStack = createStackNavigator();
@@ -21,6 +22,7 @@ function Drawer() {
       <NavigationStack.Screen name="ProfileDashboard" component={Screen.ProfileDashboard} />
       <NavigationStack.Screen name="Review" component={Screen.Review} />
       <NavigationStack.Screen name="DummyScreen" component={Screen.DummyScreen} />
+      <NavigationStack.Screen name="PostDetail" component={PostDetail} />
       <NavigationStack.Screen name="WhereToGo" component={Screen.DiscoverPlace} />
       <NavigationStack.Screen name="MySchedule" component={Screen.MySchedule}/>
       <NavigationStack.Screen name="Destination" component={Screen.Destination}/>

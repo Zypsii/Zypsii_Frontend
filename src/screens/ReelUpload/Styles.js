@@ -22,6 +22,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  mediaContainer: {
+    width: '100%',
+    aspectRatio: 16/9,
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  selectedMedia: {
+    width: '100%',
+    height: '100%',
+  },
+   aspectRatioText: {
+    marginTop: 5,
+    color: '#999',
+    fontSize: 14,
+  },
   placeholderText: {
     marginTop: 10,
     fontSize: 16,

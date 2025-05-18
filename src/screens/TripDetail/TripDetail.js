@@ -56,7 +56,7 @@ const TripDetail = ({ route }) => {
     try {
       const token = await AsyncStorage.getItem('accessToken');
       const response = await axios.get(
-        `${base_url}/places/descriptions`,
+        `${base_url}/schedule/places/getNearest`,
         {
           headers: {
             Authorization: `Bearer ${token}`
@@ -66,9 +66,9 @@ const TripDetail = ({ route }) => {
       
       if (response.data && response.data.data) {
         const descriptions = response.data.data.map(place => ({
-          id: place.id,
+          id: place._id,
           name: place.name,
-          description: place.description,
+          description: place.description || place.address,
           location: place.location
         }));
         setPlaceDescriptions(descriptions);
@@ -197,7 +197,20 @@ const TripDetail = ({ route }) => {
 
           <View style={styles.tripPlanSection}>
             <Text style={styles.sectionTitle}>Trip Detail Plan</Text>
-            <Text style={styles.sectionTitleplan}>Locations</Text>
+            <TouchableOpacity 
+              onPress={() =>
+                navigation.navigate('Map', { 
+                  locations: getLocationsForDay(activeDay).map(location => ({
+                    name: location.name,
+                    address: location.address,
+                    location: location.location,
+                    distanceInKilometer: location.distanceInKilometer
+                  }))
+                })
+              }
+            >
+              <Text style={styles.sectionTitleplan}>Locations</Text>
+            </TouchableOpacity>
 
             <View style={styles.daysTabs}>
               {daysWithLocations.map((day) => (
