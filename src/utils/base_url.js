@@ -4,13 +4,13 @@ import Constants from 'expo-constants'
 
 const ENV = {
   development: {
-    SERVER_URL: 'https://admin.zypsii.com',
+    SERVER_URL: 'http://192.168.2.10:3030',
   },
   staging: {
-    SERVER_URL: 'https://admin.zypsii.com',
+    SERVER_URL: 'http://192.168.2.10:3030',
   },
   production: {
-    SERVER_URL: 'https://admin.zypsii.com',
+    SERVER_URL: 'http://192.168.2.10:3030',
   }
 }
 

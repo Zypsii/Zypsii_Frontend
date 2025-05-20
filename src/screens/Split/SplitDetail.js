@@ -175,17 +175,74 @@ const AddParticipantModal = ({ visible, onClose, onAddParticipant, existingParti
   );
 };
 
+// Add this component at the top of the file, before AddExpenseModal
+const SelectPayerModal = ({ visible, onClose, participants, selectedPayer, onSelectPayer }) => {
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent={true}
+      onRequestClose={onClose}
+    >
+      <View style={styles.modalContainer}>
+        <View style={styles.modalContent}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+              <Ionicons name="close" size={24} color={colors.fontMainColor} />
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Who paid?</Text>
+            <View style={styles.headerPlaceholder} />
+          </View>
+
+          <ScrollView style={styles.modalBody}>
+            {participants.map((participant) => (
+              <TouchableOpacity
+                key={participant.user?._id}
+                style={styles.payerSelectItem}
+                onPress={() => onSelectPayer(participant.user?._id)}
+              >
+                <View style={styles.payerInfo}>
+                  <View style={styles.avatarContainer}>
+                    <Text style={styles.avatarText}>
+                      {participant.user?.name ? participant.user.name.charAt(0).toUpperCase() : '?'}
+                    </Text>
+                  </View>
+                  <Text style={styles.payerName}>
+                    {participant.user?.name || 'Unknown User'}
+                  </Text>
+                </View>
+                <View style={[
+                  styles.checkbox,
+                  selectedPayer === participant.user?._id && styles.checkboxSelected
+                ]}>
+                  {selectedPayer === participant.user?._id && (
+                    <Ionicons name="checkmark" size={18} color={colors.white} />
+                  )}
+                </View>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
 const AddExpenseModal = ({ visible, onClose, onAddExpense, participants }) => {
-  const [amount, setAmount] = useState('');
+  const [step, setStep] = useState(1);
+  const [totalAmount, setTotalAmount] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
-  const [isCustomCategory, setIsCustomCategory] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [paidBy, setPaidBy] = useState('');
-  const [currentStep, setCurrentStep] = useState(1); // 1: Basic Info, 2: Category, 3: Paid By
+  const [splitAmounts, setSplitAmounts] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
+  const [isPayerModalVisible, setIsPayerModalVisible] = useState(false);
+  const [selectedParticipants, setSelectedParticipants] = useState(
+    participants.reduce((acc, p) => ({ ...acc, [p.user?._id]: true }), {})
+  );
 
-  const predefinedCategories = [
+  const categories = [
     'Food & Dining',
     'Transportation',
     'Accommodation',
@@ -194,15 +251,119 @@ const AddExpenseModal = ({ visible, onClose, onAddExpense, participants }) => {
     'Other'
   ];
 
+  useEffect(() => {
+    if (participants && totalAmount) {
+      const selectedIds = Object.entries(selectedParticipants)
+        .filter(([_, isSelected]) => isSelected)
+        .map(([id]) => id);
+      const selectedCount = selectedIds.length;
+      if (selectedCount > 0) {
+        const total = Math.floor(parseFloat(totalAmount));
+        const baseShare = Math.floor(total / selectedCount);
+        let remainder = total - (baseShare * selectedCount);
+
+        const newSplitAmounts = {};
+        participants.forEach((participant, idx) => {
+          if (selectedParticipants[participant.user?._id]) {
+            // Distribute the remainder to the first 'remainder' users
+            let share = baseShare;
+            if (remainder > 0) {
+              share += 1;
+              remainder -= 1;
+            }
+            newSplitAmounts[participant.user?._id] = {
+              value: share.toString(),
+              isManuallyEdited: false
+            };
+          } else {
+            newSplitAmounts[participant.user?._id] = {
+              value: '0',
+              isManuallyEdited: false
+            };
+          }
+        });
+        setSplitAmounts(newSplitAmounts);
+      }
+    }
+  }, [participants, totalAmount, selectedParticipants]);
+
   const resetForm = () => {
-    setAmount('');
+    setStep(1);
+    setTotalAmount('');
     setDescription('');
     setCategory('');
-    setIsCustomCategory(false);
     setPaidBy('');
-    setCurrentStep(1);
+    setSplitAmounts({});
     setIsSubmitting(false);
     setErrors({});
+  };
+
+  const handleNext = () => {
+    if (step === 1) {
+      if (!description.trim()) {
+        setErrors(prev => ({ ...prev, description: 'Please enter a description' }));
+        return;
+      }
+      if (!category) {
+        setErrors(prev => ({ ...prev, category: 'Please select a category' }));
+        return;
+      }
+      setErrors({});
+      setStep(2);
+    }
+  };
+
+  const handleBack = () => {
+    if (step === 2) {
+      setStep(1);
+    } else {
+      handleClose();
+    }
+  };
+
+  const handleSplitEqually = () => {
+    if (!totalAmount || isNaN(parseFloat(totalAmount))) return;
+
+    const selectedCount = Object.values(selectedParticipants).filter(Boolean).length;
+    if (selectedCount > 0) {
+      const totalAmountNum = Math.floor(parseFloat(totalAmount));
+      const baseShare = Math.floor(totalAmountNum / selectedCount);
+      const remainder = totalAmountNum - (baseShare * selectedCount);
+      
+      const newSplitAmounts = {};
+      let remainingAmount = remainder;
+
+      Object.entries(selectedParticipants).forEach(([userId, isSelected], index) => {
+        if (isSelected) {
+          // Add 1 to the base share for the first 'remainder' number of participants
+          let share = baseShare;
+          if (remainingAmount > 0) {
+            share += 1;
+            remainingAmount -= 1;
+          }
+          newSplitAmounts[userId] = {
+            value: share.toString(),
+            isManuallyEdited: false
+          };
+        } else {
+          newSplitAmounts[userId] = {
+            value: '0',
+            isManuallyEdited: false
+          };
+        }
+      });
+
+      setSplitAmounts(newSplitAmounts);
+    }
+  };
+
+  const handleAmountChange = (value) => {
+    const cleanedValue = value.replace(/[^0-9.]/g, '');
+    const parts = cleanedValue.split('.');
+    if (parts.length > 2) return;
+    if (parts[1] && parts[1].length > 2) return;
+    setTotalAmount(cleanedValue);
+    setErrors(prev => ({ ...prev, amount: validateAmount(cleanedValue) }));
   };
 
   const validateAmount = (value) => {
@@ -213,62 +374,6 @@ const AddExpenseModal = ({ visible, onClose, onAddExpense, participants }) => {
     return null;
   };
 
-  const validateDescription = (value) => {
-    if (!value || !value.trim()) {
-      return 'Description is required';
-    }
-    if (value.trim().length < 3) {
-      return 'Description must be at least 3 characters';
-    }
-    return null;
-  };
-
-  const handleAmountChange = (value) => {
-    // Remove any non-numeric characters except decimal point
-    const cleanedValue = value.replace(/[^0-9.]/g, '');
-    
-    // Ensure only one decimal point
-    const parts = cleanedValue.split('.');
-    if (parts.length > 2) {
-      return;
-    }
-    
-    // Limit decimal places to 2
-    if (parts[1] && parts[1].length > 2) {
-      return;
-    }
-    
-    setAmount(cleanedValue);
-    setErrors(prev => ({ ...prev, amount: validateAmount(cleanedValue) }));
-  };
-
-  const handleDescriptionChange = (value) => {
-    setDescription(value);
-    setErrors(prev => ({ ...prev, description: validateDescription(value) }));
-  };
-
-  const handleNextStep = () => {
-    if (currentStep === 1) {
-      const amountError = validateAmount(amount);
-      const descriptionError = validateDescription(description);
-      
-      if (amountError || descriptionError) {
-        setErrors({
-          amount: amountError,
-          description: descriptionError
-        });
-        return;
-      }
-      setCurrentStep(2);
-    } else if (currentStep === 2) {
-      if (!category.trim()) {
-        setErrors(prev => ({ ...prev, category: 'Please select or enter a category' }));
-        return;
-      }
-      setCurrentStep(3);
-    }
-  };
-
   const handleSubmit = async () => {
     try {
       if (!paidBy) {
@@ -276,13 +381,19 @@ const AddExpenseModal = ({ visible, onClose, onAddExpense, participants }) => {
         return;
       }
 
+      if (!totalAmount || isNaN(parseFloat(totalAmount)) || parseFloat(totalAmount) <= 0) {
+        setErrors(prev => ({ ...prev, amount: 'Please enter a valid amount' }));
+        return;
+      }
+
       setIsSubmitting(true);
       
       const expenseData = {
         description: description.trim(),
-        amount: parseFloat(amount),
-        category: isCustomCategory ? category.trim() : category,
+        amount: parseFloat(totalAmount),
+        category,
         paidBy: paidBy,
+        splitAmounts: splitAmounts,
         date: new Date().toISOString()
       };
 
@@ -301,186 +412,278 @@ const AddExpenseModal = ({ visible, onClose, onAddExpense, participants }) => {
     onClose();
   };
 
-  const renderBasicInfoStep = () => (
-    <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>Add Expense Details</Text>
-      <View style={styles.inputContainer}>
-        <Text style={styles.inputLabel}>Description</Text>
+  const handleSplitAmountChange = (userId, value) => {
+    // Clean the input value to only allow numbers and decimal point
+    const newAmount = value.replace(/[^0-9.]/g, '');
+    const newAmountNum = parseFloat(newAmount || '0');
+    const totalAmountNum = parseFloat(totalAmount);
+
+    // Validate the input amount
+    if (newAmountNum > totalAmountNum) {
+      Alert.alert('Invalid Amount', 'Amount cannot be greater than total expense');
+      return;
+    }
+
+    // Get other selected participants (excluding the current one and any manually edited users)
+    const otherSelectedParticipants = Object.entries(selectedParticipants)
+      .filter(([id, isSelected]) => {
+        // Only include users who are selected AND haven't been manually edited
+        return isSelected && id !== userId && !splitAmounts[id]?.isManuallyEdited;
+      })
+      .map(([id]) => id);
+
+    const newSplitAmounts = { ...splitAmounts };
+
+    // Mark this user's amount as manually edited
+    newSplitAmounts[userId] = {
+      value: newAmount,
+      isManuallyEdited: true
+    };
+
+    // Calculate sum of all manually edited amounts
+    const manuallyEditedTotal = Object.entries(newSplitAmounts)
+      .filter(([id, amount]) => amount?.isManuallyEdited)
+      .reduce((sum, [_, amount]) => sum + parseFloat(amount.value || 0), 0);
+
+    const remainingAmount = totalAmountNum - manuallyEditedTotal;
+
+    if (manuallyEditedTotal >= totalAmountNum) {
+      // If manually entered amounts exceed or equal total, set all others to 0
+      otherSelectedParticipants.forEach(participantId => {
+        newSplitAmounts[participantId] = {
+          value: '0',
+          isManuallyEdited: false
+        };
+      });
+    } else {
+      // Split remaining amount equally among other participants (excluding manually edited users)
+      if (otherSelectedParticipants.length > 0) {
+        const sharePerParticipant = Math.max(0, (remainingAmount / otherSelectedParticipants.length).toFixed(2));
+        let totalDistributed = 0;
+        otherSelectedParticipants.forEach((participantId, index) => {
+          if (index === otherSelectedParticipants.length - 1) {
+            // Last participant gets the remaining amount to ensure total matches
+            const lastAmount = Math.max(0, (remainingAmount - totalDistributed).toFixed(2));
+            newSplitAmounts[participantId] = {
+              value: lastAmount,
+              isManuallyEdited: false
+            };
+          } else {
+            newSplitAmounts[participantId] = {
+              value: sharePerParticipant,
+              isManuallyEdited: false
+            };
+            totalDistributed += parseFloat(sharePerParticipant);
+          }
+        });
+      }
+    }
+
+    // Update the state with new split amounts
+    setSplitAmounts(newSplitAmounts);
+  };
+
+  const handleSelectPayer = (userId) => {
+    setPaidBy(userId);
+    setIsPayerModalVisible(false);
+    setErrors(prev => ({ ...prev, paidBy: null }));
+  };
+
+  const handleParticipantToggle = (userId) => {
+    setSelectedParticipants(prev => {
+      const newSelected = { ...prev, [userId]: !prev[userId] };
+      // Recalculate splits after selection change
+      if (totalAmount) {
+        const selectedIds = Object.entries(newSelected)
+          .filter(([_, isSelected]) => isSelected)
+          .map(([id]) => id);
+        const selectedCount = selectedIds.length;
+        if (selectedCount > 0) {
+          const equalShare = (parseFloat(totalAmount) / selectedCount).toFixed(2);
+          const newSplitAmounts = {};
+          participants.forEach(participant => {
+            if (newSelected[participant.user?._id]) {
+              newSplitAmounts[participant.user?._id] = {
+                value: equalShare,
+                isManuallyEdited: false
+              };
+            } else {
+              newSplitAmounts[participant.user?._id] = {
+                value: '0',
+                isManuallyEdited: false
+              };
+            }
+          });
+          setSplitAmounts(newSplitAmounts);
+        }
+      }
+      return newSelected;
+    });
+  };
+
+  const renderStep1 = () => (
+    <View style={styles.step1Container}>
+      <ScrollView style={styles.modalBody}>
         <TextInput
-          style={[styles.input, errors.description && styles.inputError]}
-          placeholder="What was this expense for?"
+          style={styles.descriptionInput}
+          placeholder="What is this expense for?"
           value={description}
-          onChangeText={handleDescriptionChange}
+          onChangeText={(text) => {
+            setDescription(text);
+            setErrors(prev => ({ ...prev, description: null }));
+          }}
           placeholderTextColor={colors.fontSecondColor}
-          editable={!isSubmitting}
         />
         {errors.description && (
           <Text style={styles.errorText}>{errors.description}</Text>
         )}
-      </View>
-      <View style={styles.inputContainer}>
-        <Text style={styles.inputLabel}>Amount (₹)</Text>
-        <TextInput
-          style={[styles.input, errors.amount && styles.inputError]}
-          placeholder="0.00"
-          value={amount}
-          onChangeText={handleAmountChange}
-          keyboardType="numeric"
-          placeholderTextColor={colors.fontSecondColor}
-          editable={!isSubmitting}
-        />
-        {errors.amount && (
-          <Text style={styles.errorText}>{errors.amount}</Text>
-        )}
-      </View>
-      <View style={styles.navigationButtonsContainer}>
-        <TouchableOpacity
-          style={[
-            styles.navigationButton,
-            styles.nextButton,
-            (!description || !amount) && styles.disabledButton
-          ]}
-          onPress={handleNextStep}
-          disabled={!description || !amount || isSubmitting}
-        >
-          <Text style={styles.buttonText}>Next</Text>
-          <Ionicons name="arrow-forward" size={16} color={colors.white} />
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
 
-  const renderCategoryStep = () => (
-    <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>Select Category</Text>
-      <View style={styles.categoryToggleContainer}>
-        <TouchableOpacity
-          style={[
-            styles.categoryToggleButton,
-            !isCustomCategory && styles.categoryToggleButtonActive
-          ]}
-          onPress={() => setIsCustomCategory(false)}
-        >
-          <Text style={[
-            styles.categoryToggleText,
-            !isCustomCategory && styles.categoryToggleTextActive
-          ]}>Predefined</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.categoryToggleButton,
-            isCustomCategory && styles.categoryToggleButtonActive
-          ]}
-          onPress={() => setIsCustomCategory(true)}
-        >
-          <Text style={[
-            styles.categoryToggleText,
-            isCustomCategory && styles.categoryToggleTextActive
-          ]}>Custom</Text>
-        </TouchableOpacity>
-      </View>
-
-      {!isCustomCategory ? (
-        <ScrollView style={styles.categoriesScrollView}>
-          <View style={styles.predefinedCategoriesContainer}>
-            {predefinedCategories.map((cat, index) => (
+        <View style={styles.categoryContainer}>
+          <Text style={styles.sectionLabel}>Category</Text>
+          <View style={styles.categoriesGrid}>
+            {categories.map((cat) => (
               <TouchableOpacity
-                key={index}
+                key={cat}
                 style={[
-                  styles.categoryOption,
-                  category === cat && styles.selectedCategory
+                  styles.categoryButton,
+                  category === cat && styles.categoryButtonActive
                 ]}
-                onPress={() => setCategory(cat)}
+                onPress={() => {
+                  setCategory(cat);
+                  setErrors(prev => ({ ...prev, category: null }));
+                }}
               >
                 <Text style={[
-                  styles.categoryText,
-                  category === cat && styles.selectedCategoryText
+                  styles.categoryButtonText,
+                  category === cat && styles.categoryButtonTextActive
                 ]}>{cat}</Text>
               </TouchableOpacity>
             ))}
           </View>
-        </ScrollView>
-      ) : (
-        <View style={styles.inputContainer}>
-          <Text style={styles.inputLabel}>Custom Category</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter category name"
-            value={category}
-            onChangeText={setCategory}
-            placeholderTextColor={colors.fontSecondColor}
-            editable={!isSubmitting}
-          />
+          {errors.category && (
+            <Text style={styles.errorText}>{errors.category}</Text>
+          )}
         </View>
-      )}
-
-      <View style={styles.navigationButtonsContainer}>
+      </ScrollView>
+      
+      <View style={styles.bottomButtonContainer}>
         <TouchableOpacity
-          style={[styles.navigationButton, styles.backButton]}
-          onPress={() => setCurrentStep(currentStep - 1)}
+          style={styles.nextButton}
+          onPress={handleNext}
         >
-          <Ionicons name="arrow-back" size={20} color={colors.fontMainColor} />
-          <Text style={styles.backButtonText}>Back</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.navigationButton, styles.nextButton]}
-          onPress={handleNextStep}
-          disabled={!category}
-        >
-          <Text style={styles.buttonText}>Next</Text>
+          <Text style={styles.nextButtonText}>Next</Text>
           <Ionicons name="arrow-forward" size={20} color={colors.white} />
         </TouchableOpacity>
       </View>
     </View>
   );
 
-  const renderPaidByStep = () => (
-    <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>Who paid for this expense?</Text>
-      <ScrollView style={styles.participantList}>
-        {participants.map((participant) => (
-          <TouchableOpacity
-            key={participant.user._id}
-            style={[
-              styles.participantItem,
-              paidBy === participant.user._id && styles.selectedParticipant
-            ]}
-            onPress={() => setPaidBy(participant.user._id)}
-          >
-            <View style={styles.participantAvatar}>
-              <Text style={styles.avatarText}>
-                {participant.user.name ? participant.user.name.charAt(0).toUpperCase() : '?'}
+  const renderStep2 = () => (
+    <View style={styles.step2Container}>
+      <ScrollView style={styles.modalBody}>
+        <View style={styles.amountContainer}>
+          <Text style={styles.amountLabel}>₹</Text>
+          <TextInput
+            style={styles.amountInput}
+            value={totalAmount}
+            onChangeText={handleAmountChange}
+            keyboardType="numeric"
+            placeholder="0"
+            placeholderTextColor={colors.fontSecondColor}
+          />
+        </View>
+        {errors.amount && (
+          <Text style={styles.errorText}>{errors.amount}</Text>
+        )}
+
+        <TouchableOpacity
+          style={styles.paidByButton}
+          onPress={() => setIsPayerModalVisible(true)}
+        >
+          <View style={styles.paidByContent}>
+            <View style={styles.paidByLeft}>
+              <Text style={styles.paidByLabel}>Paid by</Text>
+              <Text style={[styles.paidByName, { color: colors.fontMainColor }]}>
+                {paidBy ? participants.find(p => p.user?._id === paidBy)?.user?.name : 'Select payer'}
               </Text>
             </View>
-            <View style={styles.participantInfo}>
-              <Text style={styles.participantName}>{participant.user.name}</Text>
-              <Text style={styles.participantEmail}>{participant.user.email}</Text>
+            <Ionicons name="chevron-forward" size={24} color={colors.fontMainColor} />
+          </View>
+        </TouchableOpacity>
+        {errors.paidBy && (
+          <Text style={styles.errorText}>{errors.paidBy}</Text>
+        )}
+
+        <View style={styles.splitListContainer}>
+          <View style={styles.splitListHeader}>
+            <Text style={styles.splitListTitle}>
+              {`${Object.values(selectedParticipants).filter(Boolean).length} Selected`}
+            </Text>
+            <TouchableOpacity onPress={handleSplitEqually} style={styles.splitEquallyButton}>
+              <Ionicons name="refresh" size={20} color={colors.Zypsii_color} />
+              <Text style={styles.splitEquallyText}>Split Equally</Text>
+            </TouchableOpacity>
+          </View>
+
+          {participants.map((participant) => (
+            <View key={participant.user?._id || Math.random()} style={styles.splitListItem}>
+              <TouchableOpacity 
+                style={styles.participantCheckbox}
+                onPress={() => handleParticipantToggle(participant.user?._id)}
+              >
+                <View style={[
+                  styles.checkbox,
+                  selectedParticipants[participant.user?._id] && styles.checkboxSelected
+                ]}>
+                  {selectedParticipants[participant.user?._id] && (
+                    <Ionicons name="checkmark" size={16} color={colors.white} />
+                  )}
+                </View>
+                <View style={styles.participantInfo}>
+                  <View style={styles.avatarContainer}>
+                    <Text style={styles.avatarText}>
+                      {participant.user?.name ? participant.user.name.charAt(0).toUpperCase() : '?'}
+                    </Text>
+                  </View>
+                  <Text style={styles.participantName}>{participant.user?.name || 'Unknown User'}</Text>
+                </View>
+              </TouchableOpacity>
+              <TextInput
+                style={[
+                  styles.splitAmountInput,
+                  !selectedParticipants[participant.user?._id] && styles.splitAmountInputDisabled
+                ]}
+                value={splitAmounts[participant.user?._id]?.value?.toString() || ''}
+                onChangeText={(value) => handleSplitAmountChange(participant.user?._id, value)}
+                keyboardType="numeric"
+                placeholder="0"
+                placeholderTextColor={colors.fontSecondColor}
+                editable={selectedParticipants[participant.user?._id]}
+              />
             </View>
-            {paidBy === participant.user._id && (
-              <Ionicons name="checkmark-circle" size={24} color={colors.Zypsii_color} />
-            )}
-          </TouchableOpacity>
-        ))}
+          ))}
+        </View>
+
+        <SelectPayerModal
+          visible={isPayerModalVisible}
+          onClose={() => setIsPayerModalVisible(false)}
+          participants={participants}
+          selectedPayer={paidBy}
+          onSelectPayer={handleSelectPayer}
+        />
       </ScrollView>
 
-      <View style={styles.navigationButtonsContainer}>
+      <View style={styles.bottomButtonContainer}>
         <TouchableOpacity
-          style={[styles.navigationButton, styles.backButton]}
-          onPress={() => setCurrentStep(currentStep - 1)}
-        >
-          <Ionicons name="arrow-back" size={20} color={colors.fontMainColor} />
-          <Text style={styles.backButtonText}>Back</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.navigationButton, styles.submitButton]}
+          style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
           onPress={handleSubmit}
-          disabled={!paidBy || isSubmitting}
+          disabled={isSubmitting}
         >
           {isSubmitting ? (
             <ActivityIndicator color={colors.white} />
           ) : (
             <>
-              <Text style={styles.buttonText}>Submit</Text>
+              <Text style={styles.submitButtonText}>Submit</Text>
               <Ionicons name="checkmark" size={20} color={colors.white} />
             </>
           )}
@@ -499,30 +702,16 @@ const AddExpenseModal = ({ visible, onClose, onAddExpense, participants }) => {
       <View style={styles.modalContainer}>
         <View style={styles.modalContent}>
           <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={handleClose}>
-              <Ionicons name="close" size={24} color={colors.fontMainColor} />
+            <TouchableOpacity onPress={handleBack} style={styles.closeButton}>
+              <Ionicons name={step === 1 ? "close" : "arrow-back"} size={24} color={colors.fontMainColor} />
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>Add Expense</Text>
-            <View style={{ width: 24 }} />
+            <Text style={styles.modalTitle}>
+              {step === 1 ? 'Add Expense Details' : 'Split Amount'}
+            </Text>
+            <View style={styles.headerPlaceholder} />
           </View>
 
-          <View style={styles.progressContainer}>
-            {[1, 2, 3].map((step) => (
-              <View
-                key={step}
-                style={[
-                  styles.progressStep,
-                  currentStep >= step && styles.progressStepActive,
-                ]}
-              />
-            ))}
-          </View>
-
-          <View style={styles.modalBody}>
-            {currentStep === 1 && renderBasicInfoStep()}
-            {currentStep === 2 && renderCategoryStep()}
-            {currentStep === 3 && renderPaidByStep()}
-          </View>
+          {step === 1 ? renderStep1() : renderStep2()}
         </View>
       </View>
     </Modal>
@@ -610,8 +799,12 @@ function SplitDetail() {
   };
 
   const renderExpenseItem = ({ item }) => {
-    // Get paidBy user directly from the expense since it's now populated
-    const paidByUser = item.paidBy;
+    // If paidBy is an object, use it. If it's an ID, find the user in participants.
+    let paidByUser = item.paidBy;
+    if (typeof paidByUser === 'string' && split && split.participants) {
+      const found = split.participants.find(p => p.user?._id === paidByUser);
+      paidByUser = found ? found.user : null;
+    }
     
     // Format date properly
     const expenseDate = item.date ? new Date(item.date).toLocaleDateString('en-GB', {
@@ -620,12 +813,16 @@ function SplitDetail() {
       year: 'numeric'
     }) : 'No date';
 
+    // Defensive checks for amount and description
+    const safeAmount = (item.amount !== undefined && item.amount !== null && !isNaN(Number(item.amount))) ? parseFloat(item.amount).toFixed(2) : '0.00';
+    const safeDescription = item.description && item.description.trim() ? item.description : 'No description';
+
     return (
       <View style={styles.expenseItem}>
         <View style={styles.expenseHeader}>
           <View style={styles.expenseMainInfo}>
             <Text style={styles.expenseDescription} numberOfLines={2}>
-              {item.description || 'No description'}
+              {safeDescription}
             </Text>
             {editingExpenseId === item._id ? (
               <View style={styles.amountEditContainer}>
@@ -666,10 +863,10 @@ function SplitDetail() {
               <TouchableOpacity 
                 onPress={() => {
                   setEditingExpenseId(item._id);
-                  setEditedAmount(item.amount.toString());
+                  setEditedAmount(item.amount ? item.amount.toString() : '');
                 }}
               >
-                <Text style={styles.expenseAmount}>₹{parseFloat(item.amount).toFixed(2)}</Text>
+                <Text style={styles.expenseAmount}>₹{safeAmount}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -697,7 +894,7 @@ function SplitDetail() {
               </View>
               <View style={styles.paidByTextContainer}>
                 <Text style={styles.paidByLabel}>Paid by</Text>
-                <Text style={styles.paidByEmail} numberOfLines={1}>
+                <Text style={[styles.paidByEmail, { color: colors.Zypsii_color }]} numberOfLines={1}>
                   {paidByUser?.name || paidByUser?.email || 'Unknown user'}
                 </Text>
               </View>
@@ -712,11 +909,13 @@ function SplitDetail() {
     <View style={styles.participantItem}>
       <View style={styles.participantInfo}>
         <View style={styles.avatarContainer}>
-          <Text style={styles.avatarText}>{item.user.email[0].toUpperCase()}</Text>
+          <Text style={styles.avatarText}>
+            {item.user?.email ? item.user.email[0].toUpperCase() : '?'}
+          </Text>
         </View>
         <View style={styles.participantDetails}>
-          <Text style={styles.participantName}>{item.user.email}</Text>
-          <Text style={styles.participantContact}>Amount: ₹{item.amount}</Text>
+          <Text style={styles.participantName}>{item.user?.email || 'Unknown User'}</Text>
+          <Text style={styles.participantContact}>Amount: ₹{item.amount || 0}</Text>
           <Text style={[
             styles.paymentStatus,
             { color: item.paid ? colors.greenColor : colors.error }
@@ -841,7 +1040,7 @@ function SplitDetail() {
       
       setInviteEmail('');
       setIsInviteModalVisible(false);
-      fetchSplitDetails(); // Refresh the data
+      fetchSplitDetails(); 
       Alert.alert('Success', 'Friend has been invited to the split');
     } catch (error) {
       console.error('Error inviting friend:', error);
@@ -861,7 +1060,7 @@ function SplitDetail() {
       });
       
       setIsAddParticipantModalVisible(false);
-      fetchSplitDetails(); // Refresh the data
+      fetchSplitDetails(); 
       Alert.alert('Success', 'Participant added successfully');
     } catch (error) {
       console.error('Error adding participant:', error);
@@ -878,6 +1077,10 @@ function SplitDetail() {
       </SafeAreaView>
     );
   }
+
+  // Debug logs to inspect data
+  console.log('Split data:', split);
+  console.log('Expenses:', split?.expenses);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -1028,26 +1231,47 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: colors.grayBackground,
+    backgroundColor: colors.white,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   backButton: {
     padding: 8,
+    backgroundColor: colors.grayBackground,
+    borderRadius: 8,
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     color: colors.fontMainColor,
+    flex: 1,
+    textAlign: 'center',
+    marginHorizontal: 16,
   },
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
   },
   addButton: {
     backgroundColor: colors.btncolor,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+  },
+  addButtonPressed: {
+    transform: [{ scale: 0.95 }],
+    opacity: 0.9,
   },
   summaryContainer: {
     padding: 16,
@@ -1231,7 +1455,7 @@ const styles = StyleSheet.create({
   },
   paidByEmail: {
     fontSize: 13,
-    color: colors.fontMainColor,
+    color: colors.Zypsii_color,
     fontWeight: '500',
   },
   modalContainer: {
@@ -1241,184 +1465,160 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: colors.white,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '90%',
-    minHeight: '50%',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    height: '90%',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.grayBackground,
+    padding: 20,
+    paddingBottom: 12,
+  },
+  closeButton: {
+    padding: 8,
+    backgroundColor: colors.grayBackground,
+    borderRadius: 8,
+  },
+  submitButton: {
+    padding: 8,
+  },
+  submitButtonText: {
+    color: colors.Zypsii_color,
+    fontWeight: '600',
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 22,
+    fontWeight: '700',
     color: colors.fontMainColor,
+    textAlign: 'center',
+    flex: 1,
   },
   modalBody: {
     flex: 1,
   },
-  progressContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    gap: 8,
-  },
-  progressStep: {
-    width: 50,
-    height: 4,
-    backgroundColor: colors.grayBackground,
-    borderRadius: 2,
-  },
-  progressStepActive: {
-    backgroundColor: colors.Zypsii_color,
-  },
-  stepContainer: {
-    flex: 1,
-    padding: 16,
-  },
-  stepTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: colors.fontMainColor,
-    marginBottom: 20,
-  },
-  inputContainer: {
-    marginBottom: 16,
-  },
-  inputLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: colors.fontMainColor,
-    marginBottom: 6,
-  },
-  input: {
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.grayLinesColor,
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 14,
-    color: colors.fontMainColor,
-  },
-  navigationButtonsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-    marginTop: 20,
-  },
-  navigationButton: {
+  amountContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    minWidth: 120,
-    gap: 8,
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.grayLinesColor,
   },
-  backButton: {
-    backgroundColor: colors.grayBackground,
+  amountLabel: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: colors.fontMainColor,
     marginRight: 8,
   },
-  nextButton: {
-    backgroundColor: colors.Zypsii_color,
-  },
-  submitButton: {
-    backgroundColor: colors.Zypsii_color,
-  },
-  disabledButton: {
-    opacity: 0.5,
-  },
-  buttonText: {
-    color: colors.white,
-    fontSize: 14,
+  amountInput: {
+    flex: 1,
+    fontSize: 24,
     fontWeight: '600',
-  },
-  backButtonText: {
     color: colors.fontMainColor,
-    fontSize: 14,
-    fontWeight: '600',
   },
-  categoryToggleContainer: {
+  descriptionInput: {
+    padding: 16,
+    fontSize: 16,
+    color: colors.fontMainColor,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.grayLinesColor,
+  },
+  paidByContainer: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.grayLinesColor,
+  },
+  sectionLabel: {
+    fontSize: 14,
+    color: colors.fontSecondColor,
+    marginBottom: 8,
+  },
+  paidBySelector: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  paidByText: {
+    fontSize: 16,
+    color: colors.fontMainColor,
+  },
+  splitOptionsContainer: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.grayLinesColor,
+  },
+  splitTypeButtons: {
     flexDirection: 'row',
     backgroundColor: colors.grayBackground,
     borderRadius: 8,
     padding: 4,
-    marginBottom: 16,
   },
-  categoryToggleButton: {
+  splitTypeButton: {
     flex: 1,
     paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 6,
     alignItems: 'center',
+    borderRadius: 6,
   },
-  categoryToggleButtonActive: {
+  splitTypeButtonActive: {
     backgroundColor: colors.white,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 1,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  categoryToggleText: {
+  splitTypeText: {
     fontSize: 14,
     color: colors.fontSecondColor,
-    fontWeight: '500',
   },
-  categoryToggleTextActive: {
+  splitTypeTextActive: {
+    color: colors.fontMainColor,
+    fontWeight: '600',
+  },
+  splitListContainer: {
+    padding: 16,
+  },
+  splitListHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  splitListTitle: {
+    fontSize: 14,
+    color: colors.fontSecondColor,
+  },
+  splitEquallyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  splitEquallyText: {
+    marginLeft: 4,
     color: colors.Zypsii_color,
     fontWeight: '600',
   },
-  categoriesScrollView: {
-    flex: 1,
-    marginBottom: 16,
-  },
-  predefinedCategoriesContainer: {
+  splitListItem: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    paddingBottom: 16,
-  },
-  categoryOption: {
-    flex: 1,
-    minWidth: '45%',
-    padding: 12,
-    borderWidth: 1,
-    borderColor: colors.grayLinesColor,
-    borderRadius: 8,
+    justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 12,
   },
-  selectedCategory: {
-    backgroundColor: colors.Zypsii_color,
-    borderColor: colors.Zypsii_color,
-  },
-  categoryText: {
-    fontSize: 14,
-    color: colors.fontMainColor,
-    fontWeight: '500',
-  },
-  selectedCategoryText: {
-    color: colors.white,
-    fontWeight: '600',
-  },
-  participantList: {
+  participantInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
     flex: 1,
-    marginBottom: 16,
   },
-  selectedParticipant: {
-    borderColor: colors.Zypsii_color,
-    backgroundColor: `${colors.Zypsii_color}10`,
-  },
-  participantAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  avatarContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: colors.Zypsii_color,
     justifyContent: 'center',
     alignItems: 'center',
@@ -1427,20 +1627,21 @@ const styles = StyleSheet.create({
   avatarText: {
     color: colors.white,
     fontSize: 16,
-    fontWeight: 'bold',
-  },
-  participantInfo: {
-    flex: 1,
+    fontWeight: '600',
   },
   participantName: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 16,
     color: colors.fontMainColor,
-    marginBottom: 2,
   },
-  participantEmail: {
-    fontSize: 12,
-    color: colors.fontSecondColor,
+  splitAmountInput: {
+    width: 80,
+    textAlign: 'right',
+    fontSize: 16,
+    color: colors.fontMainColor,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: colors.grayLinesColor,
+    borderRadius: 8,
   },
   loadingContainer: {
     padding: 24,
@@ -1519,18 +1720,21 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   searchWrapper: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
   },
   searchInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.grayBackground,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 44,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    height: 48,
+    borderWidth: 1,
+    borderColor: colors.grayLinesColor,
   },
   searchIcon: {
-    marginRight: 8,
+    marginRight: 12,
+    color: colors.fontSecondColor,
   },
   searchInputField: {
     flex: 1,
@@ -1540,10 +1744,9 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   clearSearchButton: {
-    padding: 4,
-  },
-  closeButton: {
     padding: 8,
+    backgroundColor: colors.grayBackground,
+    borderRadius: 12,
   },
   userItemContainer: {
     flexDirection: 'row',
@@ -1560,17 +1763,22 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   userAvatarContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: colors.Zypsii_color,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
   },
   userAvatarText: {
     color: colors.white,
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'bold',
   },
   userDetailsContainer: {
@@ -1578,7 +1786,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   userNameText: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '600',
     color: colors.fontMainColor,
     marginBottom: 4,
@@ -1588,15 +1796,17 @@ const styles = StyleSheet.create({
     color: colors.fontSecondColor,
   },
   addIconContainer: {
-    padding: 8,
+    padding: 10,
+    backgroundColor: colors.grayBackground,
+    borderRadius: 12,
   },
   searchResultsContainer: {
     flexGrow: 1,
-    paddingTop: 8,
+    paddingTop: 12,
   },
   emptyResultsContainer: {
     flex: 1,
-    padding: 24,
+    padding: 32,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1608,22 +1818,22 @@ const styles = StyleSheet.create({
   },
   modalHeaderWithSearch: {
     backgroundColor: colors.white,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     borderBottomWidth: 1,
     borderBottomColor: colors.grayBackground,
-    paddingBottom: 12,
+    paddingBottom: 16,
   },
   modalHeaderTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
-    paddingBottom: 8,
+    padding: 20,
+    paddingBottom: 12,
   },
   modalSafeArea: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
   },
   modalOverlay: {
     flex: 1,
@@ -1660,17 +1870,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 8,
   },
-  amountInput: {
-    borderWidth: 1,
-    borderColor: colors.grayLinesColor,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    minWidth: 100,
-    color: colors.fontMainColor,
-    fontSize: 16,
-    fontWeight: '600',
-  },
   amountEditButtons: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1689,6 +1888,149 @@ const styles = StyleSheet.create({
   cancelButton: {
     backgroundColor: colors.error,
   },
+  categoryContainer: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.grayLinesColor,
+  },
+  categoriesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+  },
+  categoryButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: colors.grayBackground,
+    minWidth: '30%',
+    alignItems: 'center',
+  },
+  categoryButtonActive: {
+    backgroundColor: colors.Zypsii_color,
+  },
+  categoryButtonText: {
+    color: colors.fontMainColor,
+    fontSize: 14,
+  },
+  categoryButtonTextActive: {
+    color: colors.white,
+    fontWeight: '600',
+  },
+  step1Container: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  bottomButtonContainer: {
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: colors.grayLinesColor,
+    backgroundColor: colors.white,
+  },
+  nextButton: {
+    backgroundColor: colors.Zypsii_color,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    borderRadius: 12,
+    gap: 8,
+  },
+  nextButtonText: {
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  headerPlaceholder: {
+    width: 70, // Match the width of the submit button
+  },
+  paidByButton: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.grayLinesColor,
+  },
+  paidByContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  paidByLeft: {
+    flex: 1,
+  },
+  paidByLabel: {
+    fontSize: 14,
+    color: colors.fontSecondColor,
+    marginBottom: 4,
+  },
+  paidByName: {
+    fontSize: 16,
+    color: colors.fontMainColor,
+    fontWeight: '500',
+  },
+  payerSelectItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.grayLinesColor,
+  },
+  payerInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  payerName: {
+    fontSize: 16,
+    color: colors.fontMainColor,
+    marginLeft: 12,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: colors.grayLinesColor,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxSelected: {
+    backgroundColor: colors.Zypsii_color,
+    borderColor: colors.Zypsii_color,
+  },
+  step2Container: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  submitButton: {
+    backgroundColor: colors.Zypsii_color,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    borderRadius: 12,
+    gap: 8,
+  },
+  submitButtonDisabled: {
+    opacity: 0.7,
+  },
+  submitButtonText: {
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  participantCheckbox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  splitAmountInputDisabled: {
+    backgroundColor: colors.grayBackground,
+    color: colors.fontSecondColor,
+  },
 });
 
-export default SplitDetail; 
+export default SplitDetail;

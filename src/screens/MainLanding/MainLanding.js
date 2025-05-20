@@ -47,7 +47,7 @@ function MainLanding(props) {
   const navigation = useNavigation();
   const { scheduleData } = useSchedule();
   const [selectedButton, setSelectedButton] = useState('All');
-  const buttons = ['All', 'Schedule', 'Shorts', 'Posts'];
+  const buttons = ['All', 'Posts', 'Shorts', 'Schedule'];
   const [unreadMessages, setUnreadMessages] = useState(0);
   
   // Loading states
@@ -1013,10 +1013,10 @@ function MainLanding(props) {
             style={styles.notificationIconWrapper}
           >
             <MaterialIcons
-              name="chat"
+              name="forum"
               size={28}
               color="#000"
-              style={styles.icon}
+              style={[styles.icon, { marginRight: 5 }]}
             />
             {unreadMessages > 0 && (
               <View style={styles.notificationBadge}>
