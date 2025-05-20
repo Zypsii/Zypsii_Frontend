@@ -9,6 +9,8 @@ const SignUpScreen = () => {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [countryCode, setCountryCode] = useState('+91'); // Default to India's country code
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [loading, setLoading] = useState(false);
   const [latitude, setLatitude] = useState(null);
   const [longitude, setLongitude] = useState(null);
@@ -40,39 +42,68 @@ const SignUpScreen = () => {
   }, []);
 
   const handleSignUp = async () => {
-    if (!email || !password || !fullName || latitude === null || longitude === null) {
+    if (!email || !password || !fullName || !countryCode || !phoneNumber || latitude === null || longitude === null) {
       Alert.alert('Error', 'Please enter all fields and allow location access');
+      return;
+    }
+
+    // Validate country code format
+    if (!countryCode.startsWith('+') || countryCode.length < 2 || countryCode.length > 5) {
+      Alert.alert('Error', 'Country code must start with + and be 1 to 4 digits');
+      return;
+    }
+
+    // Validate phone number format
+    if (phoneNumber.length < 7 || phoneNumber.length > 15 || !/^\d+$/.test(phoneNumber)) {
+      Alert.alert('Error', 'Phone number must be 7 to 15 digits');
       return;
     }
 
     setLoading(true);
     try {
-      console.log('Sending signup request to:', `${base_url}/user/signUp`);
+      console.log('Starting signup process...');
+      console.log('Signup data:', { fullName, email, password, countryCode, phoneNumber, latitude, longitude });
+      console.log('API URL:', `${base_url}/user/signUp`);
+      
       const response = await fetch(`${base_url}/user/signUp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ fullName, email, password, latitude, longitude }),
+        body: JSON.stringify({ 
+          fullName, 
+          email, 
+          password, 
+          countryCode, 
+          phoneNumber,
+          latitude, 
+          longitude 
+        }),
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        if (!data.error) {
-          Alert.alert('Success', 'Account created successfully');
-          // const { accessToken, user } = data;
-          // await AsyncStorage.setItem('accessToken', accessToken);
-          // await AsyncStorage.setItem('user', JSON.stringify(user));
+      console.log('Signup response status:', response.status);
+      const data = await response.json();
+      console.log('Signup response data:', data);
 
+      if (response.ok) {
+        if (!data.error) {
+          console.log('Signup successful, navigating to Login...');
+          Alert.alert('Success', 'Account created successfully');
           navigation.navigate('Login');
         } else {
+          console.log('Signup failed with error:', data.message);
           Alert.alert('Error', data.message || 'Signup failed');
         }
       } else {
+        console.log('Signup failed with status:', response.status);
         Alert.alert('Error', 'Signup failed, please try again.');
       }
     } catch (error) {
-      console.error('Network or fetch error:', error); // Log error
+      console.error('Signup error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
       Alert.alert('Error', 'Signup failed due to a network error');
     } finally {
       setLoading(false);
@@ -129,6 +160,31 @@ const SignUpScreen = () => {
               onChangeText={setPassword}
             />
           </View>
+
+          <View style={styles.phoneContainer}>
+            <View style={styles.countryCodeContainer}>
+              <Text style={styles.label}>Country Code</Text>
+              <TextInput
+                style={[styles.input, styles.countryCodeInput]}
+                placeholder="+91"
+                placeholderTextColor="#999"
+                value={countryCode}
+                onChangeText={setCountryCode}
+                keyboardType="phone-pad"
+              />
+            </View>
+            <View style={styles.phoneNumberContainer}>
+              <Text style={styles.label}>Phone Number</Text>
+              <TextInput
+                style={[styles.input, styles.phoneNumberInput]}
+                placeholder="Enter your phone number"
+                placeholderTextColor="#999"
+                value={phoneNumber}
+                onChangeText={setPhoneNumber}
+                keyboardType="phone-pad"
+              />
+            </View>
+          </View>
         </View>
 
         <View style={styles.bottomSection}>
@@ -137,8 +193,14 @@ const SignUpScreen = () => {
               <Text style={styles.loginButtonText}>LOGIN</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.signupButton} onPress={handleSignUp}>
-              <Text style={styles.signupButtonText}>SIGNUP</Text>
+            <TouchableOpacity 
+              style={[styles.signupButton, loading && styles.disabledButton]} 
+              onPress={handleSignUp}
+              disabled={loading}
+            >
+              <Text style={styles.signupButtonText}>
+                {loading ? 'SIGNING UP...' : 'SIGNUP'}
+              </Text>
             </TouchableOpacity>
           </View>
 
@@ -262,6 +324,26 @@ const styles = StyleSheet.create({
   loginLink: {
     color: '#000000',
     fontWeight: 'bold',
+  },
+  phoneContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 25,
+  },
+  countryCodeContainer: {
+    width: '30%',
+  },
+  phoneNumberContainer: {
+    width: '65%',
+  },
+  countryCodeInput: {
+    width: '100%',
+  },
+  phoneNumberInput: {
+    width: '100%',
+  },
+  disabledButton: {
+    opacity: 0.7,
   },
 });
 

@@ -18,9 +18,11 @@ import { base_url } from '../../utils/base_url'
 import { styles } from './styles'
 import { Ionicons } from '@expo/vector-icons'
 import { useNavigation } from '@react-navigation/native'
+import { useAuth } from '../../components/Auth/AuthContext'
 
 const ProfilePage = () => {
   const navigation = useNavigation();
+  const { user, login } = useAuth();
   const [fullName, setFullName] = useState('')
   const [username, setUsername] = useState('')
   const [website, setWebsite] = useState('')
@@ -42,6 +44,7 @@ const ProfilePage = () => {
       }
       console.log(accessToken);
       const response = await fetch(`${base_url}/user/getProfile`, {
+        method: 'get',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json'
@@ -61,8 +64,8 @@ const ProfilePage = () => {
         setWebsite(userData.website || '');
         setBio(userData.bio || '');
         setLocation(userData.location || '');
-        if (userData.profileImage) {
-          setProfileImage(userData.profileImage);
+        if (userData.profilePicture) {
+          setProfileImage(userData.profilePicture);
         }
       } else {
         throw new Error('No profile data found');
@@ -103,18 +106,30 @@ const ProfilePage = () => {
 
       const formData = new FormData();
       formData.append('fullName', fullName);
-      formData.append('userName', username);
       formData.append('website', website);
       formData.append('bio', bio);
-      formData.append('location', location);
+      //formData.append('location', location);
       
       if (profileImage) {
-        formData.append('profileImage', {
-          uri: profileImage,
-          type: 'image/jpeg',
-          name: 'profile.jpg'
+        const imageUri = profileImage;
+        const filename = imageUri.split('/').pop();
+        const match = /\.(\w+)$/.exec(filename);
+        const type = match ? `image/${match[1]}` : 'image/jpeg';
+        
+        formData.append('profilePicture', {
+          uri: imageUri,
+          name: filename,
+          type: type
         });
       }
+
+      console.log('Sending form data:', {
+        fullName,
+        website,
+        bio,
+        location,
+        hasProfileImage: !!profileImage
+      });
 
       const response = await fetch(`${base_url}/user/editProfile`, {
         method: 'put',
@@ -125,12 +140,38 @@ const ProfilePage = () => {
         body: formData
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to update profile');
+      const responseText = await response.text();
+      console.log('Raw Response:', responseText);
+
+      let data;
+      try {
+        data = JSON.parse(responseText);
+        console.log('Parsed Response:', data);
+      } catch (parseError) {
+        console.error('Failed to parse response as JSON:', parseError);
+        throw new Error(`Server returned invalid response: ${responseText.substring(0, 100)}...`);
       }
 
-      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to update profile');
+      }
+
       if (data.success) {
+        // Update the user context with new profile data
+        const updatedUser = {
+          ...user,
+          fullName,
+          userName: username,
+          website,
+          bio,
+          location,
+          profilePicture: profileImage || user.profilePicture
+        };
+        
+        // Update AsyncStorage and context
+        await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
+        await login(updatedUser);
+        
         Alert.alert('Success', 'Profile updated successfully');
         navigation.goBack();
       } else {
@@ -138,7 +179,8 @@ const ProfilePage = () => {
       }
     } catch (error) {
       console.error('Error updating profile:', error);
-      Alert.alert('Error', error.message || 'Failed to update profile');
+      console.error('Error details:', error.message);
+      Alert.alert('Error', `Failed to update profile: ${error.message}`);
     } finally {
       setSaving(false);
     }

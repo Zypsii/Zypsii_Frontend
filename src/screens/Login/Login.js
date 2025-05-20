@@ -307,7 +307,7 @@ const SignInScreen = () => {
 
         <View style={styles.bottomSection}>
           <View style={styles.buttonContainer}>
-            <TouchableOpacity style={styles.signupButton} onPress={() => navigation.navigate('Drawer', { screen: 'SignUp' })}>
+            <TouchableOpacity style={styles.signupButton} onPress={() => navigation.navigate('SignUp')}>
               <Text style={styles.signupButtonText}>SIGNUP</Text>
             </TouchableOpacity>
 
@@ -330,7 +330,7 @@ const SignInScreen = () => {
             </TouchableOpacity> */}
           </View>
 
-          <TouchableOpacity onPress={() => navigation.navigate('Drawer', { screen: 'SignUp' })}>
+          <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
             <Text style={styles.signupText}>Don't have an account? <Text style={styles.signupLink}>SIGN UP</Text></Text>
           </TouchableOpacity>
         </View>

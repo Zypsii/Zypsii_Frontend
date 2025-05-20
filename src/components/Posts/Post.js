@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, Image, TouchableOpacity, TextInput, StyleSheet, FlatList, Dimensions, Modal, Alert } from 'react-native';
 import Feather from 'react-native-vector-icons/Feather';
 import AntDesign from 'react-native-vector-icons/AntDesign';
@@ -6,6 +6,7 @@ import Ionic from 'react-native-vector-icons/Ionicons';
 import Entypo from 'react-native-vector-icons/Entypo';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { base_url } from '../../utils/base_url';
+import FollowButton from '../Follow/FollowButton';
 
 const { width } = Dimensions.get('window');
 
@@ -13,6 +14,7 @@ const Post = ({ item, isFromProfile }) => {
   const [like, setLike] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
   
   const handleDelete = async () => {
     try {
@@ -110,11 +112,18 @@ const Post = ({ item, isFromProfile }) => {
           <Text style={styles.userName}>{item.postTitle}</Text>
           <Text style={styles.dateText}>{formatDate(item.createdAt)}</Text>
         </View>
-        {isFromProfile && (
-          <TouchableOpacity onPress={() => setShowMenu(true)}>
-            <Feather name="more-vertical" style={styles.moreIcon} />
-          </TouchableOpacity>
-        )}
+        <View style={styles.headerActions}>
+          {!isFromProfile && (
+            <View style={styles.followButtonContainer}>
+              <FollowButton userId={item.createdBy} />
+            </View>
+          )}
+          {isFromProfile && (
+            <TouchableOpacity onPress={() => setShowMenu(true)}>
+              <Feather name="more-vertical" style={styles.moreIcon} />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       {/* Only render the image if the URL is a non-empty string */}
@@ -211,19 +220,17 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.1,
     backgroundColor: '#fff',
     marginBottom: 10,
-    paddingHorizontal: 0,
+    paddingHorizontal: 15,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingLeft: 0,
-    paddingRight: 0,
-    paddingTop: 15,
-    paddingBottom: 15,
+    paddingVertical: 15,
   },
   userInfo: {
     flex: 1,
+    marginRight: 15,
   },
   userName: {
     fontSize: 16,
@@ -234,8 +241,16 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 2,
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  followButtonContainer: {
+    marginRight: 10,
+  },
   moreIcon: {
     fontSize: 20,
+    paddingHorizontal: 5,
   },
   postImageContainer: {
     width: '100%',
@@ -358,6 +373,7 @@ const styles = StyleSheet.create({
   deleteMenuText: {
     color: '#FF3B30',
   },
+
 });
 
 export default Post;

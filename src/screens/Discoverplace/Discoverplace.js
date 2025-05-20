@@ -66,7 +66,7 @@ const styles = {
     backgroundColor: colors.primary,
   },
   selectedTripButtonText: {
-    color: colors.Zypsii_color,
+    color: colors.white,
   },
   skeletonCard: {
     width: '48%',

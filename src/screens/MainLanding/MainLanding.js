@@ -148,7 +148,7 @@ function MainLanding(props) {
                 if (!accessToken) {
           throw new Error('No access token found');
         }
-
+       console.log(accessToken);
         // Create a timeout promise
         const timeoutPromise = (ms) => new Promise((_, reject) => 
           setTimeout(() => reject(new Error('Request timeout')), ms)

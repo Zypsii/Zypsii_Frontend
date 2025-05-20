@@ -11,6 +11,7 @@ import {
   Dimensions
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useDispatch, useSelector } from 'react-redux';
 import Entypo from 'react-native-vector-icons/Entypo';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import * as ImagePicker from 'expo-image-picker';
@@ -20,23 +21,31 @@ import { base_url } from '../../utils/base_url';
 import InstaStory from 'react-native-insta-story';
 import { Video } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
+import { markStorySeen } from '../../redux/reducers/storiesReducer';
 
 const { width } = Dimensions.get('window');
 
 const Stories = () => {
   const navigation = useNavigation();
+  const dispatch = useDispatch();
+  const seenStories = useSelector(state => state.stories?.seenStories || {});
   const [image, setImage] = useState(null);
   const [storyInfo, setStoryInfo] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [userId, setUserId] = useState();
-  const [seenStories, setSeenStories] = useState(new Set());
   const [showStories, setShowStories] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
-  const [currentUserStories, setCurrentUserStories] = useState([]);
+  const [currentStoryIndex, setCurrentStoryIndex] = useState(0);
+  const [storyTimer, setStoryTimer] = useState(null);
+  const [progress, setProgress] = useState(0);
   const [showImagePickerModal, setShowImagePickerModal] = useState(false);
   const [myStories, setMyStories] = useState([]);
   const [mediaType, setMediaType] = useState(null);
+  const [stories, setStories] = useState([]);
+  const STORY_DURATION = 10000; // 10 seconds for images
+  const VIDEO_DURATION = 30000; // 30 seconds for videos
+  const PROGRESS_INTERVAL = 100;
 
   const loadUserId = async () => {
     try {
@@ -57,7 +66,7 @@ const Stories = () => {
     try {
       setIsLoading(true);
       const accessToken = await AsyncStorage.getItem('accessToken');
-      const response = await fetch('https://admin.zypsii.com/story/list', {
+      const response = await fetch(`${base_url}/story/list`, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
         },
@@ -66,20 +75,43 @@ const Stories = () => {
       const data = await response.json();
       
       if (data.status) {
-        // Transform the API response to match the format expected by InstaStory
-        const transformedStories = data.data.stories.map(story => ({
-          user_id: story._id,
-          user_image: story.thumbnailUrl,
-          user_name: story.title,
-          stories: [{
-            story_id: story._id,
-            story_image: story.videoUrl,
-            swipeText: story.description,
-            onPress: () => console.log('story swiped'),
-          }]
-        }));
-        
-        setStoryInfo(transformedStories);
+        // Get current user ID
+        const user = await AsyncStorage.getItem('user');
+        const currentUserId = user ? JSON.parse(user)._id : null;
+
+        // Separate stories into user's stories and other stories
+        const userStories = [];
+        const otherStories = [];
+
+        data.data.stories.forEach(userStory => {
+          const transformedStory = {
+            user_id: userStory.userId,
+            user_image: userStory.stories[0]?.thumbnailUrl || 'https://via.placeholder.com/150',
+            user_name: userStory.userName,
+            stories: userStory.stories.map(story => ({
+              story_id: story._id || Date.now(),
+              story_image: story.videoUrl,
+              swipeText: story.description,
+              onPress: () => console.log('story swiped'),
+              viewsCount: story.viewsCount,
+              likesCount: story.likesCount,
+              commentsCount: story.commentsCount,
+              createdAt: story.createdAt
+            }))
+          };
+         console.log(currentUserId)
+          // Check if the story belongs to the current user
+          if (userStory.userId === currentUserId) {
+            userStories.push(transformedStory);
+          } else {
+            otherStories.push(transformedStory);
+          }
+        });
+
+        // Set user's stories for create page
+        setMyStories(userStories);
+        // Set other users' stories for story circle
+        setStories(otherStories);
       } else {
         setError(data.message || 'Failed to fetch stories');
       }
@@ -90,7 +122,6 @@ const Stories = () => {
     }
   };
 
-
   useEffect(() => {
     fetchStories();
   }, []);
@@ -99,68 +130,97 @@ const Stories = () => {
     loadUserId();
   }, []);
 
-  const pickMedia = async (type) => {
-    try {
-      let permissionResult;
-      if (type === 'camera') {
-        permissionResult = await ImagePicker.requestCameraPermissionsAsync();
-      } else {
-        permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  useEffect(() => {
+    if (showStories && selectedUser) {
+      startStoryTimer();
+    }
+    return () => {
+      if (storyTimer) {
+        clearTimeout(storyTimer);
       }
+    };
+  }, [showStories, currentStoryIndex]);
 
+  const pickImage = async () => {
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
       if (!permissionResult.granted) {
-        Alert.alert("Permission required", `You need to allow access to ${type === 'camera' ? 'camera' : 'photos'} to upload media.`);
+        Alert.alert("Permission required", "You need to allow access to photos to upload media.");
         return;
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.All,
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [9, 16],
         quality: 1,
-        videoMaxDuration: 30, // 30 seconds max for stories
       });
 
       if (!result.canceled) {
-        const asset = result.assets[0];
-        setMediaType(asset.type);
-        setImage(asset);
-        uploadStory(asset);
-        setShowImagePickerModal(false);
+        await uploadStory(result.assets[0]);
       }
     } catch (error) {
-      console.error('Error picking media:', error);
-      Alert.alert('Error', 'Failed to pick media. Please try again.');
+      console.error('Error picking image:', error);
+      Alert.alert('Error', 'Failed to pick image. Please try again.');
     }
   };
 
   const takePhoto = async () => {
     try {
       const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+      
       if (!permissionResult.granted) {
-        Alert.alert("Permission required", "You need to allow access to your camera to take a photo or video.");
+        Alert.alert("Permission required", "You need to allow access to camera to take photos.");
         return;
       }
 
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.All,
         allowsEditing: true,
         aspect: [9, 16],
         quality: 1,
-        videoMaxDuration: 30,
       });
 
       if (!result.canceled) {
-        const asset = result.assets[0];
-        setMediaType(asset.type);
-        setImage(asset);
-        uploadStory(asset);
-        setShowImagePickerModal(false);
+        await uploadStory(result.assets[0]);
       }
     } catch (error) {
       console.error('Error taking photo:', error);
       Alert.alert('Error', 'Failed to take photo. Please try again.');
     }
+  };
+
+  const getStoryDuration = (mediaType) => {
+    return mediaType === 'video' ? VIDEO_DURATION : STORY_DURATION;
+  };
+
+  const startStoryTimer = () => {
+    if (storyTimer) {
+      clearInterval(storyTimer);
+    }
+    setProgress(0);
+
+    if (!selectedUser || !selectedUser.stories || !selectedUser.stories[currentStoryIndex]) {
+      console.warn('No story available to display');
+      return;
+    }
+
+    const currentStory = selectedUser.stories[currentStoryIndex];
+    const duration = currentStory.mediaType === 'video' ? VIDEO_DURATION : STORY_DURATION;
+
+    const startTime = Date.now();
+    const timer = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const newProgress = Math.min((elapsed / duration) * 100, 100);
+      setProgress(newProgress);
+
+      if (newProgress >= 100) {
+        clearInterval(timer);
+        handleNextStory();
+      }
+    }, PROGRESS_INTERVAL);
+
+    setStoryTimer(timer);
   };
 
   const uploadStory = async (mediaAsset) => {
@@ -173,13 +233,14 @@ const Stories = () => {
       
       // Get file extension and set appropriate MIME type
       const fileExtension = fileUri.split('.').pop().toLowerCase();
-      const mimeType = mediaAsset.type === 'video' ? 'video/mp4' : 'image/jpeg';
+      const isVideo = mediaAsset.type?.includes('video');
+      const mimeType = isVideo ? 'video/mp4' : 'image/jpeg';
       
       // Create file object for upload
       uploadFormData.append('mediaFile', {
         uri: mediaAsset.uri,
         type: mimeType,
-        name: `${mediaAsset.type}.${fileExtension}`
+        name: `story.${fileExtension}`
       });
 
       // Upload the media file
@@ -203,9 +264,9 @@ const Stories = () => {
         title: "My Story",
         description: "Check out my story!",
         videoUrl: uploadResponseData.urls[0],
-        thumbnailUrl: mediaAsset.type === 'video' ? uploadResponseData.thumbnailUrl : uploadResponseData.urls[0],
-        mediaType: mediaAsset.type,
-        duration: mediaAsset.duration || 0,
+        thumbnailUrl: uploadResponseData.urls[0],
+        mediaType: isVideo ? 'video' : 'image',
+        duration: isVideo ? VIDEO_DURATION : 0,
         tags: []
       };
 
@@ -219,38 +280,12 @@ const Stories = () => {
       });
 
       const data = await response.json();
+      
       if (response.ok) {
         console.log('Story uploaded successfully:', data.data);
+        alert('Story uploaded successfully');
         fetchStories();
-        const newStory = {
-          user_id: userId,
-          user_image: 'https://via.placeholder.com/150',
-          user_name: 'User',
-          stories: [{
-            story_id: data.data._id,
-            story_image: data.data.thumbnailUrl,
-            story_video: data.data.videoUrl,
-            mediaType: data.data.mediaType,
-            duration: data.data.duration,
-            swipeText: 'Swipe to view more',
-            onPress: () => console.log('story swiped'),
-          }]
-        };
-
-        // Update stories list
-        const existingUserIndex = storyInfo.findIndex(story => story.user_id === userId);
-        if (existingUserIndex !== -1) {
-          setStoryInfo(prev => {
-            const updated = [...prev];
-            updated[existingUserIndex].stories = [
-              ...updated[existingUserIndex].stories,
-              newStory.stories[0]
-            ];
-            return updated;
-          });
-        } else {
-          setStoryInfo(prev => [...prev, newStory]);
-        }
+        setShowImagePickerModal(false);
       } else {
         throw new Error(data.message || 'Failed to create story');
       }
@@ -260,20 +295,13 @@ const Stories = () => {
     }
   };
 
-  const updateSeenStories = ({ story: { story_id } }) => {
-    setSeenStories((prevSet) => {
-      prevSet.add(story_id);
-      return prevSet;
-    });
+  const isStorySeen = (userId, storyId) => {
+    return seenStories[userId]?.includes(storyId) || false;
   };
 
-  const handleSeenStories = async (item) => {
-    console.log(item);
-    const storyIds = [];
-    seenStories.forEach((storyId) => {
-      if (storyId) storyIds.push(storyId);
-    });
-    if (storyIds.length > 0) {
+  const markStoryAsSeen = async (userId, storyId) => {
+    if (!isStorySeen(userId, storyId)) {
+      dispatch(markStorySeen({ userId, storyId }));
       try {
         const accessToken = await AsyncStorage.getItem('accessToken');
         await fetch(`${base_url}/story/mark-seen`, {
@@ -282,84 +310,172 @@ const Stories = () => {
             'Authorization': `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ storyIds }),
+          body: JSON.stringify({ storyIds: [storyId] }),
         });
-        seenStories.clear();
       } catch (error) {
-        console.error('Error marking stories as seen:', error);
+        console.error('Error marking story as seen:', error);
       }
     }
   };
 
   const handleStoryPress = (user) => {
-    // Create a new array with only the selected user's stories
-    const userStories = [{
-      ...user,
-      stories: [...user.stories] // Create a new array of stories to avoid reference issues
-    }];
+    if (!user || !user.stories || user.stories.length === 0) return;
     
     setSelectedUser(user);
-    setCurrentUserStories(userStories);
+    setCurrentStoryIndex(0);
+    setProgress(0);
     setShowStories(true);
   };
 
-  const renderStoryContent = (story) => {
-    if (story.mediaType === 'video') {
-      return (
-        <Video
-          source={{ uri: story.story_video }}
-          style={styles.storyVideo}
-          resizeMode="cover"
-          shouldPlay
-          isLooping
-          useNativeControls={false}
-        />
-      );
+  const handleNextStory = () => {
+    if (selectedUser && selectedUser.stories) {
+      if (currentStoryIndex < selectedUser.stories.length - 1) {
+        const currentStory = selectedUser.stories[currentStoryIndex];
+        markStoryAsSeen(selectedUser.user_id, currentStory.story_id);
+        setCurrentStoryIndex(currentStoryIndex + 1);
+        setProgress(0);
+      } else {
+        const currentStory = selectedUser.stories[currentStoryIndex];
+        markStoryAsSeen(selectedUser.user_id, currentStory.story_id);
+        setShowStories(false);
+        setSelectedUser(null);
+        setCurrentStoryIndex(0);
+        setProgress(0);
+      }
     }
+  };
+
+  const handlePreviousStory = () => {
+    if (currentStoryIndex > 0) {
+      setCurrentStoryIndex(currentStoryIndex - 1);
+      setProgress(0);
+    }
+  };
+
+  const renderStoryContent = () => {
+    if (!selectedUser || !selectedUser.stories || !selectedUser.stories[currentStoryIndex]) return null;
+
+    const currentStory = selectedUser.stories[currentStoryIndex];
+    const isVideo = currentStory.mediaType === 'video';
+
     return (
-      <Image
-        source={{ uri: story.story_image }}
-        style={styles.storyImage}
-        resizeMode="cover"
-      />
+      <View style={styles.storyContentContainer}>
+        {isVideo ? (
+          <Video
+            source={{ uri: currentStory.story_image }}
+            style={styles.storyMedia}
+            resizeMode="cover"
+            shouldPlay
+            isLooping={false}
+            onPlaybackStatusUpdate={(status) => {
+              if (status.didJustFinish) {
+                handleNextStory();
+              }
+            }}
+            onLoad={(data) => {
+              // Ensure video doesn't exceed 30 seconds
+              if (data.durationMillis > VIDEO_DURATION) {
+                // You might want to implement video trimming here
+                console.log('Video exceeds 30 seconds');
+              }
+            }}
+          />
+        ) : (
+          <Image
+            source={{ uri: currentStory.story_image }}
+            style={styles.storyMedia}
+            resizeMode="cover"
+            onLoadStart={() => {
+              // Reset progress when new image starts loading
+              setProgress(0);
+            }}
+          />
+        )}
+        <View style={styles.storyHeader}>
+          <View style={styles.storyUserInfo}>
+            <Image
+              source={{ uri: selectedUser.user_image }}
+              style={styles.storyUserImage}
+            />
+            <Text style={styles.storyUserName}>{selectedUser.user_name}</Text>
+          </View>
+          <TouchableOpacity onPress={() => {
+            if (storyTimer) {
+              clearInterval(storyTimer);
+            }
+            setShowStories(false);
+          }}>
+            <Ionicons name="close" size={24} color="#fff" />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.storyProgress}>
+          {selectedUser.stories.map((story, index) => (
+            <View
+              key={index}
+              style={[
+                styles.progressBar,
+                index === currentStoryIndex && styles.progressBarActive,
+                index < currentStoryIndex && styles.progressBarCompleted
+              ]}
+            >
+              {index === currentStoryIndex && (
+                <View 
+                  style={[
+                    styles.progressBarFill,
+                    { width: `${progress}%` }
+                  ]}
+                />
+              )}
+            </View>
+          ))}
+        </View>
+        <TouchableOpacity
+          style={[styles.storyTouchArea, styles.storyLeftArea]}
+          onPress={() => {
+            if (storyTimer) {
+              clearInterval(storyTimer);
+            }
+            handlePreviousStory();
+          }}
+        />
+        <TouchableOpacity
+          style={[styles.storyTouchArea, styles.storyRightArea]}
+          onPress={() => {
+            if (storyTimer) {
+              clearInterval(storyTimer);
+            }
+            handleNextStory();
+          }}
+        />
+      </View>
     );
   };
 
   const renderStoryItem = ({ item }) => {
     const hasStories = item.stories && item.stories.length > 0;
+    const isSeen = hasStories && item.stories.every(story => 
+      isStorySeen(item.user_id, story.story_id)
+    );
     
     return (
       <TouchableOpacity 
         onPress={() => hasStories && handleStoryPress(item)}
-        disabled={!hasStories}
+        style={styles.storyItemContainer}
       >
-        <View style={styles.storyItemContainer}>
-          <View style={[
-            styles.storyCircle,
-            !hasStories && styles.disabledStoryCircle
-          ]}>
-            {item.stories[0]?.mediaType === 'video' ? (
-              <Video
-                source={{ uri: item.stories[0].story_video }}
-                style={styles.storyThumbnail}
-                resizeMode="cover"
-                shouldPlay={false}
-                useNativeControls={false}
-              />
-            ) : (
-              <Image
-                source={{ uri: item.user_image }}
-                style={styles.storyImage}
-              />
-            )}
-            {item.stories[0]?.mediaType === 'video' && (
-              <View style={styles.videoIndicator}>
-                <Ionicons name="videocam" size={12} color="#fff" />
-              </View>
-            )}
-          </View>
-          <Text style={styles.storyName}>{item.user_name}</Text>
+        <View style={[
+          styles.storyCircle,
+          !hasStories && styles.disabledStoryCircle,
+          isSeen && styles.seenStoryCircle
+        ]}>
+          <Image
+            source={{ uri: item.user_image }}
+            style={styles.storyImage}
+          />
         </View>
+        <Text style={[
+          styles.storyName,
+          isSeen && styles.seenStoryName
+        ]}>{item.user_name}</Text>
       </TouchableOpacity>
     );
   };
@@ -369,20 +485,45 @@ const Stories = () => {
     return (
       <TouchableOpacity 
         style={styles.yourStoryContainer}
-        onPress={() => setShowImagePickerModal(true)}
+        onPress={() => {
+          if (hasStories) {
+            setSelectedUser(myStories[0]);
+            setShowStories(true);
+          } else {
+            setShowImagePickerModal(true);
+          }
+        }}
       >
-        <View style={[styles.storyCircle, hasStories && styles.storyCircleActive]}>
-          <Image
-            source={{ uri: 'https://via.placeholder.com/150' }} // Replace with user's profile picture
-            style={styles.storyImage}
-          />
-          {!hasStories && (
-            <View style={styles.addIconContainer}>
-              <Ionicons name="add-circle" size={24} color="#fff" />
+        <View style={[
+          styles.storyCircle,
+          !hasStories && styles.emptyStoryCircle
+        ]}>
+          {hasStories ? (
+            <Image
+              source={{ uri: myStories[0]?.user_image || 'https://via.placeholder.com/150' }}
+              style={styles.storyImage}
+            />
+          ) : (
+            <View style={styles.emptyStoryContent}>
+              <Ionicons name="add" size={24} color="#666" />
             </View>
           )}
+          {hasStories && (
+            <TouchableOpacity 
+              style={styles.addIconContainer}
+              onPress={(e) => {
+                e.stopPropagation();
+                setShowImagePickerModal(true);
+              }}
+            >
+              <Ionicons name="add-circle" size={24} color="#fff" />
+            </TouchableOpacity>
+          )}
         </View>
-        <Text style={styles.storyUsername}>Your Story</Text>
+        <Text style={[
+          styles.storyUsername,
+          !hasStories && styles.emptyStoryUsername
+        ]}>Your Story</Text>
       </TouchableOpacity>
     );
   };
@@ -405,23 +546,10 @@ const Stories = () => {
           </TouchableOpacity>
           <TouchableOpacity 
             style={styles.modalButton}
-            onPress={() => {
-              setShowImagePickerModal(false);
-              navigation.navigate('ReelUpload');
-            }}
-          >
-            <Ionicons name="videocam" size={24} color="#000" />
-            <Text style={styles.modalButtonText}>Upload Reel</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.modalButton}
-            onPress={() => {
-              setShowImagePickerModal(false);
-              navigation.navigate('ReelUpload');
-            }}
+            onPress={pickImage}
           >
             <Ionicons name="image" size={24} color="#000" />
-            <Text style={styles.modalButtonText}>Upload Post</Text>
+            <Text style={styles.modalButtonText}>Choose from Gallery</Text>
           </TouchableOpacity>
           <TouchableOpacity 
             style={[styles.modalButton, styles.cancelButton]}
@@ -468,58 +596,40 @@ const Stories = () => {
       <View style={styles.container}>
         {renderImagePickerModal()}
         <View style={styles.storiesContainer}>
-          {renderYourStory()}
-          <InstaStory
-            data={storyInfo}
-            duration={10}
-            onStart={(item) => {
-              console.log('Story started:', item);
-              if (item.user_id === userId) {
-                setShowStories(true);
-                setSelectedUser(item);
-              }
-            }}
-            onClose={() => {
-              handleSeenStories();
-              setShowStories(false);
-              setSelectedUser(null);
-            }}
-            onStorySeen={updateSeenStories}
-            renderCloseComponent={({ onPress }) => (
-              <View style={styles.closeContainer}>
-                <Button title="Share" onPress={() => console.log('Share story')} />
-                <Button title="X" onPress={onPress} />
-              </View>
-            )}
-            renderTextComponent={({ item, profileName }) => (
-              <View style={styles.textContainer}>
-                <Text style={styles.profileName}>{profileName}</Text>
-                {item.user_id === userId && !item.stories?.length && (
-                  <TouchableOpacity
-                    onPress={() => {
-                      setShowImagePickerModal(true);
-                      setMediaType(null);
-                    }}
-                    style={styles.addStoryButton}
-                  >
-                    <Entypo name="circle-with-plus" style={styles.addIcon} />
-                  </TouchableOpacity>
-                )}
-              </View>
-            )}
-            style={styles.instaStory}
-            onAddStoryPress={() => {
-              if (userId) {
-                pickMedia('camera');
-              }
-            }}
-            showAddStoryButton={true}
-            addStoryButtonStyle={styles.addStoryButton}
-            addStoryButtonIcon={<Entypo name="circle-with-plus" style={styles.addIcon} />}
-            unPressedBorderColor="#A60F93"
-
-          />
+          <View style={styles.storiesLeftSection}>
+            {renderYourStory()}
+          </View>
+          <View style={styles.storiesRightSection}>
+            {stories.map((item, index) => (
+              <TouchableOpacity
+                key={index}
+                style={styles.storyItemContainer}
+                onPress={() => handleStoryPress(item)}
+                activeOpacity={0.7}
+              >
+                <View style={[
+                  styles.storyCircle,
+                  !item.stories?.length && styles.disabledStoryCircle
+                ]}>
+                  <Image
+                    source={{ uri: item.user_image }}
+                    style={styles.storyImage}
+                  />
+                </View>
+                <Text style={styles.storyName}>{item.user_name}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
+
+        <Modal
+          visible={showStories}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowStories(false)}
+        >
+          {renderStoryContent()}
+        </Modal>
       </View>
     );
   };
@@ -543,10 +653,8 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   storyItemContainer: {
-    flexDirection: 'column',
-    paddingHorizontal: 8,
-    position: 'relative',
     alignItems: 'center',
+    marginRight: 15,
   },
   storyCircle: {
     width: 68,
@@ -566,8 +674,10 @@ const styles = StyleSheet.create({
   storyName: {
     textAlign: 'center',
     fontSize: 10,
-    opacity: 0.5,
-    marginTop: 4,
+    color: '#000',
+  },
+  seenStoryName: {
+    color: '#666',
   },
   addStoryButton: {
     width: 40,
@@ -685,6 +795,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     padding: 10,
   },
+  storiesLeftSection: {
+    marginRight: 15,
+  },
+  storiesRightSection: {
+    flex: 1,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
   storyVideo: {
     width: '100%',
     height: '100%',
@@ -701,6 +819,121 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
     borderRadius: 10,
     padding: 2,
+  },
+  emptyStoryCircle: {
+    backgroundColor: '#f0f0f0',
+    borderColor: '#ddd',
+  },
+  emptyStoryContent: {
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f0f0f0',
+  },
+  emptyStoryUsername: {
+    color: '#666',
+  },
+  modalStoryContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.9)',
+  },
+  shareButton: {
+    padding: 10,
+  },
+  closeButton: {
+    padding: 10,
+  },
+  storyText: {
+    color: 'white',
+    fontSize: 14,
+    marginTop: 5,
+  },
+  storyViewContainer: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  storyContentContainer: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  storyMedia: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#000',
+  },
+  storyHeader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 15,
+    zIndex: 1,
+  },
+  storyUserInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  storyUserImage: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 8,
+  },
+  storyUserName: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  storyProgress: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    padding: 10,
+    zIndex: 1,
+  },
+  progressBar: {
+    flex: 1,
+    height: 2,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    marginHorizontal: 2,
+    overflow: 'hidden',
+  },
+  progressBarActive: {
+    backgroundColor: '#fff',
+  },
+  progressBarCompleted: {
+    backgroundColor: '#fff',
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: '#fff',
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    transition: 'width 0.1s linear',
+  },
+  storyTouchArea: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: '50%',
+  },
+  storyLeftArea: {
+    left: 0,
+  },
+  storyRightArea: {
+    right: 0,
+  },
+  seenStoryCircle: {
+    borderColor: '#666',
+    opacity: 0.7,
   },
 });
 

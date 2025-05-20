@@ -1,8 +1,14 @@
 import { configureStore } from '@reduxjs/toolkit';
-import scheduleReducer from './slices/scheduleSlice';
+import storiesReducer from './reducers/storiesReducer';
 
-export const store = configureStore({
+const store = configureStore({
   reducer: {
-    schedule: scheduleReducer,
+    stories: storiesReducer
   },
-}); 
+  middleware: (getDefaultMiddleware) =>
+    getDefaultMiddleware({
+      serializableCheck: false,
+    }),
+});
+
+export { store }; 

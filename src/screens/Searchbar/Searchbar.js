@@ -35,11 +35,13 @@ function SearchPage() {
       return;
     }
     const accessToken = await AsyncStorage.getItem('accessToken');
-    console.log('Access Token:', accessToken); // Log token for debugging
+    console.log('Access Token:', accessToken);
 
     const url = activeTab === "People"
       ? `${base_url}/user/getProfile?search=${encodeURIComponent(text)}`
-      : `${base_url}/schedule/places/getNearest?searchPlaceName=${encodeURIComponent(text)}`;
+      : `${base_url}/schedule/places/searchWithItinerary?searchPlaceName=${encodeURIComponent(text)}`;
+
+    console.log('Fetching from URL:', url);
 
     try {
       const response = await fetch(url, {
@@ -51,25 +53,36 @@ function SearchPage() {
       });
 
       const data = await response.json();
+      console.log('API Response:', data);
 
-  
-
-      if (data.success && data.data) {
+      if (data && data.success) {
         if (activeTab === "Places") {
-          // Format place data
-          const formattedData = data.data.map(place => ({
-            id: place._id,
-            image: place.image,
-            name: place.name,
-            tagline: place.address,
-            rating: place.rating,
-            distance: place.distanceInKilometer,
-            location: place.location
+          // Handle the new API response format
+          const suggestions = data.data.suggestions || [];
+          const formattedData = suggestions.map(place => ({
+            id: place.id || '',
+            image: place.image || 'https://via.placeholder.com/50',
+            name: place.name || 'Unknown Place',
+            tagline: place.tagline || '',
+            rating: place.rating || 0,
+            distance: place.distance || 'N/A',
+            location: {
+              latitude: place.location?.lat || 0,
+              longitude: place.location?.lng || 0,
+              address: place.tagline || ''
+            },
+            suggestions: [{
+              tripName: place.suggestions?.[0]?.tripName || `Trip to ${place.name}`,
+              places: place.suggestions?.[0]?.places || []
+            }]
           }));
+          
+          console.log('Formatted Data:', formattedData);
           setSearchResults(formattedData);
         } else {
-          // Format people data (updated for array of users)
-          const formattedData = data.data.map(user => ({
+          // Format people data (unchanged)
+          const usersArray = Array.isArray(data.data) ? data.data : [data.data];
+          const formattedData = usersArray.map(user => ({
             id: user._id,
             image: user.profileImage || 'https://via.placeholder.com/50',
             name: user.fullName,
@@ -83,11 +96,12 @@ function SearchPage() {
           setSearchResults(formattedData);
         }
       } else {
-        console.log('No data found in response');
+        console.log('Invalid response structure:', data);
         setSearchResults([]);
       }
     } catch (error) {
       console.error('Error fetching search results:', error);
+      console.error('Error details:', error.message);
       setSearchResults([]);
     }
   };
@@ -98,83 +112,101 @@ function SearchPage() {
     fetchSearchResults(text); // Fetch data whenever text changes
   };
 
+  const getVehicleIcon = (vehicle) => {
+    let icon = '🚗'; // default icon
+    switch(vehicle) {
+      case 'bike':
+        icon = '🚲';
+        break;
+      case 'car':
+        icon = '🚗';
+        break;
+      case 'jeep':
+        icon = '🚙';
+        break;
+    }
+    return <Text>{icon}</Text>;
+  };
+
   // Render each search result item
   const renderItem = ({ item }) => (
     <>
-    <TouchableOpacity
-      onPress={() => {
-        if (activeTab === "Places") {
-          navigation.navigate('Destination', {
-            product: {
-              id: item.id,
-              image: item.image,
-              name: item.name,
-              subtitle: item.tagline,
-              rating: item.rating,
-              distance: item.distance,
-              location: item.location
-            }
-          });
-        } else {
-          navigation.navigate('UserProfile', { userId: item.id });
-        }
-      }}
-    >
-      <View style={styles.personContainer}>
-        <Image
-          source={{ uri: item.image || 'https://via.placeholder.com/50' }}
-          style={styles.avatar}
-        />
-        <View style={styles.personDetails}>
-        <View style={styles.nameRow}>
-            <Text style={styles.personName}>{item.name}</Text>
-            {/* Add the FollowButton here for People tab */}
-            {activeTab === "People" && <FollowButton userId={item.id} />}
-          </View>
+      <TouchableOpacity
+        onPress={() => {
+          if (activeTab === "Places") {
+            navigation.navigate('Destination', {
+              product: {
+                id: item.id,
+                image: item.image,
+                name: item.name,
+                subtitle: item.tagline,
+                rating: item.rating,
+                distance: item.distance,
+                location: item.location,
+                suggestions: item.suggestions
+              }
+            });
+          } else {
+            navigation.navigate('UserProfile', { userId: item.id });
+          }
+        }}
+      >
+        <View style={styles.personContainer}>
+          <Image
+            source={{ uri: item.image || 'https://via.placeholder.com/50' }}
+            style={styles.avatar}
+          />
+          <View style={styles.personDetails}>
+            <View style={styles.nameRow}>
+              <Text style={styles.personName}>{item.name}</Text>
+              {activeTab === "People" && <FollowButton userId={item.id} />}
+            </View>
 
-          {activeTab === "People" ? (
-            <Text style={styles.personTagline}>
-              {item.tagline}
-            </Text>
-          ) : null}
-          
-          {activeTab === "Places" && (
-            <>
-              <View style={styles.ratingContainer}>
-                <Ionicons name="star" size={14} color={colors.Zypsii_color} />
-                <Text style={styles.ratingText}>{item.rating || '0'}</Text>
-                <Text style={styles.distanceText}>{item.distance}</Text>
-              </View>
-             
-            </>
-          )}
-          {item.bio && <Text style={styles.bioText}>{item.bio}</Text>}
-          {item.website && (
-            <Text style={styles.websiteText} numberOfLines={1}>
-              🌐 {item.website}
-            </Text>
-          )}
-          
+            {activeTab === "People" ? (
+              <Text style={styles.personTagline}>
+                {item.tagline}
+              </Text>
+            ) : null}
+            
+            {activeTab === "Places" && (
+              <>
+                <View style={styles.ratingContainer}>
+                  <Ionicons name="star" size={14} color={colors.Zypsii_color} />
+                  <Text style={styles.ratingText}>{item.rating || '0'}</Text>
+                  <Text style={styles.distanceText}>{item.distance}</Text>
+                </View>
+                <View style={styles.locationContainer}>
+                  <Ionicons name="location" size={14} color={colors.Zypsii_color} />
+                  <Text style={styles.locationText} numberOfLines={2}>
+                    {item.tagline || 'Location not available'}
+                  </Text>
+                </View>
+              </>
+            )}
+            {item.bio && <Text style={styles.bioText}>{item.bio}</Text>}
+            {item.website && (
+              <Text style={styles.websiteText} numberOfLines={1}>
+                🌐 {item.website}
+              </Text>
+            )}
+          </View>
         </View>
-        
-      </View>
-      
-    </TouchableOpacity>
-    {activeTab === "Places" && (
-      <RecommendCard 
-        title="Suggested Itineraries"
-        searchPlaceName={searchText}
-        onSchedulePress={() => {
-          setSelectedPlace(item);
-          setShowScheduleModal(true);
-        }}
-        onViewMorePress={() => {
-          setSelectedPlace(item);
-          setShowViewMoreModal(true);
-        }}
-      />
-    )}
-  </>
+      </TouchableOpacity>
+      {activeTab === "Places" && item.suggestions && (
+        <RecommendCard 
+          title={<Text>Suggested Itineraries</Text>}
+          suggestions={item.suggestions}
+          onSchedulePress={() => {
+            setSelectedPlace(item);
+            setShowScheduleModal(true);
+          }}
+          onViewMorePress={() => {
+            setSelectedPlace(item);
+            setShowViewMoreModal(true);
+          }}
+        />
+      )}
+    </>
   );
 
   // Display number of results
@@ -283,9 +315,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 4,
   },
-  followButton: {
-    marginLeft: 10,
-  },
   headerContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -336,7 +365,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 100,
     borderBottomWidth: 1,
     borderBottomColor: "#eee",
-    justifyContent: "space-between",  // Ensures the tabs are centered
+    justifyContent: "space-between",
     alignItems: "center",
   },
   tabButton: {
@@ -345,9 +374,7 @@ const styles = StyleSheet.create({
     position: "relative",
     alignItems: "center",
   },
-  activeTabButton: {
-    // Active styling handled by the indicator
-  },
+  activeTabButton: {},
   tabText: {
     fontSize: 16,
     color: "#999",
@@ -437,81 +464,17 @@ const styles = StyleSheet.create({
     color: colors.fontThirdColor || "#777",
     marginLeft: 4,
   },
-  nearbyPlacesCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 15,
-    marginTop: 15,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  nearbyPlacesTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 8,
-  },
-  nearbyPlacesSubtitle: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 15,
-  },
-  nearbyPlaceItem: {
+  locationContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
+    alignItems: 'flex-start',
+    marginTop: 4,
   },
-  placeIcon: {
-    fontSize: 24,
-    marginRight: 12,
-  },
-  placeDetails: {
-    flex: 1,
-  },
-  placeName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-  },
-  placeDescription: {
+  locationText: {
     fontSize: 14,
-    color: '#666',
-    marginTop: 2,
-  },
-  placeDistance: {
-    fontSize: 12,
-    color: colors.Zypsii_color,
-    marginTop: 2,
-  },
-  nearbyPlacesButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 15,
-  },
-  nearbyPlacesButton: {
+    color: colors.fontThirdColor || "#777",
+    marginLeft: 4,
     flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginHorizontal: 5,
-  },
-  createScheduleButton: {
-    backgroundColor: colors.Zypsii_color,
-  },
-  viewMoreButton: {
-    backgroundColor: '#f0f0f0',
-  },
-  createScheduleButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-  },
-  viewMoreButtonText: {
-    color: '#333',
-    fontWeight: '600',
-  },
+  }
 });
 
 export default SearchPage;

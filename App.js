@@ -18,7 +18,6 @@ export default function App() {
 
   useEffect(() => {
     loadAppData();
- 
   }, []);
 
   async function loadAppData() {
@@ -39,18 +38,15 @@ export default function App() {
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
 
-    // Only ask for permissions if not already granted
     if (existingStatus !== 'granted') {
       const { status } = await Notifications.requestPermissionsAsync();
       finalStatus = status;
     }
 
-    // Stop if permissions are not granted
     if (finalStatus !== 'granted') {
       return;
     }
 
-    // Configure notification channel for Android
     if (Platform.OS === 'android') {
       Notifications.setNotificationChannelAsync('default', {
         name: 'default',
@@ -61,31 +57,24 @@ export default function App() {
     }
   }
 
-  // Show a spinner while fonts and data are loading
   if (!fontLoaded) {
     return <Spinner spinnerColor={colors.spinnerColor} />;
   }
 
-  // Render the main app once everything is loaded
   return (
-    <>
+    <Provider store={store}>
       <StatusBar
         barStyle="dark-content"
         backgroundColor={colors.headerbackground}
       />
-
-      <Provider store={store}>
-        <AuthProvider>
-          <ScheduleProvider>
-            <FollowProvider>
+      <AuthProvider>
+        <ScheduleProvider>
+          <FollowProvider>
             <AppContainer />
-            </FollowProvider>
-          </ScheduleProvider>
-        </AuthProvider>
-      </Provider>
-
-      {/* FlashMessage for global notifications */}
+          </FollowProvider>
+        </ScheduleProvider>
+      </AuthProvider>
       <FlashMessage position="top" />
-    </>
+    </Provider>
   );
 }

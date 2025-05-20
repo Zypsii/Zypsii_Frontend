@@ -4,18 +4,19 @@ import styles from './styles';
 import { Feather, MaterialIcons, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { TextDefault } from '../../../components';
-
+import { useAuth } from '../../../components/Auth/AuthContext';
 import { colors } from '../../../utils';
 
 function ProfileContainer({profileInfo}) {
   const navigation = useNavigation();
+  const { user } = useAuth();
 
   const handleShare = async () => {
     try {
       const shareOptions = {
-        message: `Check out ${profileInfo?.name}'s profile on Zypsii!`,
+        message: `Check out ${user?.fullName || profileInfo?.name}'s profile on Zypsii!`,
         url: `Zypsii://profile/${profileInfo?.id}`,
-        title: `Share ${profileInfo?.name}'s Profile`
+        title: `Share ${user?.fullName || profileInfo?.name}'s Profile`
       };
 
       const result = await Share.share(shareOptions);
@@ -56,14 +57,17 @@ function ProfileContainer({profileInfo}) {
 
         {/* Profile Picture and Name */}
         <View style={styles.profileSection}>
-          <Image source={{uri:profileInfo.image}} style={styles.profileImage} />
+          <Image 
+            source={{uri: user?.profilePicture || profileInfo?.image}} 
+            style={styles.profileImage} 
+          />
           <TouchableOpacity
             style={styles.editIcon}
             onPress={() => navigation.navigate('PageCreation')}>
             <Feather name="edit" size={18} color={colors.white} />
           </TouchableOpacity>
           <TextDefault style={styles.profileName} H4>
-            {profileInfo?.name || 'User Name'}
+            {user?.fullName || profileInfo?.name || 'User Name'}
           </TextDefault>
         </View>
 

@@ -23,10 +23,21 @@ const FollowButton = ({ userId }) => {
     
     try {
       setError(null);
-      if (isFollowing(userId)) {
+      const isCurrentlyFollowing = isFollowing(userId);
+      
+      if (isCurrentlyFollowing) {
         await unfollowUser(user._id, userId);
       } else {
-        await followUser(user._id, userId);
+        try {
+          await followUser(user._id, userId);
+        } catch (followError) {
+          // If the error indicates user is already following, trigger unfollow
+          if (followError.message === 'You already follow this user') {
+            await unfollowUser(user._id, userId);
+          } else {
+            throw followError;
+          }
+        }
       }
     } catch (error) {
       console.error("Follow action failed:", error.message);
