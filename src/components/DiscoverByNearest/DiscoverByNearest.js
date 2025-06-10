@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, Image, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { TextDefault } from '../../components';
 import { colors } from "../../utils";
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
@@ -7,6 +7,8 @@ import { useNavigation } from '@react-navigation/native';
 
 const DiscoverByNearest = (props) => {
   const navigation = useNavigation();
+  const [imageLoading, setImageLoading] = useState(true);
+  const [imageError, setImageError] = useState(false);
 
   const handlePress = () => {
     navigation.navigate('Destination', {
@@ -21,7 +23,28 @@ const DiscoverByNearest = (props) => {
 
   return (
     <TouchableOpacity onPress={handlePress} style={styles.discoverCard}>
-      <Image source={{ uri: props.image }} style={styles.discoverCardImage} />
+      <View style={styles.imageContainer}>
+        <Image 
+          source={{ uri: props.image }} 
+          style={styles.discoverCardImage}
+          onLoadStart={() => setImageLoading(true)}
+          onLoadEnd={() => setImageLoading(false)}
+          onError={() => {
+            setImageError(true);
+            setImageLoading(false);
+          }}
+        />
+        {imageLoading && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="small" color={colors.Zypsii_color} />
+          </View>
+        )}
+        {imageError && (
+          <View style={styles.errorContainer}>
+            <Ionicons name="image-outline" size={24} color={colors.graycolor} />
+          </View>
+        )}
+      </View>
       <View style={styles.discoverCardContent}>
         <TextDefault numberOfLines={1} style={styles.discoverCardTitle}>
           {props.title}
@@ -65,11 +88,37 @@ const styles = StyleSheet.create({
     elevation: 3,
     overflow: 'hidden',
   },
+  imageContainer: {
+    width: '100%',
+    height: 100,
+    backgroundColor: colors.grayBackground,
+    position: 'relative',
+  },
   discoverCardImage: {
     width: '100%',
     height: 100,
     borderTopLeftRadius: 12,
     borderTopRightRadius: 12,
+  },
+  loadingContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.grayBackground,
+  },
+  errorContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.grayBackground,
   },
   discoverCardContent: {
     padding: 10,

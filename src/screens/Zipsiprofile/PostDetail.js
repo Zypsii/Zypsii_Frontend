@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -9,19 +9,82 @@ import {
   Dimensions,
   StatusBar,
   ImageBackground,
+  Alert,
 } from 'react-native';
 import { MaterialIcons, Ionicons, Feather } from '@expo/vector-icons';
 import { colors } from '../../utils';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { base_url } from '../../utils/base_url';
 
-const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+const { width: screenWidth } = Dimensions.get('window');
 
 const PostDetail = ({ route, navigation }) => {
   const { post } = route.params;
 
+  const [accessToken, setAccessToken] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const token = await AsyncStorage.getItem('accessToken');
+        setAccessToken(token);
+
+        const userData = await AsyncStorage.getItem('user');
+        if (userData) {
+          setCurrentUser(JSON.parse(userData));
+        }
+      } catch (error) {
+        console.error('Error fetching data from AsyncStorage:', error);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  const handleDelete = async () => {
+    const token = await AsyncStorage.getItem('accessToken');
+
+    Alert.alert(
+      'Confirm Delete',
+      'Are you sure you want to delete this post?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              
+              const response = await fetch(`${base_url}/post/delete/${post.id}`, {
+                method: 'DELETE',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${token}`,
+                },
+              });
+              console.log(post)
+              if (response.ok) {
+                Alert.alert('Success', 'Post deleted successfully');
+                navigation.goBack();
+              } else {
+                const errorData = await response.json();
+                Alert.alert('Error', errorData.message || 'Failed to delete post');
+              }
+            } catch (error) {
+              console.error('Delete error:', error);
+              Alert.alert('Error', 'Something went wrong. Please try again.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
-      
+
       {/* Header with Blur Effect */}
       <ImageBackground
         source={{ uri: post.imageUrl?.[0] }}
@@ -29,10 +92,7 @@ const PostDetail = ({ route, navigation }) => {
         blurRadius={10}
       >
         <View style={styles.headerOverlay}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
             <Ionicons name="chevron-back" size={24} color={colors.white} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Post Details</Text>
@@ -43,21 +103,14 @@ const PostDetail = ({ route, navigation }) => {
       </ImageBackground>
 
       <ScrollView style={styles.scrollView} bounces={false}>
-        {/* Post Image with Gradient Overlay */}
         {post.imageUrl && post.imageUrl.length > 0 && (
           <View style={styles.imageContainer}>
-            <Image
-              source={{ uri: post.imageUrl[0] }}
-              style={styles.postImage}
-              resizeMode="cover"
-            />
+            <Image source={{ uri: post.imageUrl[0] }} style={styles.postImage} resizeMode="cover" />
             <View style={styles.imageOverlay} />
           </View>
         )}
 
-        {/* Post Content */}
         <View style={styles.contentContainer}>
-          {/* Title and Post Type */}
           <View style={styles.titleContainer}>
             <Text style={styles.title}>{post.postTitle}</Text>
             <View style={styles.postTypeBadge}>
@@ -66,7 +119,6 @@ const PostDetail = ({ route, navigation }) => {
             </View>
           </View>
 
-          {/* Post Stats */}
           <View style={styles.statsContainer}>
             <View style={styles.statItem}>
               <MaterialIcons name="favorite" size={24} color="#870E6B" />
@@ -80,9 +132,13 @@ const PostDetail = ({ route, navigation }) => {
               <MaterialIcons name="share" size={24} color="#870E6B" />
               <Text style={styles.statText}>{post.shares || '0'}</Text>
             </View>
+              <View style={styles.statItem}>
+                <TouchableOpacity onPress={handleDelete}>
+                  <MaterialIcons name="delete" size={24} color="#870E6B" />
+                </TouchableOpacity>
+              </View>
           </View>
 
-          {/* Tags */}
           {post.tags && post.tags.length > 0 && (
             <View style={styles.tagsContainer}>
               {post.tags.map((tag, index) => (
@@ -93,7 +149,6 @@ const PostDetail = ({ route, navigation }) => {
             </View>
           )}
 
-          {/* Date and Author */}
           <View style={styles.metaContainer}>
             <View style={styles.dateContainer}>
               <MaterialIcons name="access-time" size={16} color="#666" />
@@ -113,14 +168,8 @@ const PostDetail = ({ route, navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  headerBackground: {
-    height: 100,
-    width: '100%',
-  },
+  container: { flex: 1, backgroundColor: '#fff' },
+  headerBackground: { height: 100, width: '100%' },
   headerOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.3)',
@@ -130,38 +179,23 @@ const styles = StyleSheet.create({
     paddingTop: StatusBar.currentHeight + 10,
     paddingHorizontal: 15,
   },
-  backButton: {
-    padding: 8,
-  },
-  moreButton: {
-    padding: 8,
-  },
-  headerTitle: {
-    color: colors.white,
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  scrollView: {
-    flex: 1,
-  },
+  backButton: { padding: 8 },
+  moreButton: { padding: 8 },
+  headerTitle: { color: colors.white, fontSize: 18, fontWeight: 'bold' },
+  scrollView: { flex: 1 },
   imageContainer: {
     width: screenWidth,
     height: screenWidth,
     position: 'relative',
   },
-  postImage: {
-    width: '100%',
-    height: '100%',
-  },
+  postImage: { width: '100%', height: '100%' },
   imageOverlay: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
     height: 100,
-    backgroundGradient: {
-      colors: ['transparent', 'rgba(0,0,0,0.3)'],
-    },
+    backgroundColor: 'rgba(0,0,0,0.3)',
   },
   contentContainer: {
     padding: 20,
@@ -205,10 +239,7 @@ const styles = StyleSheet.create({
     borderColor: '#eee',
     marginBottom: 20,
   },
-  statItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
+  statItem: { flexDirection: 'row', alignItems: 'center' },
   statText: {
     marginLeft: 8,
     color: '#666',
@@ -261,4 +292,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default PostDetail; 
+export default PostDetail;

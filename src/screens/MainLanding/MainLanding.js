@@ -40,6 +40,7 @@ import ChatSupport from '../../components/ChatSupport/ChatSupport';
 import FloatingSupportButton from '../../components/FloatingChatButton/FloatingChatButton';
 import AllSchedule from '../MySchedule/Schedule/AllSchedule';
 import RecommendCard from '../../components/Recommendation/RecommendCard';
+import FollowButton from '../../components/Follow/FollowButton';
 
 const { height, width } = Dimensions.get('window');
 
@@ -75,6 +76,83 @@ function MainLanding(props) {
     offset: 0,
     totalPages: 0
   });
+  // Add pagination states for discover by interest and nearest
+  const [discoverByInterestPagination, setDiscoverByInterestPagination] = useState({
+    nextPageToken: null,
+    hasMore: true
+  });
+  const [discoverByNearestPagination, setDiscoverByNearestPagination] = useState({
+    nextPageToken: null,
+    hasMore: true
+  });
+  // Add pagination states for all destination and best destination
+  const [allDestinationPagination, setAllDestinationPagination] = useState({
+    nextPageToken: null,
+    hasMore: true
+  });
+  const [bestDestinationPagination, setBestDestinationPagination] = useState({
+    nextPageToken: null,
+    hasMore: true
+  });
+
+  // Add state for tracking new loading items
+  const [loadingNewItems, setLoadingNewItems] = useState(false);
+
+  // Add state for tracking new loading items for best destination
+  const [loadingNewBestItems, setLoadingNewBestItems] = useState(false);
+
+  // Add state for user location
+  const [userLocation, setUserLocation] = useState({
+    latitude: 13.0843,
+    longitude: 80.2705
+  });
+
+  // Add function to update live location
+  const updateLiveLocation = async () => {
+    try {
+      const userData = await AsyncStorage.getItem('user');
+      if (!userData) return;
+
+      const user = JSON.parse(userData);
+      const accessToken = await AsyncStorage.getItem('accessToken');
+      if (!accessToken) return;
+
+      // Use the location from user data if available, otherwise use default
+      const latitude = user?.location?.latitude || userLocation.latitude;
+      const longitude = user?.location?.longitude || userLocation.longitude;
+     console.log(accessToken)
+      const response = await fetch(`${base_url}/user/update-live-location`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          latitude: latitude,
+          longitude: longitude
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update live location');
+      }
+
+      const data = await response.json();
+      console.log('Live location updated successfully:', data);
+    } catch (error) {
+      console.error('Error updating live location:', error);
+    }
+  };
+
+  // Add useEffect to call updateLiveLocation when component mounts
+  useEffect(() => {
+    updateLiveLocation();
+  }, []);
+
+  // Add useEffect for initial data fetch
+  useEffect(() => {
+    fetchAllData();
+  }, []);
 
   // Back handler
   useFocusEffect(
@@ -130,304 +208,493 @@ function MainLanding(props) {
     fetchUnreadMessages();
   }, []);
 
-  // Combined API calls in a single useEffect
-  useEffect(() => {
-    const fetchAllData = async () => {
-      try {
-        // Set all loading states to true
-        setIsDiscoverByInterestLoading(true);
-        setIsBestDestinationLoading(true);
-        setIsAllDestinationLoading(true);
-        setIsScheduleLoading(true);
-        setIsPostsLoading(true);
-        setIsShortsLoading(true);
-        setIsNearestLoading(true);
+  // Add load more functions for all destination and best destination
+  const loadMoreAllDestination = async () => {
+    if (!allDestinationPagination.hasMore || isAllDestinationLoading) return;
 
-        // Get access token once for all authenticated requests
-        const accessToken = await AsyncStorage.getItem('accessToken');
-                if (!accessToken) {
-          throw new Error('No access token found');
+    try {
+      setIsAllDestinationLoading(true);
+      setLoadingNewItems(true);
+      const accessToken = await AsyncStorage.getItem('accessToken');
+      const url = `${base_url}/schedule/places/getNearest?nextPageToken=${allDestinationPagination.nextPageToken}`;
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
         }
-       console.log(accessToken);
-        // Create a timeout promise
-        const timeoutPromise = (ms) => new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Request timeout')), ms)
-        );
+      });
 
-        // Make all API requests in parallel with timeout
-        const [
-          discoverByInterestResponse,
-          bestDestinationResponse,
-          allDestinationResponse,
-          allScheduleResponse,
-          allPostsResponse,
-          discoverByNearestResponse
-        ] = await Promise.all([
-          Promise.race([
-            fetch(`${base_url}/schedule/places/getNearest`, {
-              method: 'GET',
-              headers: {
-                'Authorization': `Bearer ${accessToken}`
-              }
-            }),
-            timeoutPromise(10000) // 10 second timeout
-          ]),
-          Promise.race([
-            fetch(`${base_url}/schedule/places/getNearest?bestDestination=true`, {
-              method: 'GET',
-              headers: {
-                'Authorization': `Bearer ${accessToken}`
-              }
-            }),
-            timeoutPromise(10000)
-          ]),
-          Promise.race([
-            fetch(`${base_url}/schedule/places/getNearest`, {
-              method: 'GET',
-              headers: {
-                'Authorization': `Bearer ${accessToken}`
-              }
-            }),
-            timeoutPromise(10000)
-          ]),
-          Promise.race([
-            fetch(`${base_url}/schedule/listing/filter`, {
-              method: 'GET',
-              headers: {
-                'Authorization': `Bearer ${accessToken}`
-              }
-            }),
-            timeoutPromise(10000)
-          ]),
-          Promise.race([
-            fetch(`${base_url}/post/listing/filter`, {
-              method: 'GET',
-              headers: {
-                'Authorization': `Bearer ${accessToken}`
-              }
-            }),
-            timeoutPromise(10000)
-          ]),
-          
-          Promise.race([
-            fetch(`${base_url}/schedule/places/getNearest`, {
-              method: 'GET',
-              headers: {
-                'Authorization': `Bearer ${accessToken}`
-              }
-            }),
-            timeoutPromise(10000)
-          ])
-        ]);
-
-        // Check if any response failed
-        const responses = [
-          discoverByInterestResponse,
-          bestDestinationResponse,
-          allDestinationResponse,
-          allScheduleResponse,
-          allPostsResponse,
-          discoverByNearestResponse
-        ];
-
-        responses.forEach(response => {
-          if (!response.ok) {
-            throw new Error(`API request failed with status ${response.status}`);
-          }
+      const data = await response.json();
+      
+      if (Array.isArray(data?.data)) {
+        const newData = data.data.map(item => ({
+          id: item._id || item.name,
+          image: item.image,
+          name: item.name,
+          rating: parseFloat(item.rating) || 0,
+          distanceInKilometer: item.distanceInKilometer
+        }));
+        
+        // Add new data at the beginning of the list
+        setAll_destination(prev => [...newData, ...prev]);
+        
+        // Update pagination state
+        setAllDestinationPagination({
+          nextPageToken: data.nextPageToken || null,
+          hasMore: !!data.nextPageToken
         });
 
-        // Process all responses
-        const [
-          discoverByInterestData,
-          bestDestinationData,
-          allDestinationData,
-          allScheduleData,
-          allPostsData,
-          discoverByNearestData
-        ] = await Promise.all([
-          discoverByInterestResponse.json(),
-          bestDestinationResponse.json(),
-          allDestinationResponse.json(),
-          allScheduleResponse.json(),
-          allPostsResponse.json(),
-          discoverByNearestResponse.json()
-        ]);
-
-        // Set data for each response with proper empty state handling
-        if (Array.isArray(discoverByInterestData?.data)) {
-          setDiscover_by_intrest(discoverByInterestData.data.slice(0, 100).map(item => ({
-            id: item._id || item.name,
-            image: item.image,
-            name: item.name
-          })));
-        } else {
-          setDiscover_by_intrest([]);
+        // Scroll to the beginning of the list to show new data
+        if (this.allDestinationListRef) {
+          this.allDestinationListRef.scrollToOffset({ offset: 0, animated: true });
         }
+      }
+    } catch (error) {
+      console.error('Error loading more all destinations:', error);
+    } finally {
+      // Add a small delay before hiding the loader to ensure smooth transition
+      setTimeout(() => {
+        setIsAllDestinationLoading(false);
+        setLoadingNewItems(false);
+      }, 500);
+    }
+  };
 
-        if (Array.isArray(bestDestinationData?.data)) {
-          setBest_destination(bestDestinationData.data.slice(0, 100).map(item => ({
-            id: item._id || item.name,
-            image: item.image,
-            name: item.name,
-            rating: item.rating,
-            distanceInKilometer: item.distanceInKilometer
-          })));
-        } else {
-          setBest_destination([]);
+  const loadMoreBestDestination = async () => {
+    if (!bestDestinationPagination.hasMore || isBestDestinationLoading) return;
+
+    try {
+      setIsBestDestinationLoading(true);
+      setLoadingNewBestItems(true);
+      const accessToken = await AsyncStorage.getItem('accessToken');
+      const url = `${base_url}/schedule/places/getNearest?bestDestination=true&nextPageToken=${bestDestinationPagination.nextPageToken}`;
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
         }
+      });
 
-        if (Array.isArray(allDestinationData?.data)) {
-          setAll_destination(allDestinationData.data.slice(0, 100).map(item => ({
-            id: item._id || item.name,
-            image: item.image,
-            name: item.name,
-            rating: item.rating,
-            distanceInKilometer: item.distanceInKilometer
-          })));
-        } else {
-          setAll_destination([]);
+      const data = await response.json();
+      
+      if (Array.isArray(data?.data)) {
+        const newData = data.data.map(item => ({
+          id: item._id || item.name,
+          image: item.image,
+          name: item.name,
+          rating: parseFloat(item.rating) || 0,
+          distanceInKilometer: item.distanceInKilometer
+        }));
+        
+        // Add new data at the beginning of the list
+        setBest_destination(prev => [...newData, ...prev]);
+        
+        // Update pagination state
+        setBestDestinationPagination({
+          nextPageToken: data.nextPageToken || null,
+          hasMore: !!data.nextPageToken
+        });
+
+        // Scroll to the beginning of the list to show new data
+        if (this.bestDestinationListRef) {
+          this.bestDestinationListRef.scrollToOffset({ offset: 0, animated: true });
         }
+      }
+    } catch (error) {
+      console.error('Error loading more best destinations:', error);
+    } finally {
+      // Add a small delay before hiding the loader to ensure smooth transition
+      setTimeout(() => {
+        setIsBestDestinationLoading(false);
+        setLoadingNewBestItems(false);
+      }, 500);
+    }
+  };
 
-        if (Array.isArray(allScheduleData?.data)) {
-          setAll_schedule(allScheduleData.data.map(item => ({
-            id: item._id,
-            title: item.tripName,
-            from: (item.locationDetails?.[0]?.address 
-              ? item.locationDetails[0].address.slice(0, 5) + '...'
-              : 'Unknown'),
-       
-            to: (item.locationDetails?.[1]?.address 
-            ? item.locationDetails[1].address.slice(0, 5) + '...'
-            : 'Unknown'),
-            date: new Date(item.Dates.from).toLocaleDateString(),
-            endDate: new Date(item.Dates.end).toLocaleDateString(),
-            travelMode: item.travelMode,
-            visible: item.visible,
-            numberOfDays: item.numberOfDays.toString(),
-            imageUrl: item.bannerImage,
-            locationDetails: item.locationDetails,
-            createdAt: new Date(item.createdAt).toLocaleDateString(),
-            riders: '0 riders',
-            joined: false,
-            rawLocation: {
-              from: {
-                latitude: item.location.from.latitude,
-                longitude: item.location.from.longitude
-              },
-              to: {
-                latitude: item.location.to.latitude,
-                longitude: item.location.to.longitude
-              }
+  // Modify the fetchAllData function to handle pagination
+  const fetchAllData = async () => {
+    try {
+      // Set all loading states to true
+      setIsDiscoverByInterestLoading(true);
+      setIsBestDestinationLoading(true);
+      setIsAllDestinationLoading(true);
+      setIsScheduleLoading(true);
+      setIsPostsLoading(true);
+      setIsShortsLoading(true);
+      setIsNearestLoading(true);
+
+      // Get access token once for all authenticated requests
+      const accessToken = await AsyncStorage.getItem('accessToken');
+      if (!accessToken) {
+        throw new Error('No access token found');
+      }
+
+      // Create a timeout promise
+      const timeoutPromise = (ms) => new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Request timeout')), ms)
+      );
+
+      // Make all API requests in parallel with timeout
+      const [
+        discoverByInterestResponse,
+        bestDestinationResponse,
+        allDestinationResponse,
+        allScheduleResponse,
+        allPostsResponse,
+        discoverByNearestResponse
+      ] = await Promise.all([
+        Promise.race([
+          fetch(`${base_url}/schedule/places/getNearest?type=interest`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`
             }
-          })));
-        } else {
-          setAll_schedule([]);
-        }
+          }),
+          timeoutPromise(10000)
+        ]),
+        Promise.race([
+          fetch(`${base_url}/schedule/places/getNearest?bestDestination=true`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`
+            }
+          }),
+          timeoutPromise(10000)
+        ]),
+        Promise.race([
+          fetch(`${base_url}/schedule/places/getNearest`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`
+            }
+          }),
+          timeoutPromise(10000)
+        ]),
+        Promise.race([
+          fetch(`${base_url}/schedule/listing/filter`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`
+            }
+          }),
+          timeoutPromise(10000)
+        ]),
+        Promise.race([
+          fetch(`${base_url}/post/listing/filter`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`
+            }
+          }),
+          timeoutPromise(10000)
+        ]),
+        Promise.race([
+          fetch(`${base_url}/schedule/places/getNearest?type=nearest`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`
+            }
+          }),
+          timeoutPromise(10000)
+        ])
+      ]);
 
-        if (Array.isArray(allPostsData?.data)) {
-          setAllPosts(allPostsData.data.map(item => {
-            // Process mediaUrl array
-            let mediaUrls = item.mediaUrl;
-            
-            // Handle string URLs
-            if (typeof mediaUrls === 'string') {
-              try {
-                // Try to parse if it's a JSON string
-                if (mediaUrls.startsWith('[')) {
-                  mediaUrls = JSON.parse(mediaUrls);
-                } else {
-                  // Single URL string
-                  mediaUrls = [mediaUrls];
-                }
-              } catch (e) {
-                console.log('Error parsing mediaUrl:', e);
+      // Process all responses
+      const [
+        discoverByInterestData,
+        bestDestinationData,
+        allDestinationData,
+        allScheduleData,
+        allPostsData,
+        discoverByNearestData
+      ] = await Promise.all([
+        discoverByInterestResponse.json(),
+        bestDestinationResponse.json(),
+        allDestinationResponse.json(),
+        allScheduleResponse.json(),
+        allPostsResponse.json(),
+        discoverByNearestResponse.json()
+      ]);
+
+      // Set data for each response with proper empty state handling
+      if (Array.isArray(discoverByInterestData?.data)) {
+        setDiscover_by_intrest(discoverByInterestData.data.map(item => ({
+          id: item._id || item.name,
+          image: item.image,
+          name: item.name
+        })));
+        setDiscoverByInterestPagination({
+          nextPageToken: discoverByInterestData.nextPageToken || null,
+          hasMore: !!discoverByInterestData.nextPageToken
+        });
+      } else {
+        setDiscover_by_intrest([]);
+      }
+
+      if (Array.isArray(bestDestinationData?.data)) {
+        setBest_destination(bestDestinationData.data.slice(0, 100).map(item => ({
+          id: item._id || item.name,
+          image: item.image,
+          name: item.name,
+          rating: item.rating,
+          distanceInKilometer: item.distanceInKilometer
+        })));
+        setBestDestinationPagination({
+          nextPageToken: bestDestinationData.nextPageToken || null,
+          hasMore: !!bestDestinationData.nextPageToken
+        });
+      }
+
+      if (Array.isArray(allDestinationData?.data)) {
+        setAll_destination(allDestinationData.data.slice(0, 100).map(item => ({
+          id: item._id || item.name,
+          image: item.image,
+          name: item.name,
+          rating: item.rating,
+          distanceInKilometer: item.distanceInKilometer
+        })));
+        setAllDestinationPagination({
+          nextPageToken: allDestinationData.nextPageToken || null,
+          hasMore: !!allDestinationData.nextPageToken
+        });
+      }
+
+      if (Array.isArray(allScheduleData?.data)) {
+        setAll_schedule(allScheduleData.data.map(item => ({
+          id: item._id,
+          title: item.tripName,
+          from: (item.locationDetails?.[0]?.address 
+            ? item.locationDetails[0].address.slice(0, 5) + '...'
+            : 'Unknown'),
+          to: (item.locationDetails?.[1]?.address 
+          ? item.locationDetails[1].address.slice(0, 5) + '...'
+          : 'Unknown'),
+          date: new Date(item.Dates.from).toLocaleDateString(),
+          endDate: new Date(item.Dates.end).toLocaleDateString(),
+          travelMode: item.travelMode,
+          visible: item.visible,
+          numberOfDays: item.numberOfDays.toString(),
+          imageUrl: item.bannerImage,
+          locationDetails: item.locationDetails,
+          createdAt: new Date(item.createdAt).toLocaleDateString(),
+          riders: '0 riders',
+          joined: false,
+          rawLocation: {
+            from: {
+              latitude: item.location.from.latitude,
+              longitude: item.location.from.longitude
+            },
+            to: {
+              latitude: item.location.to.latitude,
+              longitude: item.location.to.longitude
+            }
+          }
+        })));
+      } else {
+        setAll_schedule([]);
+      }
+
+      if (Array.isArray(allPostsData?.data)) {
+        setAllPosts(allPostsData.data.map(item => {
+          // Process mediaUrl array
+          let mediaUrls = item.mediaUrl;
+          
+          // Handle string URLs
+          if (typeof mediaUrls === 'string') {
+            try {
+              // Try to parse if it's a JSON string
+              if (mediaUrls.startsWith('[')) {
+                mediaUrls = JSON.parse(mediaUrls);
+              } else {
+                // Single URL string
                 mediaUrls = [mediaUrls];
               }
-            }
-
-            // Ensure mediaUrls is always an array
-            if (!Array.isArray(mediaUrls)) {
+            } catch (e) {
+              console.log('Error parsing mediaUrl:', e);
               mediaUrls = [mediaUrls];
             }
+          }
 
-            // Filter out null or undefined URLs
-            mediaUrls = mediaUrls.filter(url => url != null);
+          // Ensure mediaUrls is always an array
+          if (!Array.isArray(mediaUrls)) {
+            mediaUrls = [mediaUrls];
+          }
 
-            // Clean up URLs if needed
-            mediaUrls = mediaUrls.map(url => {
-              if (typeof url === 'string') {
-                return url.replace(/\\/g, '').replace(/"/g, '');
-              }
-              return url;
-            });
+          // Filter out null or undefined URLs
+          mediaUrls = mediaUrls.filter(url => url != null);
 
-            return {
-              _id: item._id,
-              postTitle: item.postTitle,
-              postType: item.postType,
-              mediaType: item.mediaType,
-              mediaUrl: mediaUrls,
-              imageUrl: mediaUrls,
-              createdBy: item.createdBy,
-              tags: Array.isArray(item.tags) ? item.tags : [],
-              likesCount: item.likesCount || 0,
-              commentsCount: item.commentsCount || 0,
-              shareCount: item.shareCount || 0,
-              createdAt: item.createdAt,
-              updatedAt: item.updatedAt
-            };
-          }));
-        } else {
-          setAllPosts([]);
-        }
+          // Clean up URLs if needed
+          mediaUrls = mediaUrls.map(url => {
+            if (typeof url === 'string') {
+              return url.replace(/\\/g, '').replace(/"/g, '');
+            }
+            return url;
+          });
 
-
-        if (Array.isArray(discoverByNearestData?.data)) {
-          const formattedData = discoverByNearestData.data.slice(0, 100).map(item => ({
-            id: item._id || item.image,
-            image: item.image,
-            title: item.name,
-            subtitle: item.address || 'No address',
-            rating: parseFloat(item.rating) || 0,
-            distance: item.distanceInKilometer ? parseFloat(item.distanceInKilometer).toFixed(1) : null
-          }));
-          setDiscoverbyNearest(formattedData);
-        } else {
-          setDiscoverbyNearest([]);
-        }
-
-      } catch (error) {
-        console.error('Error fetching data:', error);
-        // Set empty arrays on error
-        setDiscover_by_intrest([]);
-        setBest_destination([]);
-        setAll_destination([]);
-        setAll_schedule([]);
+          return {
+            _id: item._id,
+            postTitle: item.postTitle,
+            postType: item.postType,
+            mediaType: item.mediaType,
+            mediaUrl: mediaUrls,
+            imageUrl: mediaUrls,
+            createdBy: item.createdBy,
+            tags: Array.isArray(item.tags) ? item.tags : [],
+            likesCount: item.likesCount || 0,
+            commentsCount: item.commentsCount || 0,
+            shareCount: item.shareCount || 0,
+            createdAt: item.createdAt,
+            updatedAt: item.updatedAt
+          };
+        }));
+      } else {
         setAllPosts([]);
-        setDiscoverbyNearest([]);
-        
-        // Log specific error details
-        if (error.message === 'Request timeout') {
-          console.error('One or more API requests timed out');
-        } else if (error.message === 'No access token found') {
-          console.error('Authentication error: No access token found');
-        } else {
-          console.error('Network or server error:', error);
-        }
-      } finally {
-        // Set all loading states to false after all data is processed
-        setIsDiscoverByInterestLoading(false);
-        setIsBestDestinationLoading(false);
-        setIsAllDestinationLoading(false);
-        setIsScheduleLoading(false);
-        setIsPostsLoading(false);
-        setIsShortsLoading(false);
-        setIsNearestLoading(false);
       }
-    };
 
-    fetchAllData();
-  }, []);
+      if (Array.isArray(discoverByNearestData?.data)) {
+        const formattedData = discoverByNearestData.data.slice(0, 100).map(item => ({
+          id: item._id || item.image,
+          image: item.image,
+          title: item.name,
+          subtitle: item.address || 'No address',
+          rating: parseFloat(item.rating) || 0,
+          distance: item.distanceInKilometer ? parseFloat(item.distanceInKilometer).toFixed(1) : null
+        }));
+        setDiscoverbyNearest(formattedData);
+        setDiscoverByNearestPagination({
+          nextPageToken: discoverByNearestData.nextPageToken || null,
+          hasMore: !!discoverByNearestData.nextPageToken
+        });
+      } else {
+        setDiscoverbyNearest([]);
+      }
+
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      // Set empty arrays on error
+      setDiscover_by_intrest([]);
+      setBest_destination([]);
+      setAll_destination([]);
+      setAll_schedule([]);
+      setAllPosts([]);
+      setDiscoverbyNearest([]);
+      
+      // Log specific error details
+      if (error.message === 'Request timeout') {
+        console.error('One or more API requests timed out');
+      } else if (error.message === 'No access token found') {
+        console.error('Authentication error: No access token found');
+      } else {
+        console.error('Network or server error:', error);
+      }
+    } finally {
+      // Set all loading states to false after all data is processed
+      setIsDiscoverByInterestLoading(false);
+      setIsBestDestinationLoading(false);
+      setIsAllDestinationLoading(false);
+      setIsScheduleLoading(false);
+      setIsPostsLoading(false);
+      setIsShortsLoading(false);
+      setIsNearestLoading(false);
+    }
+  };
+
+  // Modify loadMoreDiscoverByInterest function
+  const loadMoreDiscoverByInterest = async () => {
+    if (!discoverByInterestPagination.hasMore || isDiscoverByInterestLoading) return;
+
+    try {
+      setIsDiscoverByInterestLoading(true);
+      const accessToken = await AsyncStorage.getItem('accessToken');
+      const url = `${base_url}/schedule/places/getNearest?type=interest&nextPageToken=${discoverByInterestPagination.nextPageToken}`;
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      });
+
+      const data = await response.json();
+      
+      if (Array.isArray(data?.data)) {
+        const newData = data.data.map(item => ({
+          id: item._id || item.name,
+          image: item.image,
+          name: item.name
+        }));
+        
+        // Add new data at the beginning of the list
+        setDiscover_by_intrest(prev => [...newData, ...prev]);
+        
+        // Update pagination state
+        setDiscoverByInterestPagination({
+          nextPageToken: data.nextPageToken || null,
+          hasMore: !!data.nextPageToken
+        });
+
+        // Scroll to the beginning of the list to show new data
+        if (this.interestListRef) {
+          this.interestListRef.scrollToOffset({ offset: 0, animated: true });
+        }
+      }
+    } catch (error) {
+      console.error('Error loading more discover by interest:', error);
+    } finally {
+      setIsDiscoverByInterestLoading(false);
+    }
+  };
+
+  // Modify loadMoreDiscoverByNearest function
+  const loadMoreDiscoverByNearest = async () => {
+    if (!discoverByNearestPagination.hasMore || isNearestLoading) return;
+
+    try {
+      setIsNearestLoading(true);
+      const accessToken = await AsyncStorage.getItem('accessToken');
+      const url = `${base_url}/schedule/places/getNearest?type=nearest&nextPageToken=${discoverByNearestPagination.nextPageToken}`;
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      });
+
+      const data = await response.json();
+      
+      if (Array.isArray(data?.data)) {
+        const newData = data.data.map(item => ({
+          id: item._id || item.image,
+          image: item.image,
+          title: item.name,
+          subtitle: item.address || 'No address',
+          rating: parseFloat(item.rating) || 0,
+          distance: item.distanceInKilometer ? parseFloat(item.distanceInKilometer).toFixed(1) : null
+        }));
+        
+        // Add new data at the beginning of the list
+        setDiscoverbyNearest(prev => [...newData, ...prev]);
+        
+        // Update pagination state
+        setDiscoverByNearestPagination({
+          nextPageToken: data.nextPageToken || null,
+          hasMore: !!data.nextPageToken
+        });
+
+        // Scroll to the beginning of the list to show new data
+        if (this.nearestListRef) {
+          this.nearestListRef.scrollToOffset({ offset: 0, animated: true });
+        }
+      }
+    } catch (error) {
+      console.error('Error loading more discover by nearest:', error);
+    } finally {
+      setIsNearestLoading(false);
+    }
+  };
 
   const fetchShorts = async () => {
     try {
@@ -585,33 +852,62 @@ function MainLanding(props) {
     }
 
     return (
-      <View style={[styles.shortsListContainer, { height: height }]}>
+      <View style={[styles.shortsListContainer, { height: 500 }]}>
         <SwiperFlatList
           data={all_shorts}
           keyExtractor={(item) => item.id}
           vertical
           pagingEnabled
           showsVerticalScrollIndicator={false}
-          snapToInterval={height}
+          snapToInterval={500}
           decelerationRate="fast"
+          onChangeIndex={({ index }) => {
+            // Stop all videos when swiping
+            const stopVideoScript = `
+              var videos = document.getElementsByTagName('video');
+              for(var i = 0; i < videos.length; i++) {
+                videos[i].pause();
+                videos[i].currentTime = 0;
+              }
+            `;
+            if (this.webview) {
+              this.webview.injectJavaScript(stopVideoScript);
+            }
+          }}
           renderItem={({ item }) => {
             const videoSource = getVideoSource(item.videoUrl);
             const isValidVideo = isValidVideoUrl(item.videoUrl);
             
             return (
-              <View style={[styles.shortItemContainer, { height: height }]}>
+              <View style={[styles.shortItemContainer, { height: 500 }]}>
                 <View style={styles.videoContainer}>
                   {isValidVideo && videoSource ? (
                     <View style={styles.videoWrapper}>
                       <WebView
                         source={videoSource}
-                        style={[styles.videoPlayer, { height: height }]}
+                        style={[styles.videoPlayer, { height: 500 }]}
                         allowsFullscreenVideo={true}
                         javaScriptEnabled={true}
                         domStorageEnabled={true}
                         startInLoadingState={true}
                         mediaPlaybackRequiresUserAction={false}
                         allowsInlineMediaPlayback={true}
+                        onLoad={() => {
+                          // Auto-play the video when loaded
+                          const autoPlayScript = `
+                            var video = document.getElementsByTagName('video')[0];
+                            if (video) {
+                              video.play();
+                              video.controls = false;
+                              video.style.width = '100%';
+                              video.style.height = '100%';
+                              video.style.objectFit = 'cover';
+                              video.loop = true;
+                            }
+                          `;
+                          this.webview.injectJavaScript(autoPlayScript);
+                        }}
+                        ref={(ref) => (this.webview = ref)}
                         onError={(syntheticEvent) => {
                           const { nativeEvent } = syntheticEvent;
                           console.warn('WebView error: ', nativeEvent);
@@ -669,12 +965,19 @@ function MainLanding(props) {
 
                 {/* Video info overlay */}
                 <View style={styles.videoInfoOverlay}>
-                  <TextDefault textColor={colors.white} H5 bold numberOfLines={2} style={styles.videoTitle}>
-                    {item.title}
-                  </TextDefault>
-                  <TextDefault textColor={colors.white} H6 numberOfLines={2} style={styles.videoDescription}>
-                    {item.description}
-                  </TextDefault>
+                  <View style={styles.userInfoContainer}>
+                    <View style={styles.userInfo}>
+                      <TextDefault textColor={colors.white} H5 bold numberOfLines={2} style={styles.videoTitle}>
+                        {item.title}
+                      </TextDefault>
+                      <TextDefault textColor={colors.white} H6 numberOfLines={2} style={styles.videoDescription}>
+                        {item.description}
+                      </TextDefault>
+                    </View>
+                    <View style={styles.followButtonContainer}>
+                      <FollowButton userId={item.createdBy} />
+                    </View>
+                  </View>
                 </View>
               </View>
             );
@@ -774,7 +1077,7 @@ function MainLanding(props) {
           data={all_schedule}
           contentContainerStyle={{ paddingBottom: 20 }}
           renderItem={({ item }) => (
-            <View style={{ marginBottom: 15 }}>
+            <View style={{ marginBottom: -20 }}>
               <AllSchedule item={item} />
             </View>
           )}
@@ -785,18 +1088,7 @@ function MainLanding(props) {
 
   const renderDiscoverByInterest = () => (
     <View style={styles.titleSpaceredge}>
-
-
-<RecommendCard  title="Itineraries Suggested by Interest" />
-      {/* <TextDefault textColor={colors.fontMainColor} H5 bold style={styles.titleSpacer}>
-        {'Discover by Interest'}
-      </TextDefault>
-      <View style={styles.seeAllTextContainer}>
-        <TouchableOpacity onPress={() => navigation.navigate('WhereToGo')}>
-          <TextDefault textColor={colors.greenColor} H5 style={styles.seeAllText}>View All</TextDefault>
-        </TouchableOpacity>
-      </View>
-
+      <RecommendCard title="Itineraries Suggested by Interest" />
       {isDiscoverByInterestLoading ? (
         <HorizontalListLoader count={8} />
       ) : (
@@ -804,7 +1096,7 @@ function MainLanding(props) {
           horizontal
           showsHorizontalScrollIndicator={false}
           keyExtractor={(item, index) => index.toString()}
-          data={discover_by_intrest?.slice(0, 8) || []}
+          data={discover_by_intrest}
           renderItem={({ item }) => (
             <CategoryCard
               id={item.id}
@@ -813,10 +1105,18 @@ function MainLanding(props) {
               style={styles.categoryWrapper}
             />
           )}
+          onEndReached={loadMoreDiscoverByInterest}
+          onEndReachedThreshold={0.2}
+          ListFooterComponent={() => (
+            isDiscoverByInterestLoading ? (
+              <View style={{ padding: 10 }}>
+                <ActivityIndicator size="small" color={colors.btncolor} />
+              </View>
+            ) : null
+          )}
+          ref={(ref) => (this.interestListRef = ref)}
         />
-      )} */}
-
-    
+      )}
     </View>
   );
 
@@ -831,7 +1131,7 @@ function MainLanding(props) {
         </TouchableOpacity>
       </View>
 
-      {isNearestLoading ? (
+      {isNearestLoading && discoverbynearest.length === 0 ? (
         <HorizontalListLoader count={8} />
       ) : (
         <FlatList
@@ -846,6 +1146,16 @@ function MainLanding(props) {
               rating={item.rating}
             />
           )}
+          onEndReached={loadMoreDiscoverByNearest}
+          onEndReachedThreshold={0.2}
+          ListFooterComponent={() => (
+            isNearestLoading ? (
+              <View style={{ padding: 10 }}>
+                <ActivityIndicator size="small" color={colors.btncolor} />
+              </View>
+            ) : null
+          )}
+          ref={(ref) => (this.nearestListRef = ref)}
         />
       )}
     </View>
@@ -862,24 +1172,68 @@ function MainLanding(props) {
         </TouchableOpacity>
       </View>
 
-      {isBestDestinationLoading ? (
-        <HorizontalListLoader count={8} />
+      {isBestDestinationLoading && best_destination.length === 0 ? (
+        renderInitialLoading()
       ) : (
-        <FlatList
-          horizontal={true}
-          showsHorizontalScrollIndicator={false}
-          keyExtractor={(item, index) => item.id}
-          data={best_destination}
-          renderItem={({ item, index }) => (
-            <ProductCard 
-              styles={styles.itemCardContainer} 
-              {...item}
-              rating={parseInt(item.rating) || 0}
-              distance={item.distanceInKilometer ? parseFloat(item.distanceInKilometer).toFixed(1) : null}
-            />
-          )}
-        />
+        <View>
+          <FlatList
+            horizontal={true}
+            showsHorizontalScrollIndicator={false}
+            keyExtractor={(item, index) => item.id}
+            data={best_destination}
+            renderItem={({ item, index }) => (
+              <ProductCard 
+                styles={styles.itemCardContainer} 
+                {...item}
+                rating={parseInt(item.rating) || 0}
+                distance={item.distanceInKilometer ? parseFloat(item.distanceInKilometer).toFixed(1) : null}
+              />
+            )}
+            onEndReached={loadMoreBestDestination}
+            onEndReachedThreshold={0.2}
+            ref={(ref) => (this.bestDestinationListRef = ref)}
+            ListHeaderComponent={() => (
+              loadingNewBestItems ? (
+                <View style={{ flexDirection: 'row', marginRight: 10 }}>
+                  {[1, 2, 3, 4].map((_, index) => (
+                    <View key={index} style={{ marginRight: 10 }}>
+                      <CardSkeletonLoader />
+                    </View>
+                  ))}
+                </View>
+              ) : null
+            )}
+          />
+        </View>
       )}
+    </View>
+  );
+
+  // Add a custom skeleton loader component
+  const CardSkeletonLoader = () => (
+    <View style={{ width: 160, height: 200, backgroundColor: '#f0f0f0', borderRadius: 8, overflow: 'hidden' }}>
+      {/* Image placeholder */}
+      <View style={{ width: '100%', height: 120, backgroundColor: '#e0e0e0' }} />
+      {/* Title placeholder */}
+      <View style={{ padding: 8 }}>
+        <View style={{ width: '80%', height: 16, backgroundColor: '#e0e0e0', borderRadius: 4, marginBottom: 8 }} />
+        {/* Rating and distance placeholders */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+          <View style={{ width: '40%', height: 12, backgroundColor: '#e0e0e0', borderRadius: 4 }} />
+          <View style={{ width: '40%', height: 12, backgroundColor: '#e0e0e0', borderRadius: 4 }} />
+        </View>
+      </View>
+    </View>
+  );
+
+  // Modify the initial loading state to use the new skeleton loader
+  const renderInitialLoading = () => (
+    <View style={{ flexDirection: 'row', paddingHorizontal: 10 }}>
+      {[1, 2, 3, 4, 5, 6, 7, 8].map((_, index) => (
+        <View key={index} style={{ marginRight: 10 }}>
+          <CardSkeletonLoader />
+        </View>
+      ))}
     </View>
   );
 
@@ -888,23 +1242,39 @@ function MainLanding(props) {
       <TextDefault textColor={colors.fontMainColor} H4 bold>
         {'All Destination'}
       </TextDefault>
-      {isAllDestinationLoading ? (
-        <HorizontalListLoader count={8} />
+      {isAllDestinationLoading && all_destination.length === 0 ? (
+        renderInitialLoading()
       ) : (
-        <FlatList
-          horizontal={true}
-          showsHorizontalScrollIndicator={false}
-          data={all_destination}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <ProductCard 
-              styles={styles.itemCardContainer} 
-              {...item}
-              rating={parseFloat(item.rating) || 0}
-              distance={item.distanceInKilometer ? parseFloat(item.distanceInKilometer).toFixed(1) : null}
-            />
-          )}
-        />
+        <View>
+          <FlatList
+            horizontal={true}
+            showsHorizontalScrollIndicator={false}
+            data={all_destination}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <ProductCard 
+                styles={styles.itemCardContainer} 
+                {...item}
+                rating={parseFloat(item.rating) || 0}
+                distance={item.distanceInKilometer ? parseFloat(item.distanceInKilometer).toFixed(1) : null}
+              />
+            )}
+            onEndReached={loadMoreAllDestination}
+            onEndReachedThreshold={0.2}
+            ref={(ref) => (this.allDestinationListRef = ref)}
+            ListHeaderComponent={() => (
+              loadingNewItems ? (
+                <View style={{ flexDirection: 'row', marginRight: 10 }}>
+                  {[1, 2, 3, 4].map((_, index) => (
+                    <View key={index} style={{ marginRight: 10 }}>
+                      <CardSkeletonLoader />
+                    </View>
+                  ))}
+                </View>
+              ) : null
+            )}
+          />
+        </View>
       )}
     </View>
   );
@@ -916,8 +1286,8 @@ function MainLanding(props) {
   };
 
   const renderPosts = () => (
-    <View style={styles.titleSpacer}>
-      <TextDefault textColor={colors.fontMainColor} H4>
+    <View>
+      <TextDefault textColor={colors.fontMainColor} style={styles.titleSpacer}H4>
         {'Posts'}
       </TextDefault>
       {isPostsLoading ? (
@@ -962,11 +1332,11 @@ function MainLanding(props) {
             ) : (
               renderScheduleContainer()
             )}
-            {isDiscoverByInterestLoading ? (
+            {/* {isDiscoverByInterestLoading ? (
               <HorizontalListLoader count={8} />
             ) : (
               renderDiscoverByInterest()
-            )}
+            )} */}
             {isNearestLoading ? (
               <HorizontalListLoader count={8} />
             ) : (
@@ -1095,3 +1465,5 @@ function MainLanding(props) {
 }
 
 export default MainLanding;
+
+

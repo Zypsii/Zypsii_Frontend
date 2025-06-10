@@ -1,7 +1,7 @@
 import { createSlice } from '@reduxjs/toolkit';
 
 const initialState = {
-  seenStories: {}
+  seenStories: {},
 };
 
 const storiesSlice = createSlice({
@@ -16,9 +16,15 @@ const storiesSlice = createSlice({
       if (!state.seenStories[userId].includes(storyId)) {
         state.seenStories[userId].push(storyId);
       }
-    }
-  }
+    },
+    setSeenStories: (state, action) => {
+      state.seenStories = action.payload;
+    },
+    clearSeenStories: (state) => {
+      state.seenStories = {};
+    },
+  },
 });
 
-export const { markStorySeen } = storiesSlice.actions;
+export const { markStorySeen, setSeenStories, clearSeenStories } = storiesSlice.actions;
 export default storiesSlice.reducer; 

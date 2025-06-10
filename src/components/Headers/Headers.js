@@ -1,7 +1,7 @@
 import React from 'react'
-import { View, Text, TouchableOpacity, Image } from 'react-native'
+import { View, Text, TouchableOpacity } from 'react-native'
 import Ionicons from 'react-native-vector-icons/Ionicons'
-import MaterialIcons from 'react-native-vector-icons/MaterialIcons'; // Import Material Icons
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons'
 import styles from './styles'
 import { useNavigation } from '@react-navigation/native';
 
@@ -9,58 +9,92 @@ function BackHeader(props) {
   const navigation = useNavigation();
   
   const handleSearchPress = () => {
-    navigation.navigate('SearchPage');
+    if (props.onSearchPress) {
+      props.onSearchPress();
+    } else {
+      navigation.navigate('SearchPage');
+    }
   };
+
   const handleNotificationPress = () => {
-    navigation.navigate('Notification');
+    if (props.onNotificationPress) {
+      props.onNotificationPress();
+    } else {
+      navigation.navigate('Notification');
+    }
   };
+
   const handleProfilePress = () => {
-    navigation.navigate('ProfileDashboard');
+    if (props.onProfilePress) {
+      props.onProfilePress();
+    } else {
+      navigation.navigate('ProfileDashboard');
+    }
   };
+
   const handleChatPress = () => {
-    navigation.navigate('MessageList');
+    if (props.onChatPress) {
+      props.onChatPress();
+    } else {
+      navigation.navigate('MessageList');
+    }
   };
+
+  const handleBackPress = () => {
+    if (props.backPressed) {
+      props.backPressed();
+    } else {
+      navigation.goBack();
+    }
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.subContainer}>
         {/* Back Arrow Inside Circle */}
         <TouchableOpacity
           activeOpacity={0.7}
-          style={styles.leftContainer}
-          onPress={() => props.backPressed()}>
-          <View style={styles.circle}>
-            <MaterialIcons name="chevron-left" size={28} color="#fff" />
-          </View>
+          style={styles.backButton}
+          onPress={handleBackPress}>
+          <MaterialIcons name="chevron-left" size={28} color="#fff" />
         </TouchableOpacity>
-        <Text numberOfLines={1} style={styles.headerText} >
-          {props.title}
+        <Text numberOfLines={1} style={styles.headerText}>
+          {props.title || ''}
         </Text>
-         {/* Right Icons */}
-         <View style={styles.rightContainer}>
-          <TouchableOpacity
-            activeOpacity={0.7}
-            style={styles.iconButton}
-            onPress={() => handleSearchPress()}>
-            <Ionicons name="search" size={24} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            activeOpacity={0.7}
-            style={styles.iconButton}
-            onPress={() => handleChatPress()}>
-            <Ionicons name="chatbubble-ellipses" size={24} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            activeOpacity={0.7}
-            style={styles.iconButton}
-            onPress={() => handleNotificationPress()}>
-            <Ionicons name="notifications" size={24} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            activeOpacity={0.7}
-            style={styles.iconButton}
-            onPress={() => handleProfilePress()}>
-            <Ionicons name="person" size={24} color="#fff" />
-          </TouchableOpacity>
+        {/* Right Icons */}
+        <View style={styles.rightContainer}>
+          {props.showSearch !== false && (
+            <TouchableOpacity
+              activeOpacity={0.7}
+              style={styles.iconButton}
+              onPress={handleSearchPress}>
+              <Ionicons name="search" size={24} color="#fff" />
+            </TouchableOpacity>
+          )}
+          {props.showChat !== false && (
+            <TouchableOpacity
+              activeOpacity={0.7}
+              style={styles.iconButton}
+              onPress={handleChatPress}>
+              <Ionicons name="chatbubble-ellipses" size={24} color="#fff" />
+            </TouchableOpacity>
+          )}
+          {props.showNotification !== false && (
+            <TouchableOpacity
+              activeOpacity={0.7}
+              style={styles.iconButton}
+              onPress={handleNotificationPress}>
+              <Ionicons name="notifications" size={24} color="#fff" />
+            </TouchableOpacity>
+          )}
+          {props.showProfile !== false && (
+            <TouchableOpacity
+              activeOpacity={0.7}
+              style={styles.iconButton}
+              onPress={handleProfilePress}>
+              <Ionicons name="person" size={24} color="#fff" />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </View>
@@ -86,4 +120,5 @@ function HeaderRightText(props) {
     </View>
   )
 }
+
 export { BackHeader, HeaderRightText }

@@ -57,7 +57,7 @@ export const styles = StyleSheet.create({
     marginBottom: scale(5),
   },
   routeRow: {
-    flexDirection: 'row',
+    flexDirection: 'colum',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     marginBottom: scale(5),

@@ -12,8 +12,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../utils';
 import { base_url } from '../../utils/base_url';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import FollowButton from '../../components/Follow/FollowButton';
+import { useFollow } from '../../components/Follow/FollowContext';
 
 const FollowersList = ({ navigation, route }) => {
+  const { isFollowing } = useFollow();
   const [activeTab, setActiveTab] = useState(route.params?.initialTab || 'Followers');
   const [followers, setFollowers] = useState([]);
   const [following, setFollowing] = useState([]);
@@ -21,14 +24,13 @@ const FollowersList = ({ navigation, route }) => {
 
   useEffect(() => {
     fetchFollowData();
-  }, []);
+  }, [isFollowing]); // Refresh when follow status changes
 
   const fetchFollowData = async () => {
     try {
       const storedUserString = await AsyncStorage.getItem('user');
       const storedUser = JSON.parse(storedUserString);
-      console.log(storedUser)
-
+      console.log('Stored user:', storedUser);
 
       const accessToken = await AsyncStorage.getItem('accessToken');
       
@@ -38,22 +40,34 @@ const FollowersList = ({ navigation, route }) => {
           'Authorization': `Bearer ${accessToken}`,
         },
       });
+       console.log(followersResponse.error);
       
       // Fetch following
       const followingResponse = await fetch(`${base_url}/follow/getFollowing/${storedUser._id}`, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
         },
-      });
+      } );
+      console.log(followingResponse.error);
 
-      if (followersResponse.ok && followingResponse.ok) {
-        const followersData = await followersResponse.json();
-        const followingData = await followingResponse.json();
-        setFollowers(followersData);
-        setFollowing(followingData);
-      }
+      // if (!followersResponse.ok || !followingResponse.ok) {
+      //   throw new Error('Failed to fetch follow data');
+      // }
+
+      const followersData = await followersResponse.json();
+      const followingData = await followingResponse.json();
+      
+      console.log('Followers data:', followersData);
+      console.log('Following data:', followingData);
+
+      // Extract the actual arrays from the nested response
+      setFollowers(followersData.followers || []);
+      setFollowing(followingData.following || []);
     } catch (error) {
       console.error('Error fetching follow data:', error);
+      // Set empty arrays in case of error
+      setFollowers([]);
+      setFollowing([]);
     } finally {
       setLoading(false);
     }
@@ -62,7 +76,7 @@ const FollowersList = ({ navigation, route }) => {
   const renderUserItem = ({ item }) => (
     <TouchableOpacity 
       style={styles.userItem}
-      onPress={() => navigation.navigate('DummyScreen', { userId: item.id })}
+      onPress={() => navigation.navigate('DummyScreen', { userId: item._id })}
     >
       <Image 
         source={item.profileImage ? { uri: item.profileImage } : require('../../assets/profileimage.jpg')} 
@@ -72,11 +86,7 @@ const FollowersList = ({ navigation, route }) => {
         <Text style={styles.userName}>{item.fullName || 'User'}</Text>
         <Text style={styles.userHandle}>{item.userName || '@user'}</Text>
       </View>
-      <TouchableOpacity style={styles.followButton}>
-        <Text style={styles.followButtonText}>
-          {activeTab === 'Followers' ? 'Follow' : 'Following'}
-        </Text>
-      </TouchableOpacity>
+      <FollowButton userId={item._id} />
     </TouchableOpacity>
   );
 
@@ -125,7 +135,7 @@ const FollowersList = ({ navigation, route }) => {
       <FlatList
         data={activeTab === 'Followers' ? followers : following}
         renderItem={renderUserItem}
-        keyExtractor={(item) => item.id.toString()}
+        keyExtractor={(item) => item._id.toString()}
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
@@ -238,4 +248,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default FollowersList; 
+export default FollowersList;

@@ -219,7 +219,7 @@ function DiscoverPlace({ navigation }) {
       
       <BackHeader 
         backPressed={backPressed} 
-        title="Discover Place"
+        //title="Discover Place"
         onNotificationPressed={handleNotificationPress}
         onSearchPressed={handleSearchPress}
         onProfilePressed={handleProfilePress}

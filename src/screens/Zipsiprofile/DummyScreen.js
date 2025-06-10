@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Image, TouchableOpacity, FlatList, ScrollView, Modal, Dimensions, StatusBar, ActivityIndicator } from 'react-native';
+import { View, Text, Image,Alert , TouchableOpacity, FlatList, ScrollView, Modal, Dimensions, StatusBar, ActivityIndicator } from 'react-native';
 import { WebView } from 'react-native-webview';
 import styles from './styles';
 import Icon from 'react-native-vector-icons/FontAwesome';
@@ -10,12 +10,20 @@ import Schedule from '../MySchedule/Schedule/AllSchedule';
 import { base_url } from '../../utils/base_url';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
+import { ProfileSkeleton, StatsSkeleton, GridSkeleton, ScheduleSkeleton } from '../../components/SkeletonLoader';
+import { TextDefault } from '../../components';
+
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 const DummyScreen = ({ navigation }) => {
   const [activeIcon, setActiveIcon] = useState('th-large'); // Default active icon
   const [userId, setUserId] = useState(null);
+
+  // Function to handle settings press
+  const handleSettingsPress = () => {
+    navigation.navigate('ProfileDashboard');
+  };
   const [profileInfo, setProfileInfo] = useState({
     id: '',
     name: '',
@@ -25,6 +33,7 @@ const DummyScreen = ({ navigation }) => {
     image: '',
     notes: ''
   });
+  const [followingData, setFollowingData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [all_schedule, setAll_schedule] = useState([]);
@@ -34,10 +43,16 @@ const DummyScreen = ({ navigation }) => {
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [placeNames, setPlaceNames] = useState({});
 
+  // Add new loading states
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [postsLoading, setPostsLoading] = useState(true);
+  const [shortsLoading, setShortsLoading] = useState(true);
+
   // First useEffect to get user ID
   useEffect(() => {
     const getUserId = async () => {
       try {
+        setProfileLoading(true);
         const accessToken = await AsyncStorage.getItem('accessToken');
         if (!accessToken) {
           throw new Error('No access token found');
@@ -60,18 +75,79 @@ const DummyScreen = ({ navigation }) => {
         if (result.success && result.data && result.data.length > 0) {
           const userData = result.data[0];
           setUserId(userData.id);
-          setProfileInfo({
+          const userStr = await AsyncStorage.getItem('user');
+          const user = userStr ? JSON.parse(userStr) : null;
+
+          // Fetch post count
+          const postCountResponse = await fetch(`${base_url}/post/listing/postCount`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json'
+            }
+          });
+
+          if (postCountResponse.ok) {
+            const postCountResult = await postCountResponse.json();
+            if (postCountResult.success) {
+              setProfileInfo(prev => ({
+                ...prev,
+                Posts: postCountResult.postCountData?.toString() || '0'
+              }));
+            }
+          }
+
+          // Fetch followers count
+          const followersResponse = await fetch(`${base_url}/follow/getFollowers/${user._id}`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json'
+            }
+          });
+
+          if (followersResponse.ok) {
+            const followersResult = await followersResponse.json();
+            if (followersResult.status) {
+              setProfileInfo(prev => ({
+                ...prev,
+                Followers: followersResult.followersCount?.toString() || '0'
+              }));
+            }
+          }
+
+          // Fetch following data
+          const followingResponse = await fetch(`${base_url}/follow/getFollowing/${user._id}`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json'
+            }
+          });
+
+          if (followingResponse.ok) {
+            const followingResult = await followingResponse.json();
+            if (followingResult.status) {
+              setFollowingData(followingResult.following || []);
+              setProfileInfo(prev => ({
+                ...prev,
+                Following: followingResult.followingCount?.toString() || '0'
+              }));
+            }
+          }
+
+          setProfileInfo(prev => ({
+            ...prev,
             id: userData.id || '',
             name: userData.fullName || '',
-            Posts: userData.posts || '0',
-            Followers: userData.followers || '0',
-            Following: userData.following || '0',
-            image: userData.profileImage || '',
+            image: userData.profilePicture || '',
             notes: userData.bio || ''
-          });
+          }));
         }
       } catch (error) {
         console.error('Error fetching user ID:', error);
+      } finally {
+        setProfileLoading(false);
       }
     };
 
@@ -110,34 +186,28 @@ const DummyScreen = ({ navigation }) => {
       const processedData = await Promise.all(
         scheduleData.map(async (item) => {
           if (!item) return null;
-
-          const locationDetails = Array.isArray(item.locationDetails) ? item.locationDetails : [];
-          const firstLocation = locationDetails[0]?.location;
-          const lastLocation = locationDetails[locationDetails.length - 1]?.location;
-
-          let fromPlace = '';
-          let toPlace = '';
-
-          if (firstLocation) {
-            fromPlace = await getPlaceName(firstLocation.lat, firstLocation.lng);
-          }
-
-          if (lastLocation) {
-            toPlace = await getPlaceName(lastLocation.lat, lastLocation.lng);
-          }
-
           return {
             id: item._id || Math.random().toString(),
             title: item.tripName || 'Untitled Trip',
-            fromPlace: fromPlace || 'Location not available',
-            toPlace: toPlace || 'Location not available',
+            fromPlace: item.locationDetails?.[0]?.address || 'Unknown location',
+            toPlace: item.locationDetails?.[item.locationDetails.length - 1]?.address || 'Unknown location',
             date: Array.isArray(item.Dates) && item.Dates.length > 0 ? item.Dates[0].date : '',
             riders: String(item.numberOfDays || 0),
             imageUrl: item.bannerImage || '',
             travelMode: item.travelMode || '',
             createdBy: item.createdBy || '',
             createdAt: item.createdAt || '',
-            updatedAt: item.updatedAt || ''
+            updatedAt: item.updatedAt || '',
+            rawLocation: {
+              from: {
+                latitude: item.location?.from?.latitude,
+                longitude: item.location?.from?.longitude
+              },
+              to: {
+                latitude: item.location?.to?.latitude,
+                longitude: item.location?.to?.longitude
+              }
+            }
           };
         })
       );
@@ -155,13 +225,15 @@ const DummyScreen = ({ navigation }) => {
   useEffect(() => {
     const fetchAllData = async () => {
       try {
+
         const accessToken = await AsyncStorage.getItem('accessToken');
         if (!accessToken) {
           throw new Error('No access token found');
         }
 
-        // Fetch posts
-        const postsResponse = await fetch(`${base_url}/post/listing/filter?filter=all&limit=20`, {
+        // Fetch posts with user ID filter
+        setPostsLoading(true);
+        const postsResponse = await fetch(`${base_url}/post/listing/filter?filter=my`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${accessToken}`,
@@ -175,7 +247,6 @@ const DummyScreen = ({ navigation }) => {
             
             if (response.success && Array.isArray(response.data)) {
               const postsData = response.data;
-              console.log(postsData);
               
               const processedPosts = postsData
                 .filter(item => item && typeof item === 'object')
@@ -205,14 +276,6 @@ const DummyScreen = ({ navigation }) => {
                 .filter(Boolean);
 
               setAllPosts(processedPosts);
-
-              // Store pagination info if needed
-              const pagination = {
-                total: response.totalCount || 0,
-                limit: response.limit || 20,
-                offset: response.offset || 0,
-                totalPages: Math.ceil((response.totalCount || 0) / (response.limit || 20))
-              };
             } else {
               console.error('Invalid posts response format:', response);
               setAllPosts([]);
@@ -225,10 +288,14 @@ const DummyScreen = ({ navigation }) => {
           console.error('Posts fetch failed:', postsResponse.status);
           setAllPosts([]);
         }
+        setPostsLoading(false);
 
-        // Fetch schedules with limit
+        // Fetch schedules with user ID filter
         setScheduleLoading(true);
-        const scheduleResponse = await fetch(`${base_url}/schedule/listing/filter?limit=20`, {
+        const user = await AsyncStorage.getItem('user');
+        const user_id = user ? JSON.parse(user) : null;
+
+        const scheduleResponse = await fetch(`${base_url}/schedule/listing/filter?filter=my&userId=${user_id._id}&limit=20`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${accessToken}`,
@@ -246,19 +313,36 @@ const DummyScreen = ({ navigation }) => {
         setScheduleLoading(false);
 
         // Fetch shorts
-        const shortsResponse = await fetch(`${base_url}/shorts/listing`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-          }
-        });
-
-        if (shortsResponse.ok) {
-          const response = await shortsResponse.json();
+        setShortsLoading(true);
+        try {
+          const userStr = await AsyncStorage.getItem('user');
+          const user = userStr ? JSON.parse(userStr) : null;
           
+          if (!user || !user._id) {
+            console.error('User data not found or invalid');
+            setShortsLoading(false);
+            return;
+          }
+
+          console.log('Fetching shorts for user:', user._id);
+          const shortsResponse = await fetch(`${base_url}/shorts/listing?userId=${user._id}`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json'
+            }
+          });
+
+          if (!shortsResponse.ok) {
+            throw new Error(`Shorts fetch failed with status: ${shortsResponse.status}`);
+          }
+
+          const response = await shortsResponse.json();
+          console.log('Shorts response:', response);
+
           if (response.status && response.data) {
             const shortsData = response.data
-              .filter(item => typeof item.videoUrl === 'string' && item.videoUrl.toLowerCase().endsWith('.mp4'))
+              .filter(item => item.videoUrl.toLowerCase().endsWith('.mp4'))
               .map(item => ({
                 id: item._id || '',
                 video: item.videoUrl || '',
@@ -275,7 +359,15 @@ const DummyScreen = ({ navigation }) => {
               }));
             
             setAllShorts(shortsData);
+          } else {
+            console.error('Invalid shorts response format:', response);
+            setAllShorts([]);
           }
+        } catch (error) {
+          console.error('Error fetching shorts:', error);
+          setAllShorts([]);
+        } finally {
+          setShortsLoading(false);
         }
 
       } catch (error) {
@@ -286,7 +378,7 @@ const DummyScreen = ({ navigation }) => {
     };
 
     fetchAllData();
-  }, []); // Run once when component mounts
+  }, []);
 
   // Add console logs for state changes
   useEffect(() => {
@@ -301,6 +393,87 @@ const DummyScreen = ({ navigation }) => {
   useEffect(() => {
 
   }, [all_shorts]);
+
+  const handleDelete = (scheduleId) => {
+    Alert.alert(
+      'Confirm Delete',
+      'Are you sure you want to delete this schedule?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const accessToken = await AsyncStorage.getItem('accessToken');
+              const response = await fetch(
+                `${base_url}/schedule/delete/${scheduleId}`,
+                {
+                  method: 'DELETE',
+                  headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                  },
+                }
+              );
+
+              if (response.ok) {
+                Alert.alert('Deleted', 'The schedule has been deleted.');
+                // Update the schedule list by filtering out the deleted item
+                setAll_schedule(prevSchedules => prevSchedules.filter(schedule => schedule.id !== scheduleId));
+              } else {
+                const errorData = await response.json();
+                Alert.alert('Error', errorData.message || 'Failed to delete schedule.');
+              }
+            } catch (error) {
+              console.error('Delete error:', error);
+              Alert.alert('Error', 'Something went wrong. Please try again.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleDeleteShort = (shortId) => {
+    Alert.alert(
+      'Confirm Delete',
+      'Are you sure you want to delete this short?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const accessToken = await AsyncStorage.getItem('accessToken');
+              const response = await fetch(
+                `${base_url}/shorts/deleteShorts/${shortId}`,
+                {
+                  method: 'DELETE',
+                  headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json',
+                  },
+                }
+              );
+
+              if (response.ok) {
+                Alert.alert('Deleted', 'The short has been deleted.');
+                // Update the shorts list by filtering out the deleted item
+                setAllShorts(prevShorts => prevShorts.filter(short => short.id !== shortId));
+              } else {
+                const errorData = await response.json();
+                Alert.alert('Error', errorData.message || 'Failed to delete short.');
+              }
+            } catch (error) {
+              console.error('Delete error:', error);
+              Alert.alert('Error', 'Something went wrong. Please try again.');
+            }
+          },
+        },
+      ]
+    );
+  };
 
   // Local images for grid view (th-large)
   const images = {
@@ -416,11 +589,13 @@ const DummyScreen = ({ navigation }) => {
     );
   };
 
-  // Render content based on active icon
+  // Modify the renderContent function to use skeleton loaders
   const renderContent = () => {
     switch (activeIcon) {
       case 'th-large':
-        return (
+        return postsLoading ? (
+          <GridSkeleton />
+        ) : (
           <FlatList
             data={all_posts}
             numColumns={3}
@@ -457,6 +632,15 @@ const DummyScreen = ({ navigation }) => {
                         <MaterialIcons name="comment" size={14} color="#870E6B" />
                         <Text style={gridStyles.statText}>{item.comments || '0'}</Text>
                       </View>
+                      <TouchableOpacity 
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          handleDeletePost(item.id);
+                        }}
+                        style={gridStyles.deleteButton}
+                      >
+                        <MaterialIcons name="delete" size={14} color="#870E6B" />
+                      </TouchableOpacity>
                     </View>
                   </View>
                 </TouchableOpacity>
@@ -472,7 +656,9 @@ const DummyScreen = ({ navigation }) => {
           />
         );
       case 'briefcase':
-        return (
+        return scheduleLoading ? (
+          <ScheduleSkeleton />
+        ) : (
           <FlatList
             data={all_schedule}
             key="schedule"
@@ -521,6 +707,20 @@ const DummyScreen = ({ navigation }) => {
                         <MaterialIcons name="group" size={16} color="#666" />
                         <Text style={scheduleStyles.ridersText}>{item.riders} Riders</Text>
                       </View>
+                      <View style={scheduleStyles.actionButtons}>
+                        <TouchableOpacity 
+                          onPress={() => handleEdit(item.id)}
+                          style={scheduleStyles.actionButton}
+                        >
+                          <MaterialIcons name="edit" size={16} color={colors.Zypsii_color} />
+                        </TouchableOpacity>
+                        <TouchableOpacity 
+                          onPress={() => handleDelete(item.id)}
+                          style={scheduleStyles.actionButton}
+                        >
+                          <MaterialIcons name="delete" size={16} color={colors.Zypsii_color} />
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   </View>
                 </TouchableOpacity>
@@ -529,20 +729,15 @@ const DummyScreen = ({ navigation }) => {
             contentContainerStyle={scheduleStyles.scheduleList}
             ListEmptyComponent={() => (
               <View style={{ padding: 20, alignItems: 'center' }}>
-                {scheduleLoading ? (
-                  <View style={scheduleStyles.loadingContainer}>
-                    <ActivityIndicator size="large" color="#870E6B" />
-                    <Text style={scheduleStyles.loadingText}>Loading schedules...</Text>
-                  </View>
-                ) : (
-                  <Text>No schedules available</Text>
-                )}
+                <Text>No schedules available</Text>
               </View>
             )}
           />
         );
       case 'play-circle':
-        return (
+        return shortsLoading ? (
+          <GridSkeleton />
+        ) : (
           <>
             <FlatList
               data={all_shorts}
@@ -580,6 +775,15 @@ const DummyScreen = ({ navigation }) => {
                           <MaterialIcons name="visibility" size={14} color="#870E6B" />
                           <Text style={gridStyles.statText}>{item.views || '0'}</Text>
                         </View>
+                        <TouchableOpacity 
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            handleDeleteShort(item.id);
+                          }}
+                          style={gridStyles.deleteButton}
+                        >
+                          <MaterialIcons name="delete" size={14} color="#870E6B" />
+                        </TouchableOpacity>
                       </View>
                     </View>
                   </TouchableOpacity>
@@ -601,99 +805,174 @@ const DummyScreen = ({ navigation }) => {
     }
   };
 
+  const handleBackPress = () => {
+    console.log('Back button pressed');
+    navigation.goBack();
+  };
+
+  const handleEdit = (scheduleId) => {
+    navigation.navigate('EditSchedule', { 
+      scheduleId: scheduleId,
+      scheduleData: all_schedule.find(item => item.id === scheduleId)
+    });
+  };
+
+  const handleDeletePost = (postId) => {
+    Alert.alert(
+      'Confirm Delete',
+      'Are you sure you want to delete this post?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const accessToken = await AsyncStorage.getItem('accessToken');
+              const response = await fetch(
+                `${base_url}/post/delete/${postId}`,
+                {
+                  method: 'DELETE',
+                  headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json',
+                  },
+                }
+              );
+
+              if (response.ok) {
+                Alert.alert('Deleted', 'The post has been deleted.');
+                // Update the posts list by filtering out the deleted item
+                setAllPosts(prevPosts => prevPosts.filter(post => post.id !== postId));
+              } else {
+                const errorData = await response.json();
+                Alert.alert('Error', errorData.message || 'Failed to delete post.');
+              }
+            } catch (error) {
+              console.error('Delete error:', error);
+              Alert.alert('Error', 'Something went wrong. Please try again.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <View style={styles.container}>
-      <View style={styles.protractorShape} />
-      <View style={styles.backgroundCurvedContainer} />
-      {/* Header Section */}
-      <View style={styles.header}>
-        {/* Icons Row */}
-        <View style={styles.topIconsRow}>
-          <View style={styles.circle}>
-            <TouchableOpacity onPress={() => navigation.goBack()}>
+      <StatusBar backgroundColor={colors.white} barStyle="dark-content" />
+      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+        <View style={styles.header}>
+          <View style={styles.topIconsRow}>
+            <TouchableOpacity 
+              onPress={handleBackPress}
+              style={styles.circle}
+            >
               <Ionicons name="chevron-back" size={24} color={colors.white} />
             </TouchableOpacity>
+            <View style={styles.settingsContainer}>
+              <TouchableOpacity
+                style={styles.settingsButton}
+                onPress={handleSettingsPress}
+              >
+                <Ionicons name="settings-outline" size={24} color={colors.white} />
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
-      </View>
+        <View style={styles.protractorShape} />
+        <View style={styles.backgroundCurvedContainer} />
 
-      {/* Profile Section */}
-      <TouchableOpacity
-        style={styles.profileContainer}
-        onPress={() => navigation.goBack()}
-      >
-        <Image
-          source={{uri:profileInfo.image}} // Local profile image
-          style={styles.profileImage}
-        />
-        <Text style={styles.name}>{profileInfo.name || 'Jenish'}</Text>
-        <Text style={styles.description}>{profileInfo.notes}</Text>
-      </TouchableOpacity>
+        {/* Profile Section */}
+        {profileLoading ? (
+          <ProfileSkeleton />
+        ) : (
+          <View style={styles.profileContainer}>
+            <TouchableOpacity>
+              {profileInfo.image ? (
+                <Image
+                  source={{ uri: profileInfo.image }}
+                  style={styles.profileImage}
+                />
+              ) : (
+                <View style={[styles.profileImage, styles.defaultProfileImage]}>
+                  <Ionicons name="person" size={50} color={colors.white} />
+                </View>
+              )}
+            </TouchableOpacity>
+            <Text style={styles.name}>{profileInfo.name || '-----'}</Text>
+            <Text style={styles.description}>{profileInfo.notes}</Text>
+          </View>
+        )}
 
-      {/* Stats Section */}
-      <View style={styles.statsContainer}>
-        <View style={styles.stat}>
-          <Text style={styles.statLabel}>Posts</Text>
-          <Text style={styles.statNumber}>{profileInfo.Posts || '0'}</Text>
+        {/* Stats Section */}
+        {profileLoading ? (
+          <StatsSkeleton />
+        ) : (
+           <View style={styles.statsContainer}>
+          <View style={styles.stat}>
+            <TextDefault style={styles.statLabel}>Posts</TextDefault>
+            <TextDefault style={styles.statNumber}>{profileInfo.Posts}</TextDefault>
+          </View>
+          <TouchableOpacity 
+            style={styles.stat}
+            onPress={() => navigation.navigate('FollowersList', { initialTab: 'Followers' })}
+          >
+            <TextDefault style={styles.statLabel}>Followers</TextDefault>
+            <TextDefault style={styles.statNumber}>{profileInfo.Followers}</TextDefault>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.statLast}
+            onPress={() => navigation.navigate('FollowersList', { 
+              initialTab: 'Following',
+              followingData: followingData 
+            })}
+          >
+            <TextDefault style={styles.statLabel}>Following</TextDefault>
+            <TextDefault style={styles.statNumber}>{profileInfo.Following}</TextDefault>
+          </TouchableOpacity>
         </View>
-        <View style={styles.stat}>
-          <Text style={styles.statLabel}>Followers</Text>
-          <Text style={styles.statNumber}>{profileInfo.Followers || '0'}</Text>
+        )}
+
+        {/* Gray Line */}
+        <View style={styles.separatorLine} />
+
+        {/* Icons Section */}
+        <View style={styles.iconsContainer}>
+          <TouchableOpacity
+            style={[
+              styles.iconBox,
+              activeIcon === 'th-large' && styles.activeIconBox,
+            ]}
+            onPress={() => setActiveIcon('th-large')}
+          >
+            <Icon name="th-large" size={30} color="#870E6B" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.iconBox,
+              activeIcon === 'briefcase' && styles.activeIconBox,
+            ]}
+            onPress={() => setActiveIcon('briefcase')}
+          >
+            <Icon name="briefcase" size={30} color="#870E6B" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.iconBox,
+              activeIcon === 'play-circle' && styles.activeIconBox,
+            ]}
+            onPress={() => setActiveIcon('play-circle')}
+          >
+            <Icon name="play-circle" size={30} color="#870E6B" />
+          </TouchableOpacity>
         </View>
-        <View style={styles.statLast}>
-          <Text style={styles.statLabel}>Following</Text>
-          <Text style={styles.statNumber}>{profileInfo.Following || '0'}</Text>
+
+        {/* Content Section based on active icon */}
+        <View style={contentStyles.contentContainer}>
+          {renderContent()}
         </View>
-      </View>
-
-      {/* Buttons Section */}
-      <View style={styles.buttonsContainer}>
-        <TouchableOpacity style={styles.editProfileButton}>
-          <Text style={styles.buttonText}>Edit Profile</Text>
-      </TouchableOpacity>
-        <TouchableOpacity style={styles.shareButton}>
-          <Text style={styles.buttonText}>Share</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Gray Line */}
-      <View style={styles.separatorLine} />
-
-      {/* Icons Section */}
-      <View style={styles.iconsContainer}>
-        <TouchableOpacity
-          style={[
-            styles.iconBox,
-            activeIcon === 'th-large' && styles.activeIconBox,
-          ]}
-          onPress={() => setActiveIcon('th-large')}
-        >
-          <Icon name="th-large" size={30} color="#870E6B" />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.iconBox,
-            activeIcon === 'briefcase' && styles.activeIconBox,
-          ]}
-          onPress={() => setActiveIcon('briefcase')}
-        >
-          <Icon name="briefcase" size={30} color="#870E6B" />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.iconBox,
-            activeIcon === 'play-circle' && styles.activeIconBox,
-          ]}
-          onPress={() => setActiveIcon('play-circle')}
-        >
-          <Icon name="play-circle" size={30} color="#870E6B" />
-        </TouchableOpacity>
-      </View>
-
-      {/* Content Section based on active icon */}
-      <View style={contentStyles.contentContainer}>
-        {renderContent()}
-      </View>
+      </ScrollView>
     </View>
   );
 };
@@ -838,6 +1117,7 @@ const fullScreenStyles = {
     backgroundColor: 'black',
   },
   closeButton: {
+    display: 'none',
     position: 'absolute',
     top: 40,
     right: 20,
@@ -881,11 +1161,15 @@ const fullScreenStyles = {
 // Add new styles for grid layout
 const gridStyles = {
   gridContainer: {
-    padding: 5,
+    marginTop: 0,
+    borderWidth: 0,         // Added white border
+    borderColor: '#fff',  
+    zIndex: 2, // Set the border color to white
+    paddingHorizontal: 0, // Removed padding
   },
   gridItem: {
     flex: 1/3,
-    margin: 5,
+    margin: 2.5, // Reduced margin
     backgroundColor: 'white',
     borderRadius: 8,
     overflow: 'hidden',
@@ -927,6 +1211,9 @@ const gridStyles = {
     color: '#666',
     marginLeft: 2,
   },
+  deleteButton: {
+    padding: 4,
+  },
 };
 
 // Add new styles for schedule
@@ -967,9 +1254,10 @@ const scheduleStyles = {
     flex: 1,
   },
   routeLabel: {
-    fontSize: 12,
+    fontSize: 15,
     color: '#666',
     marginBottom: 4,
+    fontWeight: 'bold',
   },
   locationRow: {
     flexDirection: 'row',
@@ -1015,6 +1303,14 @@ const scheduleStyles = {
     marginTop: 10,
     color: '#666',
     fontSize: 16,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  actionButton: {
+    padding: 5,
   },
 };
 

@@ -5,11 +5,27 @@ function setGlobalRef(ref) {
 }
 
 function navigate(path, props = {}) {
-  navObj.navigate(path, props)
+  if (!navObj) {
+    console.warn('Navigation reference not set')
+    return
+  }
+  try {
+    navObj.navigate(path, props)
+  } catch (error) {
+    console.error('Navigation error:', error)
+  }
 }
 
 function goBack() {
-  navObj.goBack()
+  if (!navObj) {
+    console.warn('Navigation reference not set')
+    return
+  }
+  try {
+    navObj.goBack()
+  } catch (error) {
+    console.error('Navigation error:', error)
+  }
 }
 
 export default {

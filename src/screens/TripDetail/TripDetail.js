@@ -8,49 +8,57 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { base_url } from '../../utils/base_url';
 
-const TripDetail = ({ route }) => {
-  const navigation = useNavigation();
+const TripDetail = ({ route, navigation }) => {
   const { tripData } = route.params;
   const [activeDay, setActiveDay] = useState(1);
   const [scheduleData, setScheduleData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [placeDescriptions, setPlaceDescriptions] = useState([]);
+  const [isBackButtonLoading, setIsBackButtonLoading] = useState(false);
   
+  // Add new function to get fixed from/to locations
+  const getFixedLocations = () => {
+    const allLocations = tripData.locationDetails;
+    return {
+      from: allLocations[0]?.name || 'Starting Point',
+      to: allLocations[allLocations.length - 1]?.name || 'End Point'
+    };
+  };
+  console.log(tripData)
   useEffect(() => {
-    fetchScheduleData();
     getPlaceDescriptions();
   }, []);
 
-  const fetchScheduleData = async () => {
-    try {
-      const token = await AsyncStorage.getItem('accessToken');
-      const response = await axios.get(
-        `${base_url}/schedule/listing/scheduleDescription/${tripData.id}?offset=0&limit=10`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        }
-      );
+  // const fetchScheduleData = async () => {
+  //   try {
+  //     const token = await AsyncStorage.getItem('accessToken');
+  //     const response = await axios.get(
+  //       `${base_url}/schedule/listing/scheduleDescription/${tripData.id}?offset=0&limit=10`,
+  //       {
+  //         headers: {
+  //           Authorization: `Bearer ${token}`
+  //         }
+  //       }
+  //     );
       
-      if (response.data && response.data.data) {
-        // Transform the data to organize by days
-        const transformedData = response.data.data.map((item, index) => ({
-          day: index + 1,
-          description: item.Description,
-          date: item.date,
-          locations: item.planDescription || []
-        }));
-        setScheduleData(transformedData);
-      }
-      setLoading(false);
-    } catch (error) {
-      console.error('Error fetching schedule data:', error);
-      setLoading(false);
-      // Set empty array as fallback
-      setScheduleData([]);
-    }
-  };
+  //     if (response.data && response.data.data) {
+  //       // Transform the data to organize by days
+  //       const transformedData = response.data.data.map((item, index) => ({
+  //         day: index + 1,
+  //         description: item.Description,
+  //         date: item.date,
+  //         locations: item.planDescription || []
+  //       }));
+  //       setScheduleData(transformedData);
+  //     }
+  //     setLoading(false);
+  //   } catch (error) {
+  //     console.error('Error fetching schedule data:', error);
+  //     setLoading(false);
+  //     // Set empty array as fallback
+  //     setScheduleData([]);
+  //   }
+  // };
 
   const getPlaceDescriptions = async () => {
     try {
@@ -81,7 +89,18 @@ const TripDetail = ({ route }) => {
   };
 
   const backPressed = () => {
-    navigation.goBack();
+    if (isBackButtonLoading) return;
+    
+    setIsBackButtonLoading(true);
+    try {
+      navigation.goBack();
+    } catch (error) {
+      console.error('Navigation error:', error);
+    } finally {
+      setTimeout(() => {
+        setIsBackButtonLoading(false);
+      }, 1000);
+    }
   };
 
   // Function to get locations for current day
@@ -160,24 +179,39 @@ const TripDetail = ({ route }) => {
       <View style={styles.protractorShape} />
       <View style={styles.backgroundCurvedContainer} />
       <View style={styles.maincontainer}>
-        <BackHeader backPressed={backPressed} />
+        
+        <BackHeader 
+          backPressed={backPressed}
+          navigation={navigation}
+          title="Trip Details"
+          style={{ marginTop: 20 }}
+        />
+        <Text style={{ marginTop: 10, textAlign: 'center', fontSize: 30, fontWeight: 'bold' }}></Text>
+
 
         <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
+
           <View style={styles.topSection}>
             <View style={styles.fromToSection}>
-              <View style={styles.locationInfo}>
+              <Text style={styles.fromToHeading}>From</Text>
+              <TouchableOpacity 
+                style={styles.locationInfo}
+              >
                 <Icon name="map-marker-outline" size={20} color={colors.darkGray} />
                 <Text style={styles.locationText}>
-                  {getLocationsForDay(activeDay)[0]?.name?.slice(0, 5) + '...' || 'Starting Point'}
+                  {getFixedLocations().from}
                 </Text>
-              </View>
-              <Text style={styles.dottedLineHorizontal}></Text>
-              <View style={styles.locationInfo}>
+              </TouchableOpacity>
+              <View style={styles.verticalLine} />
+              <Text style={styles.fromToHeading}>To</Text>
+              <TouchableOpacity 
+                style={styles.locationInfo}
+              >
                 <Icon name="map-marker-outline" size={20} color={colors.darkGray} />
                 <Text style={styles.locationText}>
-                  {getLocationsForDay(activeDay)[getLocationsForDay(activeDay).length - 1]?.name?.slice(0, 5) + '...' || 'End Point'}
+                  {getFixedLocations().to}
                 </Text>
-              </View>
+              </TouchableOpacity>
             </View>
 
             <Image source={{ uri: tripData.imageUrl }} style={styles.image} />
@@ -200,12 +234,7 @@ const TripDetail = ({ route }) => {
             <TouchableOpacity 
               onPress={() =>
                 navigation.navigate('Map', { 
-                  locations: getLocationsForDay(activeDay).map(location => ({
-                    name: location.name,
-                    address: location.address,
-                    location: location.location,
-                    distanceInKilometer: location.distanceInKilometer
-                  }))
+                  tripId: tripData.id
                 })
               }
             >
@@ -287,20 +316,43 @@ const TripDetail = ({ route }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.white, zIndex:2 },
-  topSection: { flexDirection: 'row', ...alignment.Pmedium, alignItems: 'center', top: 160, zIndex: 2 },
+  topSection: { flexDirection: 'row', ...alignment.Pmedium, alignItems: 'center', top: 100, zIndex: 2 },
   maincontainer:{
     flex: 1,
     zIndex: 2
   },
-  fromToSection: { flex: 1, flexDirection: 'row', alignItems: 'center', marginTop: -50 },
-  locationInfo: { flexDirection: 'row', alignItems: 'center' },
-  locationText: { fontSize: 22, fontWeight: 'bold', ...alignment.MLmedium, color: colors.darkGray },
-  dottedLineHorizontal: {
-    fontSize: 16,
-    color: colors.lightGray,
-    paddingLeft: 20, // You can change 10 to any value you prefer
+  fromToSection: { 
+    flex: 1, 
+    flexDirection: 'column', 
+    alignItems: 'flex-start', 
+    marginTop: -50,
+    marginLeft: 20
   },
-  
+  fromToHeading: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: colors.darkGray,
+  },
+  locationInfo: { 
+    flexDirection: 'row', 
+    alignItems: 'center',
+    marginVertical: 10,
+    width: '100%'
+  },
+  locationText: { 
+    fontSize: 18, 
+    fontWeight: 'bold', 
+    marginLeft: 10, 
+    color: colors.darkGray,
+    flex: 1
+  },
+  verticalLine: {
+    width: 2,
+    height: 30,
+    backgroundColor: colors.darkGray,
+    marginLeft: 10,
+    marginVertical: 5
+  },
   image: { width: 110, height: 110, borderRadius: 30, marginTop: -60 },
   title: { fontSize: 30, fontWeight: 'bold', ...alignment.MBsmall, ...alignment.MLmedium },
 

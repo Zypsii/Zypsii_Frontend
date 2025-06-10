@@ -157,10 +157,6 @@ const ExpenseCalculator = ({ navigation }) => {
           <View style={styles.stepContainer}>
             <Text style={styles.summaryTitle}>Expense Summary</Text>
             <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>Amount:</Text>
-              <Text style={styles.summaryValue}>₹{expenseAmount}</Text>
-            </View>
-            <View style={styles.summaryItem}>
               <Text style={styles.summaryLabel}>Category:</Text>
               <Text style={styles.summaryValue}>{selectedCategory}</Text>
             </View>

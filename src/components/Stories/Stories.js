@@ -8,7 +8,8 @@ import {
   StyleSheet,
   Button,
   Modal,
-  Dimensions
+  Dimensions,
+  ScrollView
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useDispatch, useSelector } from 'react-redux';
@@ -21,7 +22,7 @@ import { base_url } from '../../utils/base_url';
 import InstaStory from 'react-native-insta-story';
 import { Video } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
-import { markStorySeen } from '../../redux/reducers/storiesReducer';
+import { markStorySeen, setSeenStories } from '../../redux/reducers/storiesReducer';
 
 const { width } = Dimensions.get('window');
 
@@ -66,6 +67,8 @@ const Stories = () => {
     try {
       setIsLoading(true);
       const accessToken = await AsyncStorage.getItem('accessToken');
+      
+      // Fetch stories
       const response = await fetch(`${base_url}/story/list`, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -78,6 +81,33 @@ const Stories = () => {
         // Get current user ID
         const user = await AsyncStorage.getItem('user');
         const currentUserId = user ? JSON.parse(user)._id : null;
+
+        // Fetch seen stories from API
+        const seenResponse = await fetch(`${base_url}/story/seen-stories`, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        });
+        
+        const seenData = await seenResponse.json();
+        let seenStoriesMap = {};
+        
+        if (seenData.status && seenData.data) {
+          // Transform seen stories data into the format we need
+          seenStoriesMap = seenData.data.reduce((acc, story) => {
+            if (!acc[story.userId]) {
+              acc[story.userId] = [];
+            }
+            acc[story.userId].push(story.storyId);
+            return acc;
+          }, {});
+          
+          // Update Redux with seen stories
+          dispatch(setSeenStories(seenStoriesMap));
+          
+          // Save to AsyncStorage
+          await AsyncStorage.setItem('seenStories', JSON.stringify(seenStoriesMap));
+        }
 
         // Separate stories into user's stories and other stories
         const userStories = [];
@@ -96,10 +126,11 @@ const Stories = () => {
               viewsCount: story.viewsCount,
               likesCount: story.likesCount,
               commentsCount: story.commentsCount,
-              createdAt: story.createdAt
+              createdAt: story.createdAt,
+              mediaType: story.mediaType || 'image'
             }))
           };
-         console.log(currentUserId)
+
           // Check if the story belongs to the current user
           if (userStory.userId === currentUserId) {
             userStories.push(transformedStory);
@@ -141,6 +172,23 @@ const Stories = () => {
     };
   }, [showStories, currentStoryIndex]);
 
+  // Load seen stories from AsyncStorage on component mount
+  useEffect(() => {
+    loadSeenStories();
+  }, []);
+
+  const loadSeenStories = async () => {
+    try {
+      const seenStoriesData = await AsyncStorage.getItem('seenStories');
+      if (seenStoriesData) {
+        const parsedSeenStories = JSON.parse(seenStoriesData);
+        dispatch(setSeenStories(parsedSeenStories));
+      }
+    } catch (error) {
+      console.error('Error loading seen stories:', error);
+    }
+  };
+
   const pickImage = async () => {
     try {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -151,18 +199,19 @@ const Stories = () => {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ImagePicker.MediaTypeOptions.All,
         allowsEditing: true,
         aspect: [9, 16],
         quality: 1,
       });
 
       if (!result.canceled) {
-        await uploadStory(result.assets[0]);
+        const asset = result.assets[0];
+        await uploadStory(asset);
       }
     } catch (error) {
-      console.error('Error picking image:', error);
-      Alert.alert('Error', 'Failed to pick image. Please try again.');
+      console.error('Error picking media:', error);
+      Alert.alert('Error', 'Failed to pick media. Please try again.');
     }
   };
 
@@ -176,17 +225,30 @@ const Stories = () => {
       }
 
       const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.All,
         allowsEditing: true,
         aspect: [9, 16],
         quality: 1,
       });
 
       if (!result.canceled) {
-        await uploadStory(result.assets[0]);
+        const asset = result.assets[0];
+        await uploadStory(asset);
       }
     } catch (error) {
-      console.error('Error taking photo:', error);
-      Alert.alert('Error', 'Failed to take photo. Please try again.');
+      console.error('Error capturing media:', error);
+      Alert.alert('Error', 'Failed to capture media. Please try again.');
+    }
+  };
+
+  const trimVideo = async (videoUri) => {
+    try {
+      // For now, we'll just return the original video URI
+      // The 30-second limit will be enforced during playback
+      return videoUri;
+    } catch (error) {
+      console.error('Error processing video:', error);
+      return videoUri;
     }
   };
 
@@ -226,19 +288,22 @@ const Stories = () => {
   const uploadStory = async (mediaAsset) => {
     try {
       const accessToken = await AsyncStorage.getItem('accessToken');
-      
+      if (!accessToken) {
+        throw new Error('No access token found');
+      }
+
       // Create form data
       const uploadFormData = new FormData();
-      const fileUri = mediaAsset.uri.replace('file://', '');
+      let fileUri = mediaAsset.uri;
       
       // Get file extension and set appropriate MIME type
       const fileExtension = fileUri.split('.').pop().toLowerCase();
       const isVideo = mediaAsset.type?.includes('video');
       const mimeType = isVideo ? 'video/mp4' : 'image/jpeg';
-      
+
       // Create file object for upload
       uploadFormData.append('mediaFile', {
-        uri: mediaAsset.uri,
+        uri: fileUri,
         type: mimeType,
         name: `story.${fileExtension}`
       });
@@ -253,6 +318,10 @@ const Stories = () => {
         body: uploadFormData,
       });
 
+      if (!uploadResponse.ok) {
+        throw new Error(`Upload failed with status: ${uploadResponse.status}`);
+      }
+
       const uploadResponseData = await uploadResponse.json();
 
       if (!uploadResponseData.status || !uploadResponseData.urls || !uploadResponseData.urls[0]) {
@@ -266,7 +335,7 @@ const Stories = () => {
         videoUrl: uploadResponseData.urls[0],
         thumbnailUrl: uploadResponseData.urls[0],
         mediaType: isVideo ? 'video' : 'image',
-        duration: isVideo ? VIDEO_DURATION : 0,
+        duration: isVideo ? 30 : 0,
         tags: []
       };
 
@@ -279,11 +348,15 @@ const Stories = () => {
         body: JSON.stringify(storyData),
       });
 
+      if (!response.ok) {
+        throw new Error(`Story creation failed with status: ${response.status}`);
+      }
+
       const data = await response.json();
       
       if (response.ok) {
         console.log('Story uploaded successfully:', data.data);
-        alert('Story uploaded successfully');
+        Alert.alert('Success', 'Story uploaded successfully');
         fetchStories();
         setShowImagePickerModal(false);
       } else {
@@ -291,7 +364,10 @@ const Stories = () => {
       }
     } catch (error) {
       console.error('Error uploading story:', error);
-      Alert.alert('Error', 'Failed to upload story. Please try again.');
+      Alert.alert(
+        'Error',
+        'Failed to upload story. Please check your internet connection and try again.'
+      );
     }
   };
 
@@ -301,8 +377,25 @@ const Stories = () => {
 
   const markStoryAsSeen = async (userId, storyId) => {
     if (!isStorySeen(userId, storyId)) {
-      dispatch(markStorySeen({ userId, storyId }));
       try {
+        // Update Redux state
+        dispatch(markStorySeen({ userId, storyId }));
+
+        // Get current seen stories from Redux
+        const currentSeenStories = { ...seenStories };
+        
+        // Update the seen stories for this user
+        if (!currentSeenStories[userId]) {
+          currentSeenStories[userId] = [];
+        }
+        if (!currentSeenStories[userId].includes(storyId)) {
+          currentSeenStories[userId].push(storyId);
+        }
+
+        // Save to AsyncStorage
+        await AsyncStorage.setItem('seenStories', JSON.stringify(currentSeenStories));
+
+        // Update backend
         const accessToken = await AsyncStorage.getItem('accessToken');
         await fetch(`${base_url}/story/mark-seen`, {
           method: 'POST',
@@ -310,7 +403,10 @@ const Stories = () => {
             'Authorization': `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ storyIds: [storyId] }),
+          body: JSON.stringify({ 
+            storyIds: [storyId],
+            userId: userId 
+          }),
         });
       } catch (error) {
         console.error('Error marking story as seen:', error);
@@ -325,6 +421,7 @@ const Stories = () => {
     setCurrentStoryIndex(0);
     setProgress(0);
     setShowStories(true);
+    startStoryTimer(); // Start timer immediately when story is opened
   };
 
   const handleNextStory = () => {
@@ -335,12 +432,26 @@ const Stories = () => {
         setCurrentStoryIndex(currentStoryIndex + 1);
         setProgress(0);
       } else {
+        // Current user's stories are complete, move to next user
         const currentStory = selectedUser.stories[currentStoryIndex];
         markStoryAsSeen(selectedUser.user_id, currentStory.story_id);
-        setShowStories(false);
-        setSelectedUser(null);
-        setCurrentStoryIndex(0);
-        setProgress(0);
+        
+        // Find the index of current user in stories array
+        const currentUserIndex = stories.findIndex(user => user.user_id === selectedUser.user_id);
+        
+        if (currentUserIndex < stories.length - 1) {
+          // Move to next user's stories
+          const nextUser = stories[currentUserIndex + 1];
+          setSelectedUser(nextUser);
+          setCurrentStoryIndex(0);
+          setProgress(0);
+        } else {
+          // No more users, close the story view
+          setShowStories(false);
+          setSelectedUser(null);
+          setCurrentStoryIndex(0);
+          setProgress(0);
+        }
       }
     }
   };
@@ -349,6 +460,69 @@ const Stories = () => {
     if (currentStoryIndex > 0) {
       setCurrentStoryIndex(currentStoryIndex - 1);
       setProgress(0);
+    } else {
+      // Find the index of current user in stories array
+      const currentUserIndex = stories.findIndex(user => user.user_id === selectedUser.user_id);
+      
+      if (currentUserIndex > 0) {
+        // Move to previous user's last story
+        const previousUser = stories[currentUserIndex - 1];
+        setSelectedUser(previousUser);
+        setCurrentStoryIndex(previousUser.stories.length - 1);
+        setProgress(0);
+      }
+    }
+  };
+
+  const handleDeleteStory = async (storyId) => {
+    try {
+      const accessToken = await AsyncStorage.getItem('accessToken');
+      if (!accessToken) {
+        throw new Error('No access token found');
+      }
+
+      const response = await fetch(`${base_url}/story/delete/${storyId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (data.status) {
+        // Remove the story from the local state
+        const updatedStories = myStories.map(userStory => {
+          if (userStory.user_id === userId) {
+            return {
+              ...userStory,
+              stories: userStory.stories.filter(story => story.story_id !== storyId)
+            };
+          }
+          return userStory;
+        });
+
+        setMyStories(updatedStories);
+
+        // If we deleted the last story, close the story view
+        if (selectedUser.stories.length === 1) {
+          setShowStories(false);
+          setSelectedUser(null);
+          setCurrentStoryIndex(0);
+        } else {
+          // Move to the next story or previous story
+          if (currentStoryIndex === selectedUser.stories.length - 1) {
+            setCurrentStoryIndex(currentStoryIndex - 1);
+          }
+        }
+
+        Alert.alert('Success', 'Story deleted successfully');
+      } else {
+        throw new Error(data.message || 'Failed to delete story');
+      }
+    } catch (error) {
+      console.error('Error deleting story:', error);
+      Alert.alert('Error', 'Failed to delete story. Please try again.');
     }
   };
 
@@ -357,6 +531,7 @@ const Stories = () => {
 
     const currentStory = selectedUser.stories[currentStoryIndex];
     const isVideo = currentStory.mediaType === 'video';
+    const isMyStory = selectedUser.user_id === userId;
 
     return (
       <View style={styles.storyContentContainer}>
@@ -373,11 +548,9 @@ const Stories = () => {
               }
             }}
             onLoad={(data) => {
-              // Ensure video doesn't exceed 30 seconds
-              if (data.durationMillis > VIDEO_DURATION) {
-                // You might want to implement video trimming here
-                console.log('Video exceeds 30 seconds');
-              }
+              setTimeout(() => {
+                handleNextStory();
+              }, VIDEO_DURATION);
             }}
           />
         ) : (
@@ -386,7 +559,6 @@ const Stories = () => {
             style={styles.storyMedia}
             resizeMode="cover"
             onLoadStart={() => {
-              // Reset progress when new image starts loading
               setProgress(0);
             }}
           />
@@ -399,14 +571,28 @@ const Stories = () => {
             />
             <Text style={styles.storyUserName}>{selectedUser.user_name}</Text>
           </View>
-          <TouchableOpacity onPress={() => {
-            if (storyTimer) {
-              clearInterval(storyTimer);
-            }
-            setShowStories(false);
-          }}>
-            <Ionicons name="close" size={24} color="#fff" />
-          </TouchableOpacity>
+          <View style={styles.storyHeaderButtons}>
+            {isMyStory && (
+              <TouchableOpacity 
+                onPress={() => handleDeleteStory(currentStory.story_id)}
+                style={styles.deleteButton}
+              >
+                <Ionicons name="trash-outline" size={24} color="#fff" />
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity 
+              onPress={() => {
+                if (storyTimer) {
+                  clearInterval(storyTimer);
+                }
+                setShowStories(false);
+                setSelectedUser(null);
+                setCurrentStoryIndex(0);
+              }}
+            >
+              <Ionicons name="close" size={24} color="#fff" />
+            </TouchableOpacity>
+          </View>
         </View>
         <View style={styles.storyProgress}>
           {selectedUser.stories.map((story, index) => (
@@ -429,24 +615,26 @@ const Stories = () => {
             </View>
           ))}
         </View>
-        <TouchableOpacity
-          style={[styles.storyTouchArea, styles.storyLeftArea]}
-          onPress={() => {
-            if (storyTimer) {
-              clearInterval(storyTimer);
-            }
-            handlePreviousStory();
-          }}
-        />
-        <TouchableOpacity
-          style={[styles.storyTouchArea, styles.storyRightArea]}
-          onPress={() => {
-            if (storyTimer) {
-              clearInterval(storyTimer);
-            }
-            handleNextStory();
-          }}
-        />
+        <View style={styles.storyNavigationContainer}>
+          <TouchableOpacity
+            style={styles.storyNavigationArea}
+            onPress={() => {
+              if (storyTimer) {
+                clearInterval(storyTimer);
+              }
+              handlePreviousStory();
+            }}
+          />
+          <TouchableOpacity
+            style={styles.storyNavigationArea}
+            onPress={() => {
+              if (storyTimer) {
+                clearInterval(storyTimer);
+              }
+              handleNextStory();
+            }}
+          />
+        </View>
       </View>
     );
   };
@@ -465,7 +653,8 @@ const Stories = () => {
         <View style={[
           styles.storyCircle,
           !hasStories && styles.disabledStoryCircle,
-          isSeen && styles.seenStoryCircle
+          isSeen && styles.seenStoryCircle,
+          !isSeen && hasStories && styles.unseenStoryCircle
         ]}>
           <Image
             source={{ uri: item.user_image }}
@@ -474,7 +663,8 @@ const Stories = () => {
         </View>
         <Text style={[
           styles.storyName,
-          isSeen && styles.seenStoryName
+          isSeen && styles.seenStoryName,
+          !isSeen && hasStories && styles.unseenStoryName
         ]}>{item.user_name}</Text>
       </TouchableOpacity>
     );
@@ -599,34 +789,86 @@ const Stories = () => {
           <View style={styles.storiesLeftSection}>
             {renderYourStory()}
           </View>
-          <View style={styles.storiesRightSection}>
-            {stories.map((item, index) => (
-              <TouchableOpacity
-                key={index}
-                style={styles.storyItemContainer}
-                onPress={() => handleStoryPress(item)}
-                activeOpacity={0.7}
-              >
-                <View style={[
-                  styles.storyCircle,
-                  !item.stories?.length && styles.disabledStoryCircle
-                ]}>
-                  <Image
-                    source={{ uri: item.user_image }}
-                    style={styles.storyImage}
-                  />
-                </View>
-                <Text style={styles.storyName}>{item.user_name}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+
+          {stories.length > 4 ? (
+            <ScrollView
+              horizontal
+              scrollEnabled
+              showsHorizontalScrollIndicator={false}
+              style={styles.storiesRightSection}
+            >
+              {stories.map((item, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={styles.storyItemContainer}
+                  onPress={() => handleStoryPress(item)}
+                  activeOpacity={0.7}
+                >
+                  <View
+                    style={[
+                      styles.storyCircle,
+                      !item.stories?.length && styles.disabledStoryCircle,
+                      item.stories?.length > 0 && !isStorySeen(item.user_id, item.stories[0].story_id) && styles.unseenStoryCircle,
+                      item.stories?.length > 0 && isStorySeen(item.user_id, item.stories[0].story_id) && styles.seenStoryCircle
+                    ]}
+                  >
+                    <Image source={{ uri: item.user_image }} style={styles.storyImage} />
+                  </View>
+                  <Text 
+                    style={[
+                      styles.storyName,
+                      item.stories?.length > 0 && !isStorySeen(item.user_id, item.stories[0].story_id) && styles.unseenStoryName,
+                      item.stories?.length > 0 && isStorySeen(item.user_id, item.stories[0].story_id) && styles.seenStoryName
+                    ]}
+                  >
+                    {item.user_name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          ) : (
+            <View style={[styles.storiesRightSection, { flexDirection: 'row' }]}>
+              {stories.map((item, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={styles.storyItemContainer}
+                  onPress={() => handleStoryPress(item)}
+                  activeOpacity={0.7}
+                >
+                  <View
+                    style={[
+                      styles.storyCircle,
+                      !item.stories?.length && styles.disabledStoryCircle,
+                      item.stories?.length > 0 && !isStorySeen(item.user_id, item.stories[0].story_id) && styles.unseenStoryCircle,
+                      item.stories?.length > 0 && isStorySeen(item.user_id, item.stories[0].story_id) && styles.seenStoryCircle
+                    ]}
+                  >
+                    <Image source={{ uri: item.user_image }} style={styles.storyImage} />
+                  </View>
+                  <Text 
+                    style={[
+                      styles.storyName,
+                      item.stories?.length > 0 && !isStorySeen(item.user_id, item.stories[0].story_id) && styles.unseenStoryName,
+                      item.stories?.length > 0 && isStorySeen(item.user_id, item.stories[0].story_id) && styles.seenStoryName
+                    ]}
+                  >
+                    {item.user_name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
         </View>
 
         <Modal
           visible={showStories}
           transparent={true}
           animationType="fade"
-          onRequestClose={() => setShowStories(false)}
+          onRequestClose={() => {
+            setShowStories(false);
+            setSelectedUser(null);
+            setCurrentStoryIndex(0);
+          }}
         >
           {renderStoryContent()}
         </Modal>
@@ -677,7 +919,8 @@ const styles = StyleSheet.create({
     color: '#000',
   },
   seenStoryName: {
-    color: '#666',
+    color: '#9B9B9B',
+    fontWeight: '400',
   },
   addStoryButton: {
     width: 40,
@@ -794,14 +1037,13 @@ const styles = StyleSheet.create({
   storiesContainer: {
     flexDirection: 'row',
     padding: 10,
+    alignItems: 'center',
   },
   storiesLeftSection: {
     marginRight: 15,
   },
   storiesRightSection: {
     flex: 1,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
   },
   storyVideo: {
     width: '100%',
@@ -919,21 +1161,41 @@ const styles = StyleSheet.create({
     top: 0,
     transition: 'width 0.1s linear',
   },
-  storyTouchArea: {
+  storyNavigationContainer: {
     position: 'absolute',
     top: 0,
-    bottom: 0,
-    width: '50%',
-  },
-  storyLeftArea: {
     left: 0,
-  },
-  storyRightArea: {
     right: 0,
+    bottom: 0,
+    flexDirection: 'row',
+  },
+  storyNavigationArea: {
+    flex: 1,
+    height: '100%',
+  },
+  unseenStoryCircle: {
+    borderColor: '#870E6B',
+    borderWidth: 2.5,
   },
   seenStoryCircle: {
-    borderColor: '#666',
-    opacity: 0.7,
+    borderColor: '#9B9B9B',
+    borderWidth: 2,
+    opacity: 0.9,
+  },
+  unseenStoryName: {
+    color: '#870E6B',
+    fontWeight: '600',
+  },
+  seenStoryName: {
+    color: '#9B9B9B',
+    fontWeight: '400',
+  },
+  storyHeaderButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  deleteButton: {
+    marginRight: 15,
   },
 });
 

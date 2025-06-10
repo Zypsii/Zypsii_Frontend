@@ -42,7 +42,7 @@ const ProfilePage = () => {
       if (!accessToken) {
         throw new Error('No access token found');
       }
-      console.log(accessToken);
+
       const response = await fetch(`${base_url}/user/getProfile`, {
         method: 'get',
         headers: {
@@ -108,7 +108,6 @@ const ProfilePage = () => {
       formData.append('fullName', fullName);
       formData.append('website', website);
       formData.append('bio', bio);
-      //formData.append('location', location);
       
       if (profileImage) {
         const imageUri = profileImage;
@@ -123,14 +122,6 @@ const ProfilePage = () => {
         });
       }
 
-      console.log('Sending form data:', {
-        fullName,
-        website,
-        bio,
-        location,
-        hasProfileImage: !!profileImage
-      });
-
       const response = await fetch(`${base_url}/user/editProfile`, {
         method: 'put',
         headers: {
@@ -141,12 +132,10 @@ const ProfilePage = () => {
       });
 
       const responseText = await response.text();
-      console.log('Raw Response:', responseText);
 
       let data;
       try {
         data = JSON.parse(responseText);
-        console.log('Parsed Response:', data);
       } catch (parseError) {
         console.error('Failed to parse response as JSON:', parseError);
         throw new Error(`Server returned invalid response: ${responseText.substring(0, 100)}...`);
@@ -157,18 +146,15 @@ const ProfilePage = () => {
       }
 
       if (data.success) {
-        // Update the user context with new profile data
         const updatedUser = {
           ...user,
           fullName,
           userName: username,
           website,
           bio,
-          location,
           profilePicture: profileImage || user.profilePicture
         };
         
-        // Update AsyncStorage and context
         await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
         await login(updatedUser);
         
@@ -179,7 +165,6 @@ const ProfilePage = () => {
       }
     } catch (error) {
       console.error('Error updating profile:', error);
-      console.error('Error details:', error.message);
       Alert.alert('Error', `Failed to update profile: ${error.message}`);
     } finally {
       setSaving(false);
@@ -201,7 +186,11 @@ const ProfilePage = () => {
           <Ionicons name="arrow-back" size={24} color={colors.fontMainColor} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Edit Profile</Text>
-        <TouchableOpacity style={styles.saveButton} onPress={handleSave} disabled={saving}>
+        <TouchableOpacity 
+          style={[styles.saveButton, saving && styles.saveButtonDisabled]} 
+          onPress={handleSave} 
+          disabled={saving}
+        >
           <Text style={styles.saveButtonText}>{saving ? 'Saving...' : 'Save'}</Text>
         </TouchableOpacity>
       </View>
@@ -212,6 +201,7 @@ const ProfilePage = () => {
             <Image source={{ uri: profileImage }} style={styles.profileImage} />
           ) : (
             <View style={styles.profileImagePlaceholder}>
+              <Ionicons name="camera" size={24} color={colors.graycolor} />
               <Text style={styles.profileImagePlaceholderText}>Add Photo</Text>
             </View>
           )}
@@ -225,6 +215,7 @@ const ProfilePage = () => {
               value={fullName}
               onChangeText={setFullName}
               placeholder="Enter your full name"
+              placeholderTextColor={colors.graycolor}
             />
           </View>
 
@@ -235,6 +226,8 @@ const ProfilePage = () => {
               value={username}
               onChangeText={setUsername}
               placeholder="Enter your username"
+              placeholderTextColor={colors.graycolor}
+              editable={false}
             />
           </View>
 
@@ -245,6 +238,7 @@ const ProfilePage = () => {
               value={website}
               onChangeText={setWebsite}
               placeholder="Enter your website"
+              placeholderTextColor={colors.graycolor}
             />
           </View>
 
@@ -255,12 +249,13 @@ const ProfilePage = () => {
               value={bio}
               onChangeText={setBio}
               placeholder="Write something about yourself"
+              placeholderTextColor={colors.graycolor}
               multiline
               numberOfLines={4}
             />
           </View>
 
-          <View style={styles.inputContainer}>
+          {/* <View style={styles.inputContainer}>
             <Text style={styles.label}>Location</Text>
             <TextInput
               style={styles.input}
@@ -268,7 +263,7 @@ const ProfilePage = () => {
               onChangeText={setLocation}
               placeholder="Enter your location"
             />
-          </View>
+          </View> */}
         </View>
       </ScrollView>
     </View>

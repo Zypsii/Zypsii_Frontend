@@ -53,7 +53,6 @@ function ProfileDashboard(props) {
       }
       
       const result = await response.json();
-      console.log('Profile data:', result); // Debug log
 
       if (result.success && result.data && result.data.length > 0) {
         const userData = result.data[0];

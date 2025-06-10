@@ -167,14 +167,14 @@ const styles = StyleSheet.create({
   titleSpacernearest: {
     marginLeft: '4%',
     marginTop: scale(5),
-    marginBottom: '4%',
+    marginBottom: '1%',
   },
   titleSpaceredge: {
     marginLeft: '1%',
     marginTop: scale(5)
   },
   titleSpacerdesti: {
-    marginLeft: '1%',
+    
     marginTop: scale(5)
   },
   productCard: {
@@ -227,10 +227,12 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'flex-start',
-    marginVertical: verticalScale(0),
-    ...alignment.Pmedium
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    marginVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.grayLinesColor,
   },
    likeIconContainer: {
     position: 'absolute',
@@ -251,24 +253,24 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   button: {
-    width: scale(70), // Fixed width for all buttons
-    height: verticalScale(30), // Fixed height for all buttons
-    borderRadius: 15,
-    backgroundColor: colors.black,
-    marginHorizontal: scale(5),
-    justifyContent: 'center', // Ensures text is vertically centered
-    alignItems: 'center', // Ensures text is horizontally centered
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
   },
   selectedButton: {
-    backgroundColor: colors.btncolor,
+    borderBottomWidth: 2,
+    borderBottomColor: colors.Zypsii_color,
   },
   buttonText: {
-    color: colors.white,
-    fontSize: scale(10),
-    textAlign: 'center',
+    fontSize: 16,
+    color: colors.fontSecondColor,
+    fontWeight: '500',
   },
   selectedButtonText: {
-    color: colors.white,
+    color: colors.Zypsii_color,
+    fontWeight: '600',
   },
   videoShortsContainer: {
     marginVertical: verticalScale(-5),
@@ -507,7 +509,7 @@ const styles = StyleSheet.create({
   },
   interactionButton: {
     alignItems: 'center',
-    marginBottom: verticalScale(20),
+    marginBottom: verticalScale(1),
   },
   interactionCount: {
     marginTop: verticalScale(4),
@@ -522,6 +524,19 @@ const styles = StyleSheet.create({
     padding: scale(10),
     backgroundColor: 'rgba(0,0,0,0.3)',
     borderRadius: 8,
+  },
+  userInfoContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    width: '100%',
+  },
+  userInfo: {
+    flex: 1,
+    marginRight: 10,
+  },
+  followButtonContainer: {
+    marginTop: 5,
   },
   videoTitle: {
     color: colors.white,
@@ -566,5 +581,34 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
   },
-})
+ buttonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    marginVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.grayLinesColor,
+  },
+  button: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  selectedButton: {
+    borderBottomWidth: 2,
+    borderBottomColor: colors.Zypsii_color,
+  },
+  buttonText: {
+    fontSize: 16,
+    color: colors.fontSecondColor,
+    fontWeight: '500',
+  },
+  selectedButtonText: {
+    color: colors.Zypsii_color,
+    fontWeight: '600',
+  },})
 export default styles
+

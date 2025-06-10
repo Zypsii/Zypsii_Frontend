@@ -24,14 +24,32 @@ const SignInScreen = () => {
   const { user, login } = useAuth();
 
   // Google login state and function
-  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-    clientId: Platform.select({
-      ios: '1041802076420-3aomh29ianv3jto94ve7pa8748kg5mkb.apps.googleusercontent.com',
-      android: '1041802076420-ebfavrc88drh2ooealh4i5qv6efjivab.apps.googleusercontent.com',
-      default: '1041802076420-pi7qln0r9tqb2nj8gju3286qti3alkj4.apps.googleusercontent.com'
-    }),
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    androidClientId: '515987030322-bru7j7ju5a8kono09pgg27454c8aij3h.apps.googleusercontent.com',
+    iosClientId: '515987030322-bru7j7ju5a8kono09pgg27454c8aij3h.apps.googleusercontent.com',
+    expoClientId: '515987030322-bru7j7ju5a8kono09pgg27454c8aij3h.apps.googleusercontent.com1041802076420-pi7qln0r9tqb2nj8gju3286qti3alkj4.apps.googleusercontent.com',
+    webClientId: '515987030322-bru7j7ju5a8kono09pgg27454c8aij3h.apps.googleusercontent.com',
+    responseType: 'id_token',
+    scopes: ['profile', 'email'],
+    redirectUri: 'https://auth.expo.io/@abithjvinith/zypsii'
   });
 
+  useEffect(() => {
+    console.log('Google Auth Response:', response);
+    if (response?.type === 'success') {
+      console.log('Success Response Params:', response.params);
+      const { id_token } = response.params;
+      console.log('ID Token:', id_token);
+      handleGoogleAuthentication(id_token);
+    } else if (response?.type === 'error') {
+      console.error('Google Auth Error:', response.error);
+      Alert.alert('Error', 'Google authentication failed. Please try again.');
+    } else if (response) {
+      console.log('Other Response Type:', response.type);
+      console.log('Response Params:', response.params);
+    }
+  }, [response]);
+  console.log(user);
   useEffect(() => {
     const checkUser = async () => {
       const storedUser = await AsyncStorage.getItem('user');
@@ -128,52 +146,68 @@ const SignInScreen = () => {
     }
   };
 
-  const handleGoogleLogin = async () => {
+  const handleGoogleAuthentication = async (id_token) => {
     try {
-      const result = await promptAsync();
-      if (result?.type === 'success') {
-        const { id_token } = result.params;
-        const expoPushToken = await registerForPushNotificationsAsync();
+      setLoading(true);
+      const expoPushToken = await registerForPushNotificationsAsync();
 
-        setLoading(true);
-        const response = await fetch(`${base_url}/user/login/`, {
+      // First try to login
+      let response = await fetch(`${base_url}/user/login/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          googleToken: id_token,
+          expoPushToken
+        }),
+      });
+
+      let data = await response.json();
+      console.log('Google auth response:', data);
+
+      // If user doesn't exist, try to sign up
+      if (!response.ok && response.status === 404) {
+        response = await fetch(`${base_url}/user/signup/`, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
+            'Content-Type': 'application/json'
           },
           body: JSON.stringify({
             googleToken: id_token,
             expoPushToken
           }),
         });
+        data = await response.json();
+        console.log('Google signup response:', data);
+      }
 
-        if (response.ok) {
-          const data = await response.json();
-          if (!data.error) {
-            Alert.alert('Success', 'Logged in successfully');
-            const { token, userDetails } = data;
-            // Store the accessToken and user info
-            await AsyncStorage.setItem('accessToken', token);
-            await AsyncStorage.setItem('user', JSON.stringify(userDetails));
-
-            // Use the login function from AuthContext to set the user
-            login(userDetails);
-
-            navigation.navigate('Drawer', { screen: 'MainLanding' });
-          } else {
-            Alert.alert('Error', data.message || 'Google login failed');
-          }
-        } else {
-          Alert.alert('Error', 'Google login failed, please try again.');
-        }
+      if (response.ok && !data.error) {
+        const { token, userDetails } = data;
+        await AsyncStorage.setItem('accessToken', token);
+        await AsyncStorage.setItem('user', JSON.stringify(userDetails));
+        login(userDetails);
+        navigation.navigate('Drawer', { screen: 'MainLanding' });
       } else {
-        Alert.alert('Error', 'Google login failed');
+        console.error('Authentication failed:', data);
+        Alert.alert('Error', data.message || 'Authentication failed');
       }
     } catch (error) {
-      console.error('Google login error:', error);
-      Alert.alert('Error', 'Google login failed due to a network error');
+      console.error('Google authentication error:', error);
+      Alert.alert('Error', 'Authentication failed due to a network error');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    try {
+      console.log('Initiating Google login prompt...');
+      const result = await promptAsync();
+      console.log('Prompt result:', result);
+    } catch (error) {
+      console.error('Google login prompt error:', error);
+      Alert.alert('Error', 'Failed to open Google login');
     }
   };
 

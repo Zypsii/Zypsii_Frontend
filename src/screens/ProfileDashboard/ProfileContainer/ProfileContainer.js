@@ -72,7 +72,7 @@ function ProfileContainer({profileInfo}) {
         </View>
 
         {/* Stats Section */}
-        <View style={styles.statsContainer}>
+        {/* <View style={styles.statsContainer}>
           <View style={styles.stat}>
             <TextDefault style={styles.statLabel}>Posts</TextDefault>
             <TextDefault style={styles.statNumber}>{profileInfo?.Posts || '0'}</TextDefault>
@@ -91,12 +91,12 @@ function ProfileContainer({profileInfo}) {
             <TextDefault style={styles.statLabel}>Following</TextDefault>
             <TextDefault style={styles.statNumber}>{profileInfo?.Following || '0'}</TextDefault>
           </TouchableOpacity>
-        </View>
+        </View> */}
 
         {/* Settings Options */}
         <View style={styles.settingsSection} H5>
           {[
-            { label: 'Your Profile', icon: 'person-outline', route: 'DummyScreen' },
+            // { label: 'Your Profile', icon: 'person-outline', route: 'DummyScreen' },
             // { label: 'Expense Calculator', icon: 'calculate', route: 'ExpenseCalculator' },
             { label: 'Delete', icon: 'delete', route: 'DeleteButton' },
             { label: 'Logout', icon: 'logout', route: 'Logout' },

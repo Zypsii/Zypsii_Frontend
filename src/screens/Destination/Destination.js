@@ -64,8 +64,8 @@ function Destination({ route, navigation }) {
       const accessToken = await AsyncStorage.getItem('accessToken');
 
       const url = token
-        ? `${base_url}/schedule/places/getNearest?nextPageToken=${token}`
-        : `${base_url}/schedule/places/getNearest`;
+        ? `${base_url}/schedule/places/getNearest?nextPageToken=${token}&limit=10`
+        : `${base_url}/schedule/places/getNearest?limit=10`;
 
       const response = await fetch(url, {
         method: 'GET',
@@ -106,10 +106,27 @@ function Destination({ route, navigation }) {
     }
   };
 
+  // Handle reaching end of scroll
+  const handleEndReached = () => {
+    if (nextPageToken && !loading) {
+      fetchDiscoverbyNearest(nextPageToken);
+    }
+  };
+
   // Initial fetch when component mounts
   useEffect(() => {
     fetchDiscoverbyNearest();
   }, []);
+
+  // Render footer loader
+  const renderFooter = () => {
+    if (!loading) return null;
+    return (
+      <View style={styles.loaderContainer}>
+        <ActivityIndicator size="small" color={colors.Zypsii_color} />
+      </View>
+    );
+  };
 
   const [destinationData, setDestinationData] = useState(null) // ✅ Store fetched data
 
@@ -622,6 +639,9 @@ function Destination({ route, navigation }) {
                       distance={item.distanceInKilometer ? parseFloat(item.distanceInKilometer).toFixed(1) : (item.distance || null)}
                     />
                   )}
+                  onEndReached={handleEndReached}
+                  onEndReachedThreshold={0.5}
+                  ListFooterComponent={renderFooter}
                 />
               ) : (
                 <View style={styles.noDataContainer}>
@@ -670,6 +690,48 @@ function Destination({ route, navigation }) {
 }
 
 const stylescomment = StyleSheet.create({
+
+  container: {
+    flex: 1,
+    backgroundColor: colors.white,
+  },
+  mainContent: {
+    flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  itemCardContainer: {
+    marginRight: 15,
+  },
+  discoverRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginVertical: 15,
+    paddingHorizontal: 15,
+  },
+  discoverText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+  },
+  viewAllText: {
+    fontSize: 14,
+    color: colors.Zypsii_color,
+    fontWeight: '600',
+  },
+  noDataContainer: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  noDataText: {
+    fontSize: 16,
+    color: '#666',
+  },
   commentSection: {
     marginTop: 20,
     paddingHorizontal: 15,

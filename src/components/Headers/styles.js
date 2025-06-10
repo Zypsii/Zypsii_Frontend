@@ -16,7 +16,8 @@ export default {
     alignItems: 'center',
     position: 'absolute',
     top: 0,
-    zIndex: 2,
+    zIndex: 999,
+    elevation: 999,
   },
   subContainer: {
     width: '100%',
@@ -38,10 +39,12 @@ export default {
     backgroundColor: 'rgba(47, 47, 47, 0.5)',
     borderRadius: 25,
     marginRight: 15,
+    elevation: 5,
+    zIndex: 1000,
   },
   headerText: {
     fontFamily: fontStyles.PoppinsBold,
-    fontSize: scale(18),
+    fontSize: scale(16),
     color: colors.white,
     flex: 1,
   },
@@ -49,6 +52,7 @@ export default {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
+    zIndex: 1000,
   },
   searchContainer: {
     flexDirection: 'row',
@@ -75,6 +79,8 @@ export default {
     backgroundColor: 'rgba(47, 47, 47, 0.5)',
     borderRadius: 20,
     marginLeft: 10,
+    elevation: 5,
+    zIndex: 1000,
   },
   notificationBadge: {
     position: 'absolute',
@@ -87,6 +93,7 @@ export default {
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 5,
+    zIndex: 1001,
   },
   badgeText: {
     color: colors.white,

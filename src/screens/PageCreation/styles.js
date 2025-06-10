@@ -19,28 +19,30 @@ export const styles = StyleSheet.create({
     paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: colors.graycolor,
+    backgroundColor: colors.white,
   },
   backButton: {
-    flex: 1,
-  },
-  backButtonText: {
-    fontSize: 16,
-    color: colors.blueColor,
+    padding: 8,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: colors.black,
+    color: colors.fontMainColor,
     flex: 1,
     textAlign: 'center',
   },
   saveButton: {
-    flex: 1,
-    alignItems: 'flex-end',
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: colors.btncolor,
+  },
+  saveButtonDisabled: {
+    opacity: 0.5,
   },
   saveButtonText: {
     fontSize: 16,
-    color: colors.blueColor,
+    color: colors.white,
+    fontWeight: '500',
   },
   profileImageContainer: {
     alignItems: 'center',
@@ -64,8 +66,9 @@ export const styles = StyleSheet.create({
     backgroundColor: colors.lightGray,
   },
   profileImagePlaceholderText: {
-    fontSize: 16,
+    fontSize: 14,
     color: colors.graycolor,
+    marginTop: 8,
   },
   form: {
     paddingHorizontal: 15,
@@ -81,12 +84,13 @@ export const styles = StyleSheet.create({
   },
   input: {
     fontSize: 16,
-    color: colors.black,
+    color: colors.fontMainColor,
     borderWidth: 1,
     borderColor: colors.graycolor,
     borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: colors.white,
   },
   bioInput: {
     height: 100,

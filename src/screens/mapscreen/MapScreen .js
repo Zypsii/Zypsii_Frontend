@@ -78,7 +78,7 @@ function MapScreen() {
   };
 
   const handleDone = () => {
-    if (region.latitude && region.longitude) {      
+     if (region.latitude && region.longitude) {      
       navigation.navigate("MakeSchedule", {
         dayId,
         latitude: region.latitude,

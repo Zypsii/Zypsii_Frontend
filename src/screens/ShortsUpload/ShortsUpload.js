@@ -26,7 +26,7 @@ function ShortsUpload({ navigation }) {
   const [isUploading, setIsUploading] = useState(false);
 
   const handleBackPress = () => {
-    navigation.goBack();
+      navigation.navigate('MainLanding');
   };
 
   const compressVideo = async (uri) => {

@@ -8,6 +8,7 @@ import {
   Text,
   Image,
   TouchableOpacity,
+  Alert,
 } from "react-native";
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from "../../utils";
@@ -159,7 +160,32 @@ function SearchPage() {
           <View style={styles.personDetails}>
             <View style={styles.nameRow}>
               <Text style={styles.personName}>{item.name}</Text>
-              {activeTab === "People" && <FollowButton userId={item.id} />}
+              <View style={styles.actionButtons}>
+                {activeTab === "People" && (
+                  <>
+                    <TouchableOpacity 
+                      style={styles.chatButton}
+                      onPress={() => {
+                        // Add validation before navigation
+                        if (!item.id || !item.name) {
+                          Alert.alert('Error', 'Invalid user data');
+                          return;
+                        }
+                        
+                        console.log('Navigating to chat with:', { userId: item.id, userName: item.name });
+                        
+                        navigation.navigate('ChatScreen', { 
+                          userId: item.id,
+                          userName: item.name
+                        });
+                      }}
+                    >
+                      <Ionicons name="chatbubble-outline" size={20} color={colors.Zypsii_color} />
+                    </TouchableOpacity>
+                    <FollowButton userId={item.id} />
+                  </>
+                )}
+              </View>
             </View>
 
             {activeTab === "People" ? (
@@ -474,7 +500,15 @@ const styles = StyleSheet.create({
     color: colors.fontThirdColor || "#777",
     marginLeft: 4,
     flex: 1,
-  }
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  chatButton: {
+    padding: 5,
+  },
 });
 
 export default SearchPage;

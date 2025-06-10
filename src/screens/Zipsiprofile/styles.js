@@ -5,29 +5,42 @@ import { colors } from '../../utils';
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    overflow: 'visible', // Allow elements to show outside the parent bounds
-},
-
-      backgroundCurvedContainer: {
-          backgroundColor: colors.btncolor,
-          height: 200,
-          width: '100%',
-          position: 'absolute',
-          top: 0,
-          zIndex: 0,
-        },
-        protractorShape: {
-          backgroundColor: colors.white,
-          height: 500,
-          width: 1000,
-          borderTopLeftRadius: 500,
-          borderTopRightRadius: 500,
-          position: 'absolute',
-          top: 80,
-          alignSelf: 'center',
-          zIndex: 1,
-          overflow: 'hidden',
-        },
+    backgroundColor: colors.white,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    backgroundColor: colors.white,
+    position: 'relative',
+    zIndex: 10,
+  },
+  settingsButton: {
+    padding: 8,
+    borderRadius: 20,
+  },
+  backgroundCurvedContainer: {
+    backgroundColor: colors.btncolor,
+    height: 200,
+    width: '100%',
+    position: 'absolute',
+    top: 0,
+    zIndex: 0,
+  },
+  protractorShape: {
+    backgroundColor: colors.white,
+    height: 500,
+    width: 1000,
+    borderTopLeftRadius: 500,
+    borderTopRightRadius: 500,
+    position: 'absolute',
+    top: 80,
+    alignSelf: 'center',
+    zIndex: 1,
+    overflow: 'hidden',
+  },
   header: {
     height: 60,
     justifyContent: 'center',
@@ -48,13 +61,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: -30,
     zIndex: 2,
+    paddingBottom: 20,
+    pointerEvents: 'none',
   },
   topIconsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: verticalScale(20),
     paddingHorizontal: scale(3),
-    zIndex: 3,
+    zIndex: 10,
   },
   circle: {
     width: 60,
@@ -63,7 +78,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'rgba(47, 47, 47, 0.5)',
-    
+    zIndex: 10,
   },
   profileImage: {
     width: 100,
@@ -72,6 +87,12 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     borderWidth: 5,
     borderColor: '#870E6B',
+    pointerEvents: 'auto',
+  },
+  defaultProfileImage: {
+    backgroundColor: '#870E6B',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   name: {
     fontSize: 24,
