@@ -37,6 +37,7 @@ const ContentTypeModal = ({ visible, onClose, onSelectType }) => {
           <TouchableOpacity 
             style={styles.optionButton}
             onPress={() => onSelectType('post')}
+              
           >
             <Ionicons name="image" size={24} color={colors.btncolor} />
             <Text style={styles.optionText}>Create Post</Text>

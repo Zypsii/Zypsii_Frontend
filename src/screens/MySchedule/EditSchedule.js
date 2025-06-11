@@ -27,7 +27,17 @@ import * as ImagePicker from 'expo-image-picker';
 const { width } = Dimensions.get('window');
 
 const EditSchedule = ({ route, navigation }) => {
-  const { scheduleId, scheduleData } = route.params;
+  const { scheduleId, scheduleData } = route.params || {};
+  
+  // Validate scheduleId
+  useEffect(() => {
+    if (!scheduleId) {
+      Alert.alert('Error', 'Invalid schedule ID');
+      navigation.goBack();
+      return;
+    }
+  }, [scheduleId]);
+
   const [loading, setLoading] = useState(false);
   const [bannerImage, setBannerImage] = useState(
     scheduleData?.bannerImage || scheduleData?.imageUrl || null
@@ -36,6 +46,8 @@ const EditSchedule = ({ route, navigation }) => {
   // Add state for date pickers
   const [showFromDatePicker, setShowFromDatePicker] = useState(false);
   const [showToDatePicker, setShowToDatePicker] = useState(false);
+  const [showFromTimePicker, setShowFromTimePicker] = useState(false);
+  const [showToTimePicker, setShowToTimePicker] = useState(false);
 
   // Initialize form data with all fields from scheduleData
   const [formData, setFormData] = useState({
@@ -49,8 +61,10 @@ const EditSchedule = ({ route, navigation }) => {
     fromLongitude: scheduleData?.rawLocation?.from?.longitude || '',
     toLatitude: scheduleData?.rawLocation?.to?.latitude || '',
     toLongitude: scheduleData?.rawLocation?.to?.longitude || '',
-    fromDate: scheduleData?.date || '',
-    toDate: scheduleData?.toDate || '',
+    fromDate: scheduleData?.date ? new Date(scheduleData.date).toISOString() : '',
+    toDate: scheduleData?.toDate ? new Date(scheduleData.toDate).toISOString() : '',
+    fromTime: scheduleData?.fromTime || '09:00',
+    toTime: scheduleData?.toTime || '17:00',
     numberOfDays: scheduleData?.riders || '',
     budget: scheduleData?.budget || '',
     maxRiders: scheduleData?.maxRiders || '',
@@ -69,25 +83,6 @@ const EditSchedule = ({ route, navigation }) => {
       ...prev,
       [field]: value
     }));
-  };
-
-  // Add function to handle location selection
-  const handleLocationSelect = (type, place, latitude, longitude) => {
-    if (type === 'from') {
-      setFormData(prev => ({
-        ...prev,
-        fromPlace: place,
-        fromLatitude: latitude,
-        fromLongitude: longitude
-      }));
-    } else {
-      setFormData(prev => ({
-        ...prev,
-        toPlace: place,
-        toLatitude: latitude,
-        toLongitude: longitude
-      }));
-    }
   };
 
   // Add state for day schedules with location data
@@ -127,11 +122,12 @@ const EditSchedule = ({ route, navigation }) => {
         );
 
         const data = await response.json();
-        console.log(data);
+        console.log('Schedule Description Data:', data);
         
         if (data.success && data.data) {
           // Transform the API data into daySchedules format
           const transformedSchedules = data.data.map((day, index) => ({
+            _id: day._id, // Store the description ID
             day: index + 1,
             activities: '',
             time: '',
@@ -139,7 +135,8 @@ const EditSchedule = ({ route, navigation }) => {
             description: day.Description || '',
             planDescription: day.planDescription || [],
             latitude: day.planDescription?.[0]?.location?.lat || '',
-            longitude: day.planDescription?.[0]?.location?.lng || ''
+            longitude: day.planDescription?.[0]?.location?.lng || '',
+            date: day.date // Store the original date
           }));
           
           setDaySchedules(transformedSchedules);
@@ -153,37 +150,96 @@ const EditSchedule = ({ route, navigation }) => {
     fetchScheduleDescription();
   }, [scheduleId]);
 
-  // Handle location update from map screen
-  useEffect(() => {
-    if (route.params?.latitude && route.params?.longitude) {
-      const { latitude, longitude, dayId } = route.params;
-      const updatedDaySchedules = daySchedules.map(day => {
-        if (day.day === dayId) {
-          return {
-            ...day,
-            latitude: latitude.toString(),
-            longitude: longitude.toString()
-          };
-        }
-        return day;
-      });
-      setDaySchedules(updatedDaySchedules);
-      
-      // Clear the route params to prevent duplicate updates
-      navigation.setParams({ latitude: undefined, longitude: undefined, dayId: undefined });
+  // Update openMapForLocation function
+  const openMapForLocation = (type, dayIndex) => {
+    let initialLocation;
+    
+    if (type === 'day') {
+      // For day-specific locations, use the day's current location
+      const daySchedule = daySchedules[dayIndex];
+      initialLocation = {
+        latitude: parseFloat(daySchedule?.latitude || 0),
+        longitude: parseFloat(daySchedule?.longitude || 0),
+        place: daySchedule?.location || ''
+      };
+    } else if (type === 'from') {
+      initialLocation = {
+        latitude: parseFloat(formData.fromLatitude || 0),
+        longitude: parseFloat(formData.fromLongitude || 0),
+        place: formData.fromPlace
+      };
+    } else if (type === 'to') {
+      initialLocation = {
+        latitude: parseFloat(formData.toLatitude || 0),
+        longitude: parseFloat(formData.toLongitude || 0),
+        place: formData.toPlace
+      };
     }
-  }, [route.params]);
 
-  // Function to open map for location selection
-  const openMapForDay = (dayId) => {
-    navigation.navigate('MapScreen', { 
-      dayId,
-      initialLocation: {
-        latitude: parseFloat(daySchedules.find(day => day.day === dayId)?.latitude || 0),
-        longitude: parseFloat(daySchedules.find(day => day.day === dayId)?.longitude || 0)
-      }
+    navigation.navigate('EditMapScreen', { 
+      type,
+      scheduleId,
+      dayIndex,
+      initialLocation
     });
   };
+
+  // Update handleLocationSelect function
+  const handleLocationSelect = (type, place, latitude, longitude, dayIndex) => {
+    console.log('Location selected:', { type, place, latitude, longitude, dayIndex });
+    
+    if (type === 'day' && dayIndex !== undefined) {
+      // Update specific day's location
+      const updatedSchedules = [...daySchedules];
+      updatedSchedules[dayIndex] = {
+        ...updatedSchedules[dayIndex],
+        location: place,
+        latitude: latitude.toString(),
+        longitude: longitude.toString(),
+        planDescription: [{
+          name: place,
+          location: {
+            lat: latitude.toString(),
+            lng: longitude.toString()
+          }
+        }]
+      };
+      setDaySchedules(updatedSchedules);
+    } else if (type === 'from') {
+      setFormData(prev => ({
+        ...prev,
+        fromPlace: place,
+        fromLatitude: latitude.toString(),
+        fromLongitude: longitude.toString()
+      }));
+    } else if (type === 'to') {
+      setFormData(prev => ({
+        ...prev,
+        toPlace: place,
+        toLatitude: latitude.toString(),
+        toLongitude: longitude.toString()
+      }));
+    }
+  };
+
+  // Update useEffect for location updates
+  useEffect(() => {
+    if (route.params?.latitude && route.params?.longitude) {
+      const { latitude, longitude, type, placeName, dayIndex } = route.params;
+      console.log('Received location update:', { latitude, longitude, type, placeName, dayIndex });
+      
+      handleLocationSelect(type, placeName, latitude, longitude, dayIndex);
+      
+      // Clear the route params to prevent duplicate updates
+      navigation.setParams({ 
+        latitude: undefined, 
+        longitude: undefined, 
+        type: undefined, 
+        placeName: undefined,
+        dayIndex: undefined 
+      });
+    }
+  }, [route.params]);
 
   // Validation functions
   const validateForm = () => {
@@ -243,6 +299,7 @@ const EditSchedule = ({ route, navigation }) => {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       
       if (status !== 'granted') {
+        console.log('Image Permission Error:', 'Permission not granted');
         Alert.alert('Permission needed', 'Please grant permission to access your photos');
         return;
       }
@@ -255,11 +312,71 @@ const EditSchedule = ({ route, navigation }) => {
       });
 
       if (!result.canceled) {
-        setBannerImage(result.assets[0].uri);
+        setLoading(true);
+        const accessToken = await AsyncStorage.getItem('accessToken');
+        
+        // Create form data for image upload
+        const formData = new FormData();
+        const imageUri = result.assets[0].uri;
+        const imageName = imageUri.split('/').pop();
+        const match = /\.(\w+)$/.exec(imageName);
+        const imageType = match ? `image/${match[1]}` : 'image/jpeg';
+
+        // Check image size
+        const imageResponse = await fetch(imageUri);
+        const blob = await imageResponse.blob();
+        const fileSizeInMB = blob.size / (1024 * 1024);
+        
+        if (fileSizeInMB > 10) {
+          throw new Error('Image size exceeds 10MB limit. Please select a smaller image.');
+        }
+
+        formData.append('mediaFile', {
+          uri: imageUri,
+          type: imageType,
+          name: imageName
+        });
+
+        console.log('Uploading image with data:', {
+          uri: imageUri,
+          type: imageType,
+          name: imageName
+        });
+
+        // Upload image to server using the correct endpoint with mediaType
+        const response = await fetch(`${base_url}/uploadFile?mediaType=post`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'multipart/form-data',
+          },
+          body: formData
+        });
+
+        const data = await response.json();
+        console.log('Image upload response:', data);
+        
+        if (data.status && data.urls && data.urls.length > 0) {
+          // Get the image URL from the response
+          const imageUrl = data.urls[0];
+          console.log('Image uploaded successfully, URL:', imageUrl);
+          setBannerImage(imageUrl);
+          Alert.alert('Success', data.message || 'Image uploaded successfully');
+        } else {
+          console.error('Image upload failed:', data.message);
+          throw new Error(data.message || 'Failed to upload image');
+        }
       }
     } catch (error) {
-      console.error('Error picking image:', error);
-      Alert.alert('Error', 'Failed to pick image');
+      console.error('Error picking/uploading image:', error);
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
+      Alert.alert('Error', error.message || 'Failed to upload image');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -297,160 +414,211 @@ const EditSchedule = ({ route, navigation }) => {
     </View>
   );
 
-  // Update handleUpdate function to match the data structure
+  // Update the updateAllDayDescriptions function
+  const updateAllDayDescriptions = async (accessToken) => {
+    try {
+      for (let i = 0; i < daySchedules.length; i++) {
+        const daySchedule = daySchedules[i];
+        
+        if (!daySchedule._id) {
+          console.error(`No description ID found for Day ${i + 1}`);
+          continue;
+        }
+
+        // Format date as DD-MM-YYYY for Moment.js parsing
+        const currentDate = new Date(formData.fromDate);
+        currentDate.setDate(currentDate.getDate() + i);
+        
+        // Format date with leading zeros for consistent parsing
+        const dayNum = String(currentDate.getDate()).padStart(2, '0');
+        const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+        const year = currentDate.getFullYear();
+        const formattedDate = `${dayNum}-${month}-${year}`;
+
+        // Validate the date format
+        if (!dayNum || !month || !year) {
+          throw new Error(`Invalid date format for Day ${i + 1}`);
+        }
+
+        // Set the from location as current day's location
+        if (!daySchedule.latitude || !daySchedule.longitude) {
+          throw new Error(`Missing location for Day ${i + 1}`);
+        }
+
+        // Match the backend's expected structure exactly
+        const descriptionData = {
+          Description: daySchedule.description.trim(),
+          date: formattedDate,
+          fromLatitude: daySchedule.latitude.toString(),
+          fromLongitude: daySchedule.longitude.toString(),
+          toLatitude: daySchedule.latitude.toString(),
+          toLongitude: daySchedule.longitude.toString()
+        };
+
+        console.log('formattedDate', formattedDate);
+        console.log(`Updating Day ${i + 1} (ID: ${daySchedule._id}) with data:`, JSON.stringify(descriptionData, null, 2));
+
+        try {
+          const response = await fetch(
+            `${base_url}/schedule/edit/descriptions/${scheduleId}/${daySchedule._id}`,
+            {
+              method: 'PUT',
+              headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(descriptionData)
+            }
+          );
+
+          const responseData = await response.json();
+          
+          if (!response.ok) {
+            console.error(`Error updating description for Day ${i + 1}:`, {
+              status: response.status,
+              statusText: response.statusText,
+              responseData: responseData,
+              sentData: descriptionData
+            });
+            throw new Error(`Failed to update description for day ${i + 1}: ${responseData.message || 'Unknown error'}`);
+          }
+
+          console.log(`Successfully updated description for Day ${i + 1}:`, responseData);
+        } catch (error) {
+          console.error(`Error updating Day ${i + 1}:`, error);
+          throw error;
+        }
+      }
+    } catch (error) {
+      console.error('Error in updateAllDayDescriptions:', error);
+      throw error;
+    }
+  };
+
+  // Update handleUpdate function to include description updates
   const handleUpdate = async () => {
     try {
+      if (!scheduleId) {
+        console.error('Validation Error: Invalid schedule ID');
+        Alert.alert('Error', 'Invalid schedule ID');
+        return;
+      }
+
       // Validate form data
       const validationErrors = validateForm();
       if (validationErrors.length > 0) {
+        console.error('Form Validation Errors:', validationErrors);
         Alert.alert('Validation Error', validationErrors.join('\n'));
         return;
       }
 
       // Additional validation for required fields
       if (!formData.tripName || formData.tripName.length < 3) {
+        console.error('Validation Error: Invalid trip name');
         Alert.alert('Error', 'Trip name is required and must be at least 3 characters long');
         return;
       }
 
       if (!formData.travelMode) {
+        console.error('Validation Error: Travel mode required');
         Alert.alert('Error', 'Travel mode is required');
         return;
       }
 
       if (!formData.fromPlace || !formData.toPlace) {
+        console.error('Validation Error: Location required');
         Alert.alert('Error', 'From and To locations are required');
         return;
       }
 
       if (!formData.fromDate) {
+        console.error('Validation Error: Start date required');
         Alert.alert('Error', 'Start date is required');
         return;
       }
 
       if (!formData.numberOfDays || parseInt(formData.numberOfDays) < 1) {
+        console.error('Validation Error: Invalid number of days');
         Alert.alert('Error', 'Number of days must be at least 1');
         return;
       }
 
       // Validate location coordinates
       if (!formData.fromLatitude || !formData.fromLongitude || !formData.toLatitude || !formData.toLongitude) {
+        console.error('Validation Error: Location coordinates required');
         Alert.alert('Error', 'Location coordinates are required');
         return;
       }
 
       setLoading(true);
       const accessToken = await AsyncStorage.getItem('accessToken');
-      
-      // Create the core update data object with top-level properties as expected by backend req.body
-      const baseUpdateData = {
+
+      // Create the update data object matching backend expectations
+      const updateData = {
         tripName: formData.tripName.trim(),
         travelMode: formData.travelMode.trim(),
         visible: formData.visible.trim(),
-        fromLatitude: parseFloat(formData.fromLatitude),
-        fromLongitude: parseFloat(formData.fromLongitude),
-        toLatitude: parseFloat(formData.toLatitude),
-        toLongitude: parseFloat(formData.toLongitude),
-        fromDate: new Date(formData.fromDate).toISOString(),
-        toDate: formData.toDate ? new Date(formData.toDate).toISOString() : '',
-        numberOfDays: parseInt(formData.numberOfDays),
-        ...(formData.description && { description: formData.description.trim() }),
-        ...(formData.budget && { budget: parseFloat(formData.budget) }),
-        ...(formData.maxRiders && { maxRiders: parseInt(formData.maxRiders) }),
+        location: {
+          from: {
+            latitude: formData.fromLatitude.toString(),
+            longitude: formData.fromLongitude.toString()
+          },
+          to: {
+            latitude: formData.toLatitude.toString(),
+            longitude: formData.toLongitude.toString()
+          }
+        },
+        Dates: {
+          from: new Date(formData.fromDate).toISOString(),
+          to: formData.toDate ? new Date(formData.toDate).toISOString() : undefined
+        },
+        numberOfDays: parseInt(formData.numberOfDays)
       };
 
-      // Handle banner image separately for multipart/form-data
-      if (bannerImage && bannerImage.startsWith('file://')) {
-        const imageUri = bannerImage;
-        const imageName = imageUri.split('/').pop();
-        const match = /\.(\w+)$/.exec(imageName);
-        const imageType = match ? `image/${match[1]}` : 'image/jpeg';
-
-        // Check image size
-        const imageResponse = await fetch(imageUri);
-        const blob = await imageResponse.blob();
-        const fileSizeInMB = blob.size / (1024 * 1024);
-        
-        if (fileSizeInMB > 10) {
-          throw new Error('Image size exceeds 10MB limit. Please select a smaller image.');
-        }
-
-        const formDataToSend = new FormData();
-        formDataToSend.append('bannerImage', {
-          uri: imageUri,
-          type: imageType,
-          name: imageName
-        });
-
-        // Append all baseUpdateData fields individually to FormData
-        for (const key in baseUpdateData) {
-          if (Object.prototype.hasOwnProperty.call(baseUpdateData, key) && baseUpdateData[key] !== undefined && baseUpdateData[key] !== null) {
-            // Ensure numbers and booleans are converted to strings for FormData
-            formDataToSend.append(key, typeof baseUpdateData[key] === 'object' ? JSON.stringify(baseUpdateData[key]) : baseUpdateData[key].toString());
-          }
-        }
-
-        // Log the final form data
-        console.log('Final formDataToSend (with image):', formDataToSend);
-
-        // Make the API call with FormData
-        const response = await fetch(`${base_url}/schedule/edit/${scheduleId}`, {
-          method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'multipart/form-data',
-          },
-          body: formDataToSend
-        });
-
-        const responseData = await response.json();
-        console.log('Response data (with image):', responseData);
-
-        if (!response.ok) {
-          if (responseData.errors) {
-            const errorMessages = Object.values(responseData.errors).flat();
-            Alert.alert('Validation Error', errorMessages.join('\n'));
-            return;
-          }
-          throw new Error(responseData.message || 'Failed to update schedule');
-        }
-      } else {
-        // If no new local image, send as application/json
-        const finalUpdateData = { ...baseUpdateData };
-        if (bannerImage && !bannerImage.startsWith('file://')) {
-          finalUpdateData.bannerImage = bannerImage; // Include remote URL in data
-        }
-
-        // Log the final data
-        console.log('Final updateData (JSON):', finalUpdateData);
-
-        // Make the API call with JSON data
-        const response = await fetch(`${base_url}/schedule/edit/${scheduleId}`, {
-          method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(finalUpdateData)
-        });
-
-        const responseData = await response.json();
-        console.log('Response data (JSON):', responseData);
-
-        if (!response.ok) {
-          if (responseData.errors) {
-            const errorMessages = Object.values(responseData.errors).flat();
-            Alert.alert('Validation Error', errorMessages.join('\n'));
-            return;
-          }
-          throw new Error(responseData.message || 'Failed to update schedule');
-        }
+      // Add banner image if it exists and is not a local file URI
+      if (bannerImage && !bannerImage.startsWith('file://')) {
+        updateData.bannerImage = bannerImage;
       }
 
+      console.log('Sending update data:', updateData);
+
+      // Make the API call with JSON data
+      const response = await fetch(`${base_url}/schedule/edit/${scheduleId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updateData)
+      });
+
+      const responseData = await response.json();
+      console.log('Update response:', responseData);
+
+      if (!response.ok) {
+        if (responseData.errors) {
+          console.error('Server validation errors:', responseData.errors);
+          const errorMessages = Object.values(responseData.errors).flat();
+          Alert.alert('Validation Error', errorMessages.join('\n'));
+          return;
+        }
+        console.error('Update failed:', responseData.message);
+        throw new Error(responseData.message || 'Failed to update schedule');
+      }
+
+      // Update all day descriptions
+      await updateAllDayDescriptions(accessToken);
+
+      console.log('Schedule updated successfully');
       Alert.alert('Success', 'Schedule updated successfully');
       navigation.goBack();
     } catch (error) {
       console.error('Update error:', error);
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
       Alert.alert('Error', error.message || 'Failed to update schedule. Please try again.');
     } finally {
       setLoading(false);
@@ -486,33 +654,195 @@ const EditSchedule = ({ route, navigation }) => {
   // Format date for display
   const formatDate = (dateString) => {
     if (!dateString) return '';
-    const date = new Date(dateString);
-    const day = date.getDate().toString().padStart(2, '0');
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const year = date.getFullYear();
-    return `${day}/${month}/${year}`;
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) {
+        throw new Error('Invalid date');
+      }
+      const day = date.getDate().toString().padStart(2, '0');
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      const year = date.getFullYear();
+      return `${day}/${month}/${year}`;
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return '';
+    }
   };
 
-  // Date picker handlers
+  // Date and time picker handlers
   const onFromDateChange = (event, selectedDate) => {
     setShowFromDatePicker(Platform.OS === 'ios');
     if (selectedDate) {
-      setFormData(prev => ({
-        ...prev,
-        fromDate: selectedDate.toISOString()
-      }));
+      try {
+        const date = new Date(selectedDate);
+        if (isNaN(date.getTime())) {
+          throw new Error('Invalid date');
+        }
+        const time = new Date(`2000-01-01T${formData.fromTime}`);
+        date.setHours(time.getHours(), time.getMinutes());
+        setFormData(prev => ({
+          ...prev,
+          fromDate: date.toISOString()
+        }));
+      } catch (error) {
+        console.error('Error setting from date:', error);
+        Alert.alert('Error', 'Invalid date selected');
+      }
     }
   };
 
   const onToDateChange = (event, selectedDate) => {
     setShowToDatePicker(Platform.OS === 'ios');
     if (selectedDate) {
-      setFormData(prev => ({
-        ...prev,
-        toDate: selectedDate.toISOString()
-      }));
+      try {
+        const date = new Date(selectedDate);
+        if (isNaN(date.getTime())) {
+          throw new Error('Invalid date');
+        }
+        const time = new Date(`2000-01-01T${formData.toTime}`);
+        date.setHours(time.getHours(), time.getMinutes());
+        setFormData(prev => ({
+          ...prev,
+          toDate: date.toISOString()
+        }));
+      } catch (error) {
+        console.error('Error setting to date:', error);
+        Alert.alert('Error', 'Invalid date selected');
+      }
     }
   };
+
+  const onFromTimeChange = (event, selectedTime) => {
+    setShowFromTimePicker(Platform.OS === 'ios');
+    if (selectedTime) {
+      try {
+        const time = selectedTime.toTimeString().slice(0, 5);
+        setFormData(prev => ({
+          ...prev,
+          fromTime: time
+        }));
+      } catch (error) {
+        console.error('Error setting from time:', error);
+        Alert.alert('Error', 'Invalid time selected');
+      }
+    }
+  };
+
+  const onToTimeChange = (event, selectedTime) => {
+    setShowToTimePicker(Platform.OS === 'ios');
+    if (selectedTime) {
+      try {
+        const time = selectedTime.toTimeString().slice(0, 5);
+        setFormData(prev => ({
+          ...prev,
+          toTime: time
+        }));
+      } catch (error) {
+        console.error('Error setting to time:', error);
+        Alert.alert('Error', 'Invalid time selected');
+      }
+    }
+  };
+
+  // Update the day schedule section in the render to include description editing
+  const renderDaySchedule = (daySchedule, index) => (
+    <View key={index} style={styles.dayCard}>
+      <View style={styles.dayHeader}>
+        <Text style={styles.dayTitle}>{`Day ${daySchedule.day}`}</Text>
+        {daySchedules.length > 1 && (
+          <TouchableOpacity
+            style={styles.removeDayButton}
+            onPress={() => removeDaySchedule(index)}
+          >
+            <Ionicons name="close-circle" size={24} color="#e53935" />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      <View style={styles.formGroup}>
+        <Text style={styles.label}>Description</Text>
+        <TextInput
+          style={[styles.input, { height: 100, textAlignVertical: 'top' }]}
+          value={daySchedule.description}
+          onChangeText={(text) => {
+            const updatedSchedules = [...daySchedules];
+            updatedSchedules[index] = {
+              ...updatedSchedules[index],
+              description: text
+            };
+            setDaySchedules(updatedSchedules);
+          }}
+          placeholder="Enter day description"
+          multiline
+          numberOfLines={4}
+        />
+      </View>
+
+      <TouchableOpacity
+        onPress={() => openMapForLocation('day', index)}
+        style={styles.mapButton}
+      >
+        <Ionicons name="location-sharp" size={24} color="white" />
+        <Text style={styles.mapButtonText}>
+          {daySchedule.location || 'Select Location'}
+        </Text>
+      </TouchableOpacity>
+
+      {daySchedule.latitude && daySchedule.longitude && (
+        <View style={styles.mapContainer}>
+          <MapView
+            style={styles.map}
+            initialRegion={{
+              latitude: parseFloat(daySchedule.latitude),
+              longitude: parseFloat(daySchedule.longitude),
+              latitudeDelta: 0.0922,
+              longitudeDelta: 0.0421,
+            }}
+          >
+            <Marker
+              coordinate={{
+                latitude: parseFloat(daySchedule.latitude),
+                longitude: parseFloat(daySchedule.longitude),
+              }}
+            />
+          </MapView>
+        </View>
+      )}
+
+      <View style={styles.timeContainer}>
+        <TouchableOpacity 
+          style={styles.timeButton}
+          onPress={() => openTimePicker(index, 'start')}
+        >
+          <Text style={styles.timeText}>
+            Start: {daySchedule.startTime || "09:00"}
+          </Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={styles.timeButton}
+          onPress={() => openTimePicker(index, 'end')}
+        >
+          <Text style={styles.timeText}>
+            End: {daySchedule.endTime || "17:00"}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Display plan description locations */}
+      {daySchedule.planDescription && daySchedule.planDescription.length > 0 && (
+        <View style={styles.locationList}>
+          {daySchedule.planDescription.map((location, locIndex) => (
+            <View key={locIndex} style={styles.locationItem}>
+              <Text style={styles.locationName}>{location.name}</Text>
+              <Text style={styles.locationAddress}>{location.address}</Text>
+              <Text style={styles.locationDistance}>{location.distanceInKilometer}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+    </View>
+  );
 
   return (
     <KeyboardAvoidingView 
@@ -565,7 +895,7 @@ const EditSchedule = ({ route, navigation }) => {
               />
             </View>
 
-            <View style={[styles.formGroup, { flex: 1 }]}>
+            {/* <View style={[styles.formGroup, { flex: 1 }]}>
               <Text style={styles.label}>Max Riders</Text>
               <TextInput
                 style={styles.input}
@@ -574,7 +904,7 @@ const EditSchedule = ({ route, navigation }) => {
                 placeholder="Enter max riders"
                 keyboardType="numeric"
               />
-            </View>
+            </View> */}
           </View>
 
           <View style={styles.row}>
@@ -594,7 +924,7 @@ const EditSchedule = ({ route, navigation }) => {
               </View>
             </View>
 
-            <View style={[styles.formGroup, { flex: 1 }]}>
+            {/* <View style={[styles.formGroup, { flex: 1 }]}>
               <Text style={styles.label}>Budget</Text>
               <TextInput
                 style={styles.input}
@@ -603,7 +933,7 @@ const EditSchedule = ({ route, navigation }) => {
                 placeholder="Enter budget"
                 keyboardType="numeric"
               />
-            </View>
+            </View> */}
           </View>
 
           <View style={styles.row}>
@@ -630,39 +960,74 @@ const EditSchedule = ({ route, navigation }) => {
             <Text style={styles.label}>From Place</Text>
             <TouchableOpacity 
               style={styles.input}
-              onPress={() => navigation.navigate('LocationPicker', {
-                onLocationSelect: (place, lat, lng) => handleLocationSelect('from', place, lat, lng),
-                initialLocation: formData.fromPlace
-              })}
+              onPress={() => openMapForLocation('from')}
             >
               <Text style={styles.locationText}>{formData.fromPlace || 'Select starting location'}</Text>
             </TouchableOpacity>
+            {formData.fromLatitude && formData.fromLongitude && (
+              <View style={styles.mapContainer}>
+                <MapView
+                  style={styles.map}
+                  initialRegion={{
+                    latitude: parseFloat(formData.fromLatitude),
+                    longitude: parseFloat(formData.fromLongitude),
+                    latitudeDelta: 0.0922,
+                    longitudeDelta: 0.0421,
+                  }}
+                >
+                  <Marker
+                    coordinate={{
+                      latitude: parseFloat(formData.fromLatitude),
+                      longitude: parseFloat(formData.fromLongitude),
+                    }}
+                  />
+                </MapView>
+              </View>
+            )}
           </View>
 
           <View style={styles.formGroup}>
             <Text style={styles.label}>To Place</Text>
             <TouchableOpacity 
               style={styles.input}
-              onPress={() => navigation.navigate('LocationPicker', {
-                onLocationSelect: (place, lat, lng) => handleLocationSelect('to', place, lat, lng),
-                initialLocation: formData.toPlace
-              })}
+              onPress={() => openMapForLocation('to')}
             >
               <Text style={styles.locationText}>{formData.toPlace || 'Select destination'}</Text>
             </TouchableOpacity>
+            {formData.toLatitude && formData.toLongitude && (
+              <View style={styles.mapContainer}>
+                <MapView
+                  style={styles.map}
+                  initialRegion={{
+                    latitude: parseFloat(formData.toLatitude),
+                    longitude: parseFloat(formData.toLongitude),
+                    latitudeDelta: 0.0922,
+                    longitudeDelta: 0.0421,
+                  }}
+                >
+                  <Marker
+                    coordinate={{
+                      latitude: parseFloat(formData.toLatitude),
+                      longitude: parseFloat(formData.toLongitude),
+                    }}
+                  />
+                </MapView>
+              </View>
+            )}
           </View>
         </View>
 
         <View style={styles.sectionContainer}>
           <Text style={styles.sectionTitle}>DATES</Text>
           <View style={styles.row}>
-            <View style={styles.formGroup}>
+            <View style={[styles.formGroup, { flex: 1, marginRight: 10 }]}>
+              <Text style={styles.label}>Start Date & Time</Text>
               <TouchableOpacity 
                 style={styles.datePickerButton}
                 onPress={() => setShowFromDatePicker(true)}
               >
                 <Text style={[styles.dateText, !formData.fromDate && styles.datePlaceholder]}>
-                  {formData.fromDate ? formatDate(formData.fromDate) : 'Start date'}
+                  {formData.fromDate ? formatDate(formData.fromDate) : 'Select date'}
                 </Text>
                 <Ionicons name="calendar" size={20} color={colors.primary} />
               </TouchableOpacity>
@@ -675,15 +1040,33 @@ const EditSchedule = ({ route, navigation }) => {
                   minimumDate={new Date()}
                 />
               )}
+              <TouchableOpacity 
+                style={styles.timePickerButton}
+                onPress={() => setShowFromTimePicker(true)}
+              >
+                <Text style={styles.timeText}>
+                  {formData.fromTime || 'Select time'}
+                </Text>
+                <Ionicons name="time" size={20} color={colors.primary} />
+              </TouchableOpacity>
+              {showFromTimePicker && (
+                <DateTimePicker
+                  value={new Date(`2000-01-01T${formData.fromTime}`)}
+                  mode="time"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  onChange={onFromTimeChange}
+                />
+              )}
             </View>
 
-            <View style={styles.formGroup}>
+            <View style={[styles.formGroup, { flex: 1 }]}>
+              <Text style={styles.label}>End Date & Time</Text>
               <TouchableOpacity 
                 style={styles.datePickerButton}
                 onPress={() => setShowToDatePicker(true)}
               >
                 <Text style={[styles.dateText, !formData.toDate && styles.datePlaceholder]}>
-                  {formData.toDate ? formatDate(formData.toDate) : 'End date'}
+                  {formData.toDate ? formatDate(formData.toDate) : 'Select date'}
                 </Text>
                 <Ionicons name="calendar" size={20} color={colors.primary} />
               </TouchableOpacity>
@@ -696,89 +1079,30 @@ const EditSchedule = ({ route, navigation }) => {
                   minimumDate={formData.fromDate ? new Date(formData.fromDate) : new Date()}
                 />
               )}
+              <TouchableOpacity 
+                style={styles.timePickerButton}
+                onPress={() => setShowToTimePicker(true)}
+              >
+                <Text style={styles.timeText}>
+                  {formData.toTime || 'Select time'}
+                </Text>
+                <Ionicons name="time" size={20} color={colors.primary} />
+              </TouchableOpacity>
+              {showToTimePicker && (
+                <DateTimePicker
+                  value={new Date(`2000-01-01T${formData.toTime}`)}
+                  mode="time"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  onChange={onToTimeChange}
+                />
+              )}
             </View>
           </View>
         </View>
 
         <View style={styles.sectionContainer}>
           <Text style={styles.sectionTitle}>PLAN DESCRIPTION</Text>
-          {daySchedules.map((daySchedule, index) => (
-            <View key={index} style={styles.dayCard}>
-              <View style={styles.dayHeader}>
-                <Text style={styles.dayTitle}>{`Day ${daySchedule.day}`}</Text>
-                {daySchedules.length > 1 && (
-                  <TouchableOpacity
-                    style={styles.removeDayButton}
-                    onPress={() => removeDaySchedule(index)}
-                  >
-                    <Ionicons name="close-circle" size={24} color="#e53935" />
-                  </TouchableOpacity>
-                )}
-              </View>
-
-              <TouchableOpacity
-                onPress={() => openMapForDay(daySchedule.day)}
-                style={styles.mapButton}
-              >
-                <Ionicons name="location-sharp" size={24} color="white" />
-                <Text style={styles.mapButtonText}>Select Location</Text>
-              </TouchableOpacity>
-
-              {daySchedule.latitude && daySchedule.longitude && (
-                <View style={styles.mapContainer}>
-                  <MapView
-                    style={styles.map}
-                    initialRegion={{
-                      latitude: parseFloat(daySchedule.latitude),
-                      longitude: parseFloat(daySchedule.longitude),
-                      latitudeDelta: 0.0922,
-                      longitudeDelta: 0.0421,
-                    }}
-                  >
-                    <Marker
-                      coordinate={{
-                        latitude: parseFloat(daySchedule.latitude),
-                        longitude: parseFloat(daySchedule.longitude),
-                      }}
-                    />
-                  </MapView>
-                </View>
-              )}
-
-              <View style={styles.timeContainer}>
-                <TouchableOpacity 
-                  style={styles.timeButton}
-                  onPress={() => openTimePicker(index, 'start')}
-                >
-                  <Text style={styles.timeText}>
-                    Start: {daySchedule.startTime || "09:00"}
-                  </Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity 
-                  style={styles.timeButton}
-                  onPress={() => openTimePicker(index, 'end')}
-                >
-                  <Text style={styles.timeText}>
-                    End: {daySchedule.endTime || "17:00"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Display plan description locations */}
-              {daySchedule.planDescription && daySchedule.planDescription.length > 0 && (
-                <View style={styles.locationList}>
-                  {daySchedule.planDescription.map((location, locIndex) => (
-                    <View key={locIndex} style={styles.locationItem}>
-                      <Text style={styles.locationName}>{location.name}</Text>
-                      <Text style={styles.locationAddress}>{location.address}</Text>
-                      <Text style={styles.locationDistance}>{location.distanceInKilometer}</Text>
-                    </View>
-                  ))}
-                </View>
-              )}
-            </View>
-          ))}
+          {daySchedules.map((daySchedule, index) => renderDaySchedule(daySchedule, index))}
 
           <TouchableOpacity style={styles.addDayButton} onPress={addDaySchedule}>
             <Ionicons name="add-circle" size={24} color="#A60F93" />

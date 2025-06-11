@@ -27,9 +27,7 @@ const MessageList = ({ navigation }) => {
         throw new Error('No authentication token found');
       }
 
-      console.log('Fetching users from:', `${API_URL}/api/messages`);
-      
-      const response = await axios.get(`${API_URL}/api/messages`, {
+      const response = await axios.get(`${API_URL}/user/list-chat-members`, {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -37,20 +35,44 @@ const MessageList = ({ navigation }) => {
         }
       });
       
-      console.log('Response received:', response.data);
-      // Transform the response data to match our UI needs
-      const transformedUsers = response.data.map(user => ({
-        _id: user._id,
-        name: user.fullName,
-        userName: user.userName,
-        email: user.email,
-        profileImage: user.profileImage || null,
-        lastMessage: 'No messages yet',
-        unreadCount: Math.floor(Math.random() * 5), // Random for demo
-        lastMessageTime: '2m ago', // Demo data
-        isOnline: Math.random() > 0.5 // Demo data
-      }));
+      console.log('Response received message list:', response.data);
       
+      // Check if response is valid and has the expected structure
+      if (!response || !response.data) {
+        throw new Error('Invalid response from server');
+      }
+
+      // Check if the response indicates success
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'Failed to fetch chat members');
+      }
+
+      // Check if data array exists
+      if (!response.data.data || !Array.isArray(response.data.data)) {
+        console.log('No data array found or data is not an array:', response.data);
+        setUsers([]); // Set empty array if no data
+        return;
+      }
+
+      // Transform the response data to match our UI needs
+      const transformedUsers = response.data.data.map(user => {
+        // Extract name from userName (remove _ZY_ and numbers)
+        const name = user.userName ? user.userName.split('_ZY_')[0] : 'Unknown User';
+        
+        return {
+          _id: user.userId || '',
+          name: name,
+          userName: user.userName || '',
+          email: '', // Not provided in response
+          profileImage: user.profilePicture || null,
+          lastMessage: 'No messages yet',
+          unreadCount: Math.floor(Math.random() * 5), // Random for demo
+          lastMessageTime: user.lastMessageTime ? new Date(user.lastMessageTime).toLocaleTimeString() : 'No time',
+          isOnline: Math.random() > 0.5 // Demo data
+        };
+      });
+      
+      console.log('Transformed users:', transformedUsers);
       setUsers(transformedUsers);
     } catch (error) {
       console.error('Error details:', {

@@ -14,7 +14,7 @@ import styles from './styles';
 import { colors } from '../../utils';
 
 const categories = [
-  'Food & Dining',
+  'Food',
   'Transportation',
   'Accommodation',
   'Entertainment',

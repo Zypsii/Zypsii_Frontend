@@ -5,36 +5,37 @@ const { width } = Dimensions.get('window');
 
 const styles = StyleSheet.create({
   cardContainer: {
-    width: width * 0.4,
+    width: '100%',
     backgroundColor: colors.white,
-    borderRadius: 10,
+    borderRadius: scale(12),
+    marginBottom: scale(8),
+    marginTop: scale(8),
     shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-    margin: 5,
-    overflow: 'visible',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-    marginBottom: 8,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
   },
   topCardContainer: {
     width: '100%',
-    position: 'relative',
+    height: scale(180),
+    borderTopLeftRadius: scale(8),
+    borderTopRightRadius: scale(8),
+    overflow: 'hidden',
   },
   imgResponsive: {
     width: '100%',
-    height: 200,
-    resizeMode: 'cover'
+    height: '100%',
   },
   botCardContainer: {
-    padding: 10,
-    backgroundColor: colors.white,
-    paddingBottom: 5,
+    padding: scale(6),
   },
   botSubCardContainer: {
-    width: '100%',
+    flexDirection: 'column',
+    gap: scale(2),
   },
   priceContainer: {
     flexDirection: 'row',
@@ -45,20 +46,19 @@ const styles = StyleSheet.create({
   distanceContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: scale(3),
   },
   distanceText: {
-    fontSize: 12,
-    color: colors.fontThirdColor,
-    marginLeft: 4,
+    fontSize: scale(11),
+    fontWeight: '500',
   },
   ratingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: scale(3),
   },
   ratingText: {
-    fontSize: 12,
-    color: colors.fontMainColor,
-    marginLeft: 4,
+    fontSize: scale(11),
     fontWeight: '500',
   },
   aboutRestaurant: {
@@ -92,6 +92,16 @@ const styles = StyleSheet.create({
     fontSize: scale(12),
     color: colors.grayColor,
     marginTop: scale(4),
+  },
+  infoOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: scale(4),
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
 });
 

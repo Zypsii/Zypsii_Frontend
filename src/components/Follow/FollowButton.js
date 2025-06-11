@@ -74,7 +74,7 @@ const FollowButton = ({ userId }) => {
             following && styles.followingText,
             error && styles.errorText
           ]}>
-            {following ? 'Unfollow' : 'Follow'}
+            {following ? 'Following' : 'Follow'}
           </Text>
         </>
       )}

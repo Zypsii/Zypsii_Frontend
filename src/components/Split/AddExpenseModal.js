@@ -31,7 +31,7 @@ const AddExpenseModal = ({ visible, onClose, onAddExpense, participants, splitId
   console.log('Selected participants:', selectedParticipants);
 
   const categories = [
-    'Food & Dining',
+    'Food',
     'Transportation',
     'Accommodation',
     'Entertainment',
@@ -186,8 +186,9 @@ const AddExpenseModal = ({ visible, onClose, onAddExpense, participants, splitId
         expenseTotalAmount: parseFloat(totalAmount),
         membersInExpense: selectedParticipantIds
       };
-
+      console.log(splitId,expenseData);
       await onAddExpense(expenseData);
+      
       handleClose();
     } catch (error) {
       console.error('Error submitting expense:', error);

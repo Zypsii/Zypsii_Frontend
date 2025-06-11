@@ -137,6 +137,7 @@ const styles = StyleSheet.create({
     borderWidth: scale(3),
     ...alignment.MTsmall,
     ...alignment.MRlarge,
+    
   },
   iconContainer: {
     width: scale(60),  // Adjust width as needed
@@ -161,24 +162,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: scale(10), // Adjust for proper spacing
   },
   titleSpacer: {
-    marginLeft: '4%',
+    marginLeft: '2%',
     marginTop: scale(15)
   },
   titleSpacernearest: {
-    marginLeft: '4%',
+    marginLeft: '1%',
     marginTop: scale(5),
     marginBottom: '1%',
   },
   titleSpaceredge: {
-    marginLeft: '1%',
+    marginLeft: '2%',
     marginTop: scale(5)
   },
   titleSpacerdesti: {
-    
+    marginLeft: '1%',
     marginTop: scale(5)
   },
   productCard: {
-    marginLeft: '5%',
+    marginLeft: '1%',
     width: '43%',
     height: scale(180),
     marginTop: scale(10),

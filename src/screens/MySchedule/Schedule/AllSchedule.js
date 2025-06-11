@@ -158,7 +158,7 @@ const AllSchedule = ({item, isFromProfile}) => {
     <View style={styles.container}>
       <TouchableOpacity
         key={item.id}
-        style={[styles.card, { padding: 10 }]}
+        style={[styles.card, { padding: 12 }]}
         onPress={() => handleCardPress(item)}
       >
         {isFromProfile &&  (
@@ -169,32 +169,32 @@ const AllSchedule = ({item, isFromProfile}) => {
             <Icon name="ellipsis-vertical" size={20} color="#333" />
           </TouchableOpacity>
         )}
-        <Image source={{ uri: item.imageUrl }} style={[styles.image, { height: 120 }]} />
-        <View style={[styles.cardContent, { padding: 8 }]}>
-          <Text style={[styles.title, { fontSize: 16, marginBottom: 4 }]}>{item.title}</Text>
+        <Image source={{ uri: item.imageUrl }} style={[styles.image, { height: 150 }]} />
+        <View style={[styles.cardContent, { padding: 10 }]}>
+          <Text style={[styles.title, { fontSize: 16, marginBottom: 6 }]}>{item.title}</Text>
           <View style={styles.routeRow}>
             <View style={styles.routeItem}>
               <Text style={[styles.routeLabel, { fontSize: 12 }]}>From</Text>
               <View style={styles.locationRow}>
-                <Icon name="location-outline" size={14} color="#333" />
+                <Icon name="location-outline" size={15} color="#333" />
                 <Text style={[styles.routeText, { fontSize: 13 }]}>
                   {fromPlace.length > 20 ? fromPlace.slice(0, 20) + '...' : fromPlace}
                 </Text>
               </View>
             </View>
-            <View style={[styles.routeItem, { marginTop: 4 }]}>
+            <View style={[styles.routeItem, { marginTop: 6 }]}>
               <Text style={[styles.routeLabel, { fontSize: 12 }]}>To</Text>
               <View style={styles.locationRow}>
-                <Icon name="location-outline" size={14} color="#333" />
+                <Icon name="location-outline" size={15} color="#333" />
                 <Text style={[styles.routeText, { fontSize: 13 }]}>
                   {toPlace.length > 20 ? toPlace.slice(0, 20) + '...' : toPlace}
                 </Text>
               </View>
             </View>
           </View>
-          <View style={{ marginTop: 4, flexDirection: 'row', alignItems: 'center' }}>
-            <Text style={[styles.date, { marginRight: 10, fontSize: 11 }]}>📅 {item.date}</Text>
-            <Text style={[styles.riders, { fontSize: 11 }]}>🏍️ ({item.riders})</Text>
+          <View style={{ marginTop: 6, flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={[styles.date, { marginRight: 10, fontSize: 12 }]}>📅 {item.date}</Text>
+            <Text style={[styles.riders, { fontSize: 12 }]}>🏍️ ({item.riders})</Text>
           </View>
         </View>
         {!isScheduleCreator && (

@@ -13,10 +13,14 @@ function ProfileContainer({profileInfo}) {
 
   const handleShare = async () => {
     try {
+      const userName = user?.fullName || profileInfo?.name;
+      const userId = profileInfo?.id;
+      const deepLink = `https://zypsii.app/profile/${userId}`;
+      
       const shareOptions = {
-        message: `Check out ${user?.fullName || profileInfo?.name}'s profile on Zypsii!`,
-        url: `Zypsii://profile/${profileInfo?.id}`,
-        title: `Share ${user?.fullName || profileInfo?.name}'s Profile`
+        message: `${userName}'s profile on Zypsii!`,
+        url: deepLink,
+        title: `Share ${userName}'s Profile`
       };
 
       const result = await Share.share(shareOptions);
@@ -100,7 +104,7 @@ function ProfileContainer({profileInfo}) {
             // { label: 'Expense Calculator', icon: 'calculate', route: 'ExpenseCalculator' },
             { label: 'Delete', icon: 'delete', route: 'DeleteButton' },
             { label: 'Logout', icon: 'logout', route: 'Logout' },
-            { label: 'Favourites', icon: 'star-outline', route: 'Favourite' },
+            // { label: 'Favourites', icon: 'star-outline', route: 'Favourite' },
             { label: 'FAQ', icon: 'help-outline', route: 'FAQ' },
             { label: 'My Schedule', icon: 'list', route: 'MySchedule' },
             // { label: 'Help Center', icon: 'help', route: 'HelpCenter' },

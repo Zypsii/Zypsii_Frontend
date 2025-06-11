@@ -65,6 +65,20 @@ export const fetchSplitBalance = createAsyncThunk(
   }
 );
 
+// Fetch Expenses
+export const fetchExpenses = createAsyncThunk(
+  'split/fetchExpenses',
+  async (splitId) => {
+    const token = await AsyncStorage.getItem('accessToken');
+    const response = await axios.get(`${base_url}/split/list-expense?splitId=${splitId}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    return response.data;
+  }
+);
+
 // Create Split
 export const createSplit = createAsyncThunk(
   'split/createSplit',
@@ -116,16 +130,10 @@ export const addExpense = createAsyncThunk(
   async ({ splitId, expenseData }) => {
     const token = await AsyncStorage.getItem('accessToken');
     
-
+    console.log(expenseData ,'expenseData');
     const response = await axios.post(
       `${base_url}/split/add-expense`,
-      {
-        splitId,
-        category: expenseData.category.trim(),
-        description: expenseData.description.trim(),
-        expenseTotalAmount: parseFloat(expenseData.expenseTotalAmount),
-        membersInExpense: expenseData.membersInExpense
-      },
+      expenseData,
       {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -133,6 +141,7 @@ export const addExpense = createAsyncThunk(
         }
       }
     );
+    console.log(response ,'response.data');
     return response.data;
   }
 );
@@ -389,6 +398,21 @@ const splitSlice = createSlice({
         state.balanceError = action.error.message;
       })
       
+      // Fetch Expenses
+      .addCase(fetchExpenses.pending, (state) => {
+        state.expensesLoading = true;
+        state.expensesError = null;
+      })
+      .addCase(fetchExpenses.fulfilled, (state, action) => {
+        state.expensesLoading = false;
+        state.expenses = action.payload.data;
+        state.expensesPagination = action.payload.pagination;
+      })
+      .addCase(fetchExpenses.rejected, (state, action) => {
+        state.expensesLoading = false;
+        state.expensesError = action.error.message;
+      })
+      
       // Search Users
       .addCase(searchUsers.pending, (state) => {
         state.searching = true;
@@ -430,6 +454,10 @@ const splitSlice = createSlice({
       // Add Expense
       .addCase(addExpense.fulfilled, (state, action) => {
         state.currentSplit = action.payload;
+        // Fetch updated expenses after adding
+        if (action.payload.splitId) {
+          fetchExpenses(action.payload.splitId);
+        }
       })
       
       // Update Expense

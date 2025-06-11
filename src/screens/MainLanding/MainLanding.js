@@ -1086,39 +1086,6 @@ function MainLanding(props) {
     );
   };
 
-  const renderDiscoverByInterest = () => (
-    <View style={styles.titleSpaceredge}>
-      <RecommendCard title="Itineraries Suggested by Interest" />
-      {isDiscoverByInterestLoading ? (
-        <HorizontalListLoader count={8} />
-      ) : (
-        <FlatList
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          keyExtractor={(item, index) => index.toString()}
-          data={discover_by_intrest}
-          renderItem={({ item }) => (
-            <CategoryCard
-              id={item.id}
-              icon={item.image}
-              cardLabel={item.name}
-              style={styles.categoryWrapper}
-            />
-          )}
-          onEndReached={loadMoreDiscoverByInterest}
-          onEndReachedThreshold={0.2}
-          ListFooterComponent={() => (
-            isDiscoverByInterestLoading ? (
-              <View style={{ padding: 10 }}>
-                <ActivityIndicator size="small" color={colors.btncolor} />
-              </View>
-            ) : null
-          )}
-          ref={(ref) => (this.interestListRef = ref)}
-        />
-      )}
-    </View>
-  );
 
   const renderDiscoverByNearest = () => (
     <View style={styles.titleSpaceredge}>
@@ -1238,10 +1205,16 @@ function MainLanding(props) {
   );
 
   const renderAllDestination = () => (
-    <View style={styles.titleSpacer}>
-      <TextDefault textColor={colors.fontMainColor} H4 bold>
+    <View style={styles.titleSpacerdesti}>
+      <TextDefault textColor={colors.fontMainColor} H5 bold style={styles.titleSpacer}>
         {'All Destination'}
       </TextDefault>
+      <View style={styles.seeAllTextContainer}>
+        <TouchableOpacity onPress={() => navigation.navigate('WhereToGo')}>
+          <TextDefault textColor={colors.greenColor} H5 style={styles.seeAllText}>View All</TextDefault>
+        </TouchableOpacity>
+      </View>
+
       {isAllDestinationLoading && all_destination.length === 0 ? (
         renderInitialLoading()
       ) : (
