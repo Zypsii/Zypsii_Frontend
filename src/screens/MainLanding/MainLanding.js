@@ -146,6 +146,56 @@ function MainLanding(props) {
     hasMore: false
   });
 
+  // Add a centralized function to fetch places data
+  const fetchPlacesData = async (type, keyword = null, nextPageToken = null) => {
+    try {
+      const accessToken = await AsyncStorage.getItem('accessToken');
+      if (!accessToken) return { data: [], nextPageToken: null };
+
+      let url = `${base_url}/schedule/places/getNearest?type=${type}`;
+      if (keyword) {
+        url += `&keyword=${keyword}`;
+      }
+      if (nextPageToken) {
+        url += `&nextPageToken=${nextPageToken}`;
+      }
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+      
+      if (Array.isArray(data?.data)) {
+        const formattedData = data.data.map(item => ({
+          id: item._id || item.name,
+          image: item.image,
+          name: item.name,
+          address: item.address,
+          rating: parseFloat(item.rating) || 0,
+          distanceInKilometer: item.distanceInKilometer,
+          location: item.location
+        }));
+        
+        return {
+          data: formattedData,
+          nextPageToken: data.nextPageToken || null,
+          hasMore: !!data.nextPageToken
+        };
+      }
+      
+      return { data: [], nextPageToken: null, hasMore: false };
+    } catch (error) {
+      console.error(`Error fetching places data for type ${type}:`, error);
+      return { data: [], nextPageToken: null, hasMore: false };
+    }
+  };
+
   // Add function to update live location
   const updateLiveLocation = async () => {
     try {
@@ -252,112 +302,69 @@ function MainLanding(props) {
     }, [])
   );
 
-  // Add load more functions for all destination and best destination
-  const loadMoreAllDestination = async () => {
-    if (!allDestinationPagination.hasMore || isAllDestinationLoading) return;
-
+  const fetchShorts = async () => {
     try {
-      setIsAllDestinationLoading(true);
-      setLoadingNewItems(true);
+      setIsShortsLoading(true);
       const accessToken = await AsyncStorage.getItem('accessToken');
-      const url = `${base_url}/schedule/places/getNearest?nextPageToken=${allDestinationPagination.nextPageToken}`;
       
-      const response = await fetch(url, {
+      // Fetch shorts
+      const shortsResponse = await fetch(`${base_url}/shorts/listing`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${accessToken}`
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         }
       });
 
-      const data = await response.json();
+      if (!shortsResponse.ok) {
+        throw new Error(`API request failed with status ${shortsResponse.status}`);
+      }
+
+      const shortsData = await shortsResponse.json();
       
-      if (Array.isArray(data?.data)) {
-        const newData = data.data.map(item => ({
-          id: item._id || item.name,
-          image: item.image,
-          name: item.name,
-          rating: parseFloat(item.rating) || 0,
-          distanceInKilometer: item.distanceInKilometer
+      if (shortsData.status && Array.isArray(shortsData.data)) {
+        const shortsList = shortsData.data.map(short => ({
+          id: short._id,
+          type: 'short',
+          title: short.title,
+          description: short.description,
+          videoUrl: short.videoUrl,
+          thumbnailUrl: short.thumbnailUrl,
+          createdBy: short.createdBy,
+          viewsCount: short.viewsCount || 0,
+          likesCount: short.likesCount || 0,
+          commentsCount: short.commentsCount || 0,
+          createdAt: short.createdAt,
+          updatedAt: short.updatedAt
         }));
         
-        // Add new data at the beginning of the list
-        setAll_destination(prev => [...newData, ...prev]);
-        
-        // Update pagination state
-        setAllDestinationPagination({
-          nextPageToken: data.nextPageToken || null,
-          hasMore: !!data.nextPageToken
-        });
-
-        // Scroll to the beginning of the list to show new data
-        if (this.allDestinationListRef) {
-          this.allDestinationListRef.scrollToOffset({ offset: 0, animated: true });
-        }
+        // Filter only mp4 videos
+        const mp4ShortsList = shortsList.filter(
+          item => typeof item.videoUrl === 'string' && item.videoUrl.toLowerCase().endsWith('.mp4')
+        );
+        setAllShorts(mp4ShortsList);
+        setShortsPagination(shortsData.pagination || {});
+      } else {
+        setAllShorts([]);
       }
     } catch (error) {
-      console.error('Error loading more all destinations:', error);
+      console.error('Error fetching shorts:', error);
+      setAllShorts([]);
     } finally {
-      // Add a small delay before hiding the loader to ensure smooth transition
-      setTimeout(() => {
-        setIsAllDestinationLoading(false);
-        setLoadingNewItems(false);
-      }, 500);
+      setIsShortsLoading(false);
     }
   };
 
-  const loadMoreBestDestination = async () => {
-    if (!bestDestinationPagination.hasMore || isBestDestinationLoading) return;
+  useEffect(() => {
+    fetchShorts();
+  }, []); // Empty dependency array means it runs once on mount
 
-    try {
-      setIsBestDestinationLoading(true);
-      setLoadingNewBestItems(true);
-      const accessToken = await AsyncStorage.getItem('accessToken');
-      const url = `${base_url}/schedule/places/getNearest?bestDestination=true&nextPageToken=${bestDestinationPagination.nextPageToken}`;
-      
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`
-        }
-      });
+  // Add a debug effect to monitor all_shorts state
+  useEffect(() => {
+  }, [all_shorts]);
 
-      const data = await response.json();
-      
-      if (Array.isArray(data?.data)) {
-        const newData = data.data.map(item => ({
-          id: item._id || item.name,
-          image: item.image,
-          name: item.name,
-          rating: parseFloat(item.rating) || 0,
-          distanceInKilometer: item.distanceInKilometer
-        }));
-        
-        // Add new data at the beginning of the list
-        setBest_destination(prev => [...newData, ...prev]);
-        
-        // Update pagination state
-        setBestDestinationPagination({
-          nextPageToken: data.nextPageToken || null,
-          hasMore: !!data.nextPageToken
-        });
-
-        // Scroll to the beginning of the list to show new data
-        if (this.bestDestinationListRef) {
-          this.bestDestinationListRef.scrollToOffset({ offset: 0, animated: true });
-        }
-      }
-    } catch (error) {
-      console.error('Error loading more best destinations:', error);
-    } finally {
-      // Add a small delay before hiding the loader to ensure smooth transition
-      setTimeout(() => {
-        setIsBestDestinationLoading(false);
-        setLoadingNewBestItems(false);
-      }, 500);
-    }
-  };
-
-  // Modify the fetchAllData function to handle pagination
+  // Modify the fetchAllData function to use the centralized function
   const fetchAllData = async () => {
     try {
       // Set all loading states to true
@@ -377,40 +384,52 @@ function MainLanding(props) {
 
       // Make API requests and set data immediately when each response comes back
       // Discover by Interest
-      fetch(`${base_url}/schedule/places/getNearest?type=interest`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`
-        }
-      })
-      .then(response => response.json())
-      .then(data => {
-        if (Array.isArray(data?.data)) {
-          setDiscover_by_intrest(data.data.map(item => ({
-            id: item._id || item.name,
-            image: item.image,
-            name: item.name
-          })));
+      fetchPlacesData('interest')
+        .then(result => {
+          setDiscover_by_intrest(result.data);
           setDiscoverByInterestPagination({
-            nextPageToken: data.nextPageToken || null,
-            hasMore: !!data.nextPageToken
+            nextPageToken: result.nextPageToken,
+            hasMore: result.hasMore
           });
-        } else {
+          setIsDiscoverByInterestLoading(false);
+        })
+        .catch(error => {
+          console.error('Error fetching discover by interest:', error);
           setDiscover_by_intrest([]);
-        }
-        setIsDiscoverByInterestLoading(false);
-      })
-      .catch(error => {
-        console.error('Error fetching discover by interest:', error);
-        setDiscover_by_intrest([]);
-        setIsDiscoverByInterestLoading(false);
-      });
+          setIsDiscoverByInterestLoading(false);
+        });
 
-      // Best Destination
-      await handleMountainsTagClick();
+      // Best Destination (Mountains)
+      fetchPlacesData('mountains', 'Mountains')
+        .then(result => {
+          setMountainPlaces(result.data);
+          setMountainsPagination({
+            nextPageToken: result.nextPageToken,
+            hasMore: result.hasMore
+          });
+          setIsMountainsLoading(false);
+        })
+        .catch(error => {
+          console.error('Error fetching mountains:', error);
+          setMountainPlaces([]);
+          setIsMountainsLoading(false);
+        });
 
-      // All Destination
-      await handleViewPointsTagClick();
+      // All Destination (View Points)
+      fetchPlacesData('view points', 'View Points')
+        .then(result => {
+          setViewPointsPlaces(result.data);
+          setViewPointsPagination({
+            nextPageToken: result.nextPageToken,
+            hasMore: result.hasMore
+          });
+          setIsViewPointsLoading(false);
+        })
+        .catch(error => {
+          console.error('Error fetching view points:', error);
+          setViewPointsPlaces([]);
+          setIsViewPointsLoading(false);
+        });
 
       // All Schedule
       fetch(`${base_url}/schedule/listing/filter?filter=Public`, {
@@ -686,21 +705,14 @@ function MainLanding(props) {
       });
 
       // Discover by Nearest
-      fetch(`${base_url}/schedule/places/getNearest?type=nearest`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`
-        }
-      })
-      .then(response => response.json())
-      .then(data => {
-        if (Array.isArray(data?.data)) {
-          const formattedData = data.data.slice(0, 100).map(item => ({
-            id: item._id || item.image,
+      fetchPlacesData('nearest')
+        .then(result => {
+          const formattedData = result.data.slice(0, 100).map(item => ({
+            id: item.id,
             image: item.image,
             title: item.name,
             subtitle: item.address || 'No address',
-            rating: parseFloat(item.rating) || 0,
+            rating: item.rating,
             distance: item.distanceInKilometer ? parseFloat(item.distanceInKilometer).toFixed(1) : null,
             location: {
               latitude: item.location?.lat || 0,
@@ -709,34 +721,31 @@ function MainLanding(props) {
           }));
           setDiscoverbyNearest(formattedData);
           setDiscoverByNearestPagination({
-            nextPageToken: data.nextPageToken || null,
-            hasMore: !!data.nextPageToken
+            nextPageToken: result.nextPageToken,
+            hasMore: result.hasMore
           });
-        } else {
+          setIsNearestLoading(false);
+        })
+        .catch(error => {
+          console.error('Error fetching discover by nearest:', error);
           setDiscoverbyNearest([]);
-        }
-        setIsNearestLoading(false);
-      })
-      .catch(error => {
-        console.error('Error fetching discover by nearest:', error);
-        setDiscoverbyNearest([]);
-        setIsNearestLoading(false);
-      });
+          setIsNearestLoading(false);
+        });
 
     } catch (error) {
       console.error('Error in fetchAllData:', error);
       // Set empty arrays on error
       setDiscover_by_intrest([]);
-      setBest_destination([]);
-      setAll_destination([]);
+      setMountainPlaces([]);
+      setViewPointsPlaces([]);
       setAll_schedule([]);
       setAllPosts([]);
       setDiscoverbyNearest([]);
       
       // Set all loading states to false
       setIsDiscoverByInterestLoading(false);
-      setIsBestDestinationLoading(false);
-      setIsAllDestinationLoading(false);
+      setIsMountainsLoading(false);
+      setIsViewPointsLoading(false);
       setIsScheduleLoading(false);
       setIsPostsLoading(false);
       setIsShortsLoading(false);
@@ -751,38 +760,22 @@ function MainLanding(props) {
     }
   };
 
-  // Modify loadMoreDiscoverByInterest function
+  // Modify loadMoreDiscoverByInterest function to use centralized function
   const loadMoreDiscoverByInterest = async () => {
     if (!discoverByInterestPagination.hasMore || isDiscoverByInterestLoading) return;
 
     try {
       setIsDiscoverByInterestLoading(true);
-      const accessToken = await AsyncStorage.getItem('accessToken');
-      const url = `${base_url}/schedule/places/getNearest?type=interest&nextPageToken=${discoverByInterestPagination.nextPageToken}`;
+      const result = await fetchPlacesData('interest', null, discoverByInterestPagination.nextPageToken);
       
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`
-        }
-      });
-
-      const data = await response.json();
-      
-      if (Array.isArray(data?.data)) {
-        const newData = data.data.map(item => ({
-          id: item._id || item.name,
-          image: item.image,
-          name: item.name
-        }));
-        
+      if (result.data.length > 0) {
         // Add new data at the beginning of the list
-        setDiscover_by_intrest(prev => [...newData, ...prev]);
+        setDiscover_by_intrest(prev => [...result.data, ...prev]);
         
         // Update pagination state
         setDiscoverByInterestPagination({
-          nextPageToken: data.nextPageToken || null,
-          hasMore: !!data.nextPageToken
+          nextPageToken: result.nextPageToken,
+          hasMore: result.hasMore
         });
 
         // Scroll to the beginning of the list to show new data
@@ -797,44 +790,35 @@ function MainLanding(props) {
     }
   };
 
-  // Modify loadMoreDiscoverByNearest function
+  // Modify loadMoreDiscoverByNearest function to use centralized function
   const loadMoreDiscoverByNearest = async () => {
     if (!discoverByNearestPagination.hasMore || isNearestLoading) return;
 
     try {
       setIsNearestLoading(true);
-      const accessToken = await AsyncStorage.getItem('accessToken');
-      const url = `${base_url}/schedule/places/getNearest?type=nearest&nextPageToken=${discoverByNearestPagination.nextPageToken}`;
+      const result = await fetchPlacesData('nearest', null, discoverByNearestPagination.nextPageToken);
       
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`
-        }
-      });
-
-      const data = await response.json();
-
-      if (Array.isArray(data?.data)) {
-        const newData = data.data.map(item => ({
-          id: item._id || item.image,
+      if (result.data.length > 0) {
+        const formattedData = result.data.map(item => ({
+          id: item.id,
           image: item.image,
           title: item.name,
           subtitle: item.address || 'No address',
-          rating: parseFloat(item.rating) || 0,
+          rating: item.rating,
           distance: item.distanceInKilometer ? parseFloat(item.distanceInKilometer).toFixed(1) : null,
           location: {
             latitude: item.location?.lat || 0,
             longitude: item.location?.lng || 0
           }
-        }));        
+        }));
+        
         // Add new data at the beginning of the list
-        setDiscoverbyNearest(prev => [...newData, ...prev]);
+        setDiscoverbyNearest(prev => [...formattedData, ...prev]);
         
         // Update pagination state
         setDiscoverByNearestPagination({
-          nextPageToken: data.nextPageToken || null,
-          hasMore: !!data.nextPageToken
+          nextPageToken: result.nextPageToken,
+          hasMore: result.hasMore
         });
 
         // Scroll to the beginning of the list to show new data
@@ -849,67 +833,206 @@ function MainLanding(props) {
     }
   };
 
-  const fetchShorts = async () => {
+  // Modify loadMoreAllDestination function to use centralized function
+  const loadMoreAllDestination = async () => {
+    if (!allDestinationPagination.hasMore || isAllDestinationLoading) return;
+
     try {
-      setIsShortsLoading(true);
-      const accessToken = await AsyncStorage.getItem('accessToken');
+      setIsAllDestinationLoading(true);
+      setLoadingNewItems(true);
+      const result = await fetchPlacesData('nearest', null, allDestinationPagination.nextPageToken);
       
-      // Fetch shorts
-      const shortsResponse = await fetch(`${base_url}/shorts/listing`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        }
-      });
-
-      if (!shortsResponse.ok) {
-        throw new Error(`API request failed with status ${shortsResponse.status}`);
-      }
-
-      const shortsData = await shortsResponse.json();
-      
-      if (shortsData.status && Array.isArray(shortsData.data)) {
-        const shortsList = shortsData.data.map(short => ({
-          id: short._id,
-          type: 'short',
-          title: short.title,
-          description: short.description,
-          videoUrl: short.videoUrl,
-          thumbnailUrl: short.thumbnailUrl,
-          createdBy: short.createdBy,
-          viewsCount: short.viewsCount || 0,
-          likesCount: short.likesCount || 0,
-          commentsCount: short.commentsCount || 0,
-          createdAt: short.createdAt,
-          updatedAt: short.updatedAt
-        }));
+      if (result.data.length > 0) {
+        // Add new data at the beginning of the list
+        setAll_destination(prev => [...result.data, ...prev]);
         
-        // Filter only mp4 videos
-        const mp4ShortsList = shortsList.filter(
-          item => typeof item.videoUrl === 'string' && item.videoUrl.toLowerCase().endsWith('.mp4')
-        );
-        setAllShorts(mp4ShortsList);
-        setShortsPagination(shortsData.pagination || {});
-      } else {
-        setAllShorts([]);
+        // Update pagination state
+        setAllDestinationPagination({
+          nextPageToken: result.nextPageToken,
+          hasMore: result.hasMore
+        });
+
+        // Scroll to the beginning of the list to show new data
+        if (this.allDestinationListRef) {
+          this.allDestinationListRef.scrollToOffset({ offset: 0, animated: true });
+        }
       }
     } catch (error) {
-      console.error('Error fetching shorts:', error);
-      setAllShorts([]);
+      console.error('Error loading more all destinations:', error);
     } finally {
-      setIsShortsLoading(false);
+      // Add a small delay before hiding the loader to ensure smooth transition
+      setTimeout(() => {
+        setIsAllDestinationLoading(false);
+        setLoadingNewItems(false);
+      }, 500);
     }
   };
 
-  useEffect(() => {
-    fetchShorts();
-  }, []); // Empty dependency array means it runs once on mount
+  // Modify loadMoreBestDestination function to use centralized function
+  const loadMoreBestDestination = async () => {
+    if (!bestDestinationPagination.hasMore || isBestDestinationLoading) return;
 
-  // Add a debug effect to monitor all_shorts state
-  useEffect(() => {
-  }, [all_shorts]);
+    try {
+      setIsBestDestinationLoading(true);
+      setLoadingNewBestItems(true);
+      const result = await fetchPlacesData('nearest', null, bestDestinationPagination.nextPageToken);
+      
+      if (result.data.length > 0) {
+        // Add new data at the beginning of the list
+        setBest_destination(prev => [...result.data, ...prev]);
+        
+        // Update pagination state
+        setBestDestinationPagination({
+          nextPageToken: result.nextPageToken,
+          hasMore: result.hasMore
+        });
+
+        // Scroll to the beginning of the list to show new data
+        if (this.bestDestinationListRef) {
+          this.bestDestinationListRef.scrollToOffset({ offset: 0, animated: true });
+        }
+      }
+    } catch (error) {
+      console.error('Error loading more best destinations:', error);
+    } finally {
+      // Add a small delay before hiding the loader to ensure smooth transition
+      setTimeout(() => {
+        setIsBestDestinationLoading(false);
+        setLoadingNewBestItems(false);
+      }, 500);
+    }
+  };
+
+  // --- HANDLER FOR TAG CLICK ---
+  const handleAdventureTagClick = async (tag) => {
+    setSelectedAdventureTag(tag);
+    setIsAdventureLoading(true);
+    setAdventurePlaces([]);
+    setAdventurePagination({ nextPageToken: null, hasMore: false });
+    
+    try {
+      const result = await fetchPlacesData(tag, tag);
+      setAdventurePlaces(result.data);
+      setAdventurePagination({
+        nextPageToken: result.nextPageToken,
+        hasMore: result.hasMore
+      });
+    } catch (error) {
+      setAdventurePlaces([]);
+      setAdventurePagination({ nextPageToken: null, hasMore: false });
+    } finally {
+      setIsAdventureLoading(false);
+    }
+  };
+
+  // --- PAGINATION FOR ADVENTURE PLACES ---
+  const loadMoreAdventurePlaces = async () => {
+    if (!adventurePagination.hasMore || isAdventureLoading) return;
+    setIsAdventureLoading(true);
+
+    try {
+      const result = await fetchPlacesData(selectedAdventureTag, selectedAdventureTag, adventurePagination.nextPageToken);
+      
+      if (result.data.length > 0) {
+        // Add all new data to the state at once
+        setAdventurePlaces(prev => [...prev, ...result.data]);
+        setAdventurePagination({
+          nextPageToken: result.nextPageToken,
+          hasMore: result.hasMore
+        });
+      }
+    } catch (error) {
+      setAdventurePagination({ nextPageToken: null, hasMore: false });
+    } finally {
+      setIsAdventureLoading(false);
+    }
+  };
+
+  // Add function to fetch paginated mountains data
+  const handleMountainsTagClick = async () => {
+    setIsMountainsLoading(true);
+    setMountainPlaces([]);
+    setMountainsPagination({ nextPageToken: null, hasMore: false });
+    
+    try {
+      const result = await fetchPlacesData('mountains', 'Mountains');
+      setMountainPlaces(result.data);
+      setMountainsPagination({
+        nextPageToken: result.nextPageToken,
+        hasMore: result.hasMore
+      });
+    } catch (error) {
+      setMountainPlaces([]);
+      setMountainsPagination({ nextPageToken: null, hasMore: false });
+    } finally {
+      setIsMountainsLoading(false);
+    }
+  };
+
+  // PAGINATION FOR MOUNTAINS
+  const loadMoreMountains = async () => {
+    if (!mountainsPagination.hasMore || isMountainsLoading) return;
+    setIsMountainsLoading(true);
+    
+    try {
+      const result = await fetchPlacesData('mountains', 'Mountains', mountainsPagination.nextPageToken);
+      
+      if (result.data.length > 0) {
+        setMountainPlaces(prev => [...prev, ...result.data]);
+        setMountainsPagination({
+          nextPageToken: result.nextPageToken,
+          hasMore: result.hasMore
+        });
+      }
+    } catch (error) {
+      setMountainsPagination({ nextPageToken: null, hasMore: false });
+    } finally {
+      setIsMountainsLoading(false);
+    }
+  };
+
+  // Add function to fetch paginated view points data
+  const handleViewPointsTagClick = async () => {
+    setIsViewPointsLoading(true);
+    setViewPointsPlaces([]);
+    setViewPointsPagination({ nextPageToken: null, hasMore: false });
+    
+    try {
+      const result = await fetchPlacesData('view points', 'View Points');
+      setViewPointsPlaces(result.data);
+      setViewPointsPagination({
+        nextPageToken: result.nextPageToken,
+        hasMore: result.hasMore
+      });
+    } catch (error) {
+      setViewPointsPlaces([]);
+      setViewPointsPagination({ nextPageToken: null, hasMore: false });
+    } finally {
+      setIsViewPointsLoading(false);
+    }
+  };
+
+  // PAGINATION FOR VIEW POINTS
+  const loadMoreViewPoints = async () => {
+    if (!viewPointsPagination.hasMore || isViewPointsLoading) return;
+    setIsViewPointsLoading(true);
+    
+    try {
+      const result = await fetchPlacesData('view points', 'View Points', viewPointsPagination.nextPageToken);
+      
+      if (result.data.length > 0) {
+        setViewPointsPlaces(prev => [...prev, ...result.data]);
+        setViewPointsPagination({
+          nextPageToken: result.nextPageToken,
+          hasMore: result.hasMore
+        });
+      }
+    } catch (error) {
+      setViewPointsPagination({ nextPageToken: null, hasMore: false });
+    } finally {
+      setIsViewPointsLoading(false);
+    }
+  };
 
   // Loader components
   const HorizontalListLoader = ({ count = 8 }) => (
@@ -1372,293 +1495,6 @@ function MainLanding(props) {
     );
   };
 
-  // --- HANDLER FOR TAG CLICK ---
-  const handleAdventureTagClick = async (tag) => {
-    setSelectedAdventureTag(tag);
-    setIsAdventureLoading(true);
-    setAdventurePlaces([]);
-    setAdventurePagination({ nextPageToken: null, hasMore: false });
-    try {
-      const accessToken = await AsyncStorage.getItem('accessToken');
-      const url = `${base_url}/schedule/places/getNearest?type=${tag}&keyword=${tag}`;
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        }
-      });
-      const data = await response.json();
-
-      if (Array.isArray(data?.data)) {
-        setAdventurePlaces(data?.data?.map(item => ({
-          id: item._id,
-          image: item.image,
-          name: item.name,
-          address: item.address,
-          rating: parseFloat(item.rating) || 0,
-          distanceInKilometer: item.distanceInKilometer,
-          location: item.location
-        })));
-        setAdventurePagination({
-          nextPageToken: data?.nextPageToken || null,
-          hasMore: !!data?.nextPageToken
-        });
-      } else {
-        setAdventurePlaces([]);
-        setAdventurePagination({ nextPageToken: null, hasMore: false });
-      }
-    } catch (error) {
-      setAdventurePlaces([]);
-      setAdventurePagination({ nextPageToken: null, hasMore: false });
-    } finally {
-      setIsAdventureLoading(false);
-    }
-  };
-
-  // --- PAGINATION FOR ADVENTURE PLACES ---
-  const loadMoreAdventurePlaces = async () => {
-    if (!adventurePagination.hasMore || isAdventureLoading) return;
-    setIsAdventureLoading(true);
-
-    let nextPageToken = adventurePagination.nextPageToken;
-    let hasMore = true;
-    let allNewData = [];
-
-    const accessToken = await AsyncStorage.getItem('accessToken');
-
-    try {
-      while (hasMore && nextPageToken) {
-        const url = `${base_url}/schedule/places/getNearest?nextPageToken=${nextPageToken}`;
-        const response = await fetch(url, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          }
-        });
-        const data = await response.json();
-
-        if (Array.isArray(data?.data)) {
-          const newData = data.data.map(item => ({
-            id: item._id || item.name,
-            image: item.image,
-            name: item.name,
-            address: item.address,
-            rating: parseFloat(item.rating) || 0,
-            distanceInKilometer: item.distanceInKilometer || 0,
-            location: item.location
-          }));
-          allNewData = [...allNewData, ...newData];
-          nextPageToken = data.nextPageToken || null;
-          hasMore = !!data.nextPageToken;
-        } else {
-          hasMore = false;
-          nextPageToken = null;
-        }
-      }
-
-      // Add all new data to the state at once
-      setAdventurePlaces(prev => [...prev, ...allNewData]);
-      setAdventurePagination({
-        nextPageToken: nextPageToken,
-        hasMore: !!nextPageToken
-      });
-    } catch (error) {
-      setAdventurePagination({ nextPageToken: null, hasMore: false });
-    } finally {
-      setIsAdventureLoading(false);
-    }
-  };
-
-  // Add function to fetch paginated mountains data
-  const handleMountainsTagClick = async () => {
-    setIsMountainsLoading(true);
-    setMountainPlaces([]);
-    setMountainsPagination({ nextPageToken: null, hasMore: false });
-    try {
-      const accessToken = await AsyncStorage.getItem('accessToken');
-      const url = `${base_url}/schedule/places/getNearest?type=mountains&keyword=Mountains`;
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        }
-      });
-      const data = await response.json();
-      if (Array.isArray(data?.data)) {
-        setMountainPlaces(data.data.map(item => ({
-          id: item._id || item.name,
-          image: item.image,
-          name: item.name,
-          address: item.address,
-          rating: parseFloat(item.rating) || 0,
-          distanceInKilometer: item.distanceInKilometer,
-          location: item.location
-        })));
-        setMountainsPagination({
-          nextPageToken: data?.nextPageToken || null,
-          hasMore: !!data?.nextPageToken
-        });
-      } else {
-        setMountainPlaces([]);
-        setMountainsPagination({ nextPageToken: null, hasMore: false });
-      }
-    } catch (error) {
-      setMountainPlaces([]);
-      setMountainsPagination({ nextPageToken: null, hasMore: false });
-    } finally {
-      setIsMountainsLoading(false);
-    }
-  };
-
-  // PAGINATION FOR MOUNTAINS
-  const loadMoreMountains = async () => {
-    if (!mountainsPagination.hasMore || isMountainsLoading) return;
-    setIsMountainsLoading(true);
-    let nextPageToken = mountainsPagination.nextPageToken;
-    let hasMore = true;
-    let allNewData = [];
-    const accessToken = await AsyncStorage.getItem('accessToken');
-    try {
-      while (hasMore && nextPageToken) {
-        const url = `${base_url}/schedule/places/getNearest?type=mountains&keyword=Mountains&nextPageToken=${nextPageToken}`;
-        const response = await fetch(url, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          }
-        });
-        const data = await response.json();
-        if (Array.isArray(data?.data)) {
-          const newData = data.data.map(item => ({
-            id: item._id || item.name,
-            image: item.image,
-            name: item.name,
-            address: item.address,
-            rating: parseFloat(item.rating) || 0,
-            distanceInKilometer: item.distanceInKilometer || 0,
-            location: item.location
-          }));
-          allNewData = [...allNewData, ...newData];
-          nextPageToken = data.nextPageToken || null;
-          hasMore = !!data.nextPageToken;
-        } else {
-          hasMore = false;
-          nextPageToken = null;
-        }
-      }
-      setMountainPlaces(prev => [...prev, ...allNewData]);
-      setMountainsPagination({
-        nextPageToken: nextPageToken,
-        hasMore: !!nextPageToken
-      });
-    } catch (error) {
-      setMountainsPagination({ nextPageToken: null, hasMore: false });
-    } finally {
-      setIsMountainsLoading(false);
-    }
-  };
-
-  // Add function to fetch paginated view points data
-  const handleViewPointsTagClick = async () => {
-    setIsViewPointsLoading(true);
-    setViewPointsPlaces([]);
-    setViewPointsPagination({ nextPageToken: null, hasMore: false });
-    try {
-      const accessToken = await AsyncStorage.getItem('accessToken');
-      const url = `${base_url}/schedule/places/getNearest?type=view points&keyword=View Points`;
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        }
-      });
-      const data = await response.json();
-      if (Array.isArray(data?.data)) {
-        setViewPointsPlaces(data.data.map(item => ({
-          id: item._id || item.name,
-          image: item.image,
-          name: item.name,
-          address: item.address,
-          rating: parseFloat(item.rating) || 0,
-          distanceInKilometer: item.distanceInKilometer,
-          location: item.location
-        })));
-        setViewPointsPagination({
-          nextPageToken: data?.nextPageToken || null,
-          hasMore: !!data?.nextPageToken
-        });
-      } else {
-        setViewPointsPlaces([]);
-        setViewPointsPagination({ nextPageToken: null, hasMore: false });
-      }
-    } catch (error) {
-      setViewPointsPlaces([]);
-      setViewPointsPagination({ nextPageToken: null, hasMore: false });
-    } finally {
-      setIsViewPointsLoading(false);
-    }
-  };
-
-  // PAGINATION FOR VIEW POINTS
-  const loadMoreViewPoints = async () => {
-    if (!viewPointsPagination.hasMore || isViewPointsLoading) return;
-    setIsViewPointsLoading(true);
-    let nextPageToken = viewPointsPagination.nextPageToken;
-    let hasMore = true;
-    let allNewData = [];
-    const accessToken = await AsyncStorage.getItem('accessToken');
-    try {
-      while (hasMore && nextPageToken) {
-        const url = `${base_url}/schedule/places/getNearest?type=view points&keyword=View Points&nextPageToken=${nextPageToken}`;
-        const response = await fetch(url, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          }
-        });
-        const data = await response.json();
-        if (Array.isArray(data?.data)) {
-          const newData = data.data.map(item => ({
-            id: item._id || item.name,
-            image: item.image,
-            name: item.name,
-            address: item.address,
-            rating: parseFloat(item.rating) || 0,
-            distanceInKilometer: item.distanceInKilometer || 0,
-            location: item.location
-          }));
-          allNewData = [...allNewData, ...newData];
-          nextPageToken = data.nextPageToken || null;
-          hasMore = !!data.nextPageToken;
-        } else {
-          hasMore = false;
-          nextPageToken = null;
-        }
-      }
-      setViewPointsPlaces(prev => [...prev, ...allNewData]);
-      setViewPointsPagination({
-        nextPageToken: nextPageToken,
-        hasMore: !!nextPageToken
-      });
-    } catch (error) {
-      setViewPointsPagination({ nextPageToken: null, hasMore: false });
-    } finally {
-      setIsViewPointsLoading(false);
-    }
-  };
-
   //Changed to Outdoors and adventure
   const renderDiscoverByNearest = () => (
     <View style={styles.titleSpacerdesti}>
@@ -1705,13 +1541,27 @@ function MainLanding(props) {
         ) : (
           <FlatList
             data={adventurePlaces}
-            keyExtractor={(item) => item.id}
+            keyExtractor={(item) => item._id}
             horizontal={true}
             renderItem={({ item }) => (
-             
+              <TouchableOpacity
+                onPress={() => navigation.navigate('Destination', { 
+                  id: item.id,
+                  image: item.image,
+                  cardTitle: item.name,
+                  subtitle: item.address || 'No address available',
+                  rating: item.rating,
+                  distance: item.distanceInKilometer,
+                  address: item.address || 'No address available',
+                  tolatitude: item.location?.lat || item.location?.latitude || 0,
+                  tolongitude: item.location?.lng || item.location?.longitude || 0
+                })}
+                activeOpacity={0.8}
+              >
                 <DiscoverByNearest
                   styles={styles.itemCardContainer}
-                  {...item}
+                  id={item.id}
+                  title={item.name}
                   name={item.name}
                   address={item.address}
                   image={item.image}
@@ -1719,7 +1569,7 @@ function MainLanding(props) {
                   distance={item.distanceInKilometer}
                   location={item.location}
                 />
-             
+              </TouchableOpacity>
             )}
             onEndReached={loadMoreAdventurePlaces}
             onEndReachedThreshold={0.2}
@@ -1769,10 +1619,12 @@ function MainLanding(props) {
                   id: item.id,
                   image: item.image,
                   cardTitle: item.name,
-                  subtitle: item.address,
+                  subtitle: item.address || 'No address available',
                   rating: item.rating,
                   distance: item.distanceInKilometer,
-                  location: item.location
+                  address: item.address || 'No address available',
+                  tolatitude: item.location?.lat || item.location?.latitude || 0,
+                  tolongitude: item.location?.lng || item.location?.longitude || 0
                 })}
                 activeOpacity={0.8}
               >
@@ -1862,10 +1714,12 @@ function MainLanding(props) {
                   id: item.id,
                   image: item.image,
                   cardTitle: item.name,
-                  subtitle: item.address,
+                  subtitle: item.address || 'No address available',
                   rating: item.rating,
                   distance: item.distanceInKilometer,
-                  location: item.location
+                  address: item.address || 'No address available',
+                  tolatitude: item.location?.lat || item.location?.latitude || 0,
+                  tolongitude: item.location?.lng || item.location?.longitude || 0
                 })}
                 activeOpacity={0.8}
               >

@@ -25,6 +25,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import { useToast } from '../../context/ToastContext';
 import Moment from 'moment';
+import * as FileSystem from 'expo-file-system';
 
 const { width } = Dimensions.get('window');
 
@@ -81,6 +82,7 @@ const EditSchedule = ({ route, navigation }) => {
     numberOfDays: scheduleData?.riders || '',
     budget: scheduleData?.budget || '',
     maxRiders: scheduleData?.maxRiders || '',
+    bannerImage: scheduleData?.bannerImage || scheduleData?.imageUrl || '',
   });
 
   // Add useEffect to log the initial data
@@ -329,10 +331,10 @@ const EditSchedule = ({ route, navigation }) => {
         const accessToken = await AsyncStorage.getItem('accessToken');
         
         // Create form data for image upload
-        const formData = new FormData();
+        const formDataUpload = new FormData();
         const imageUri = result.assets[0].uri;
         const imageName = imageUri.split('/').pop();
-        const match = /\.(\w+)$/.exec(imageName);
+        const match = /(\.\w+)$/.exec(imageName);
         const imageType = match ? `image/${match[1]}` : 'image/jpeg';
 
         // Check image size
@@ -344,7 +346,7 @@ const EditSchedule = ({ route, navigation }) => {
           throw new Error('Image size exceeds 10MB limit. Please select a smaller image.');
         }
 
-        formData.append('mediaFile', {
+        formDataUpload.append('mediaFile', {
           uri: imageUri,
           type: imageType,
           name: imageName
@@ -363,7 +365,7 @@ const EditSchedule = ({ route, navigation }) => {
             'Authorization': `Bearer ${accessToken}`,
             'Content-Type': 'multipart/form-data',
           },
-          body: formData
+          body: formDataUpload
         });
 
         const data = await response.json();
@@ -374,6 +376,10 @@ const EditSchedule = ({ route, navigation }) => {
           const imageUrl = data.urls[0];
           console.log('Image uploaded successfully, URL:', imageUrl);
           setBannerImage(imageUrl);
+          setFormData(prev => ({
+            ...prev,
+            bannerImage: imageUrl
+          }));
           showToast(data.message || 'Image uploaded successfully', 'success');
         } else {
           console.error('Image upload failed:', data.message);
@@ -566,7 +572,7 @@ const EditSchedule = ({ route, navigation }) => {
       setLoading(true);
       const accessToken = await AsyncStorage.getItem('accessToken');
 
-      // Create the update data object matching backend expectations
+      // Prepare update data
       const updateData = {
         tripName: formData.tripName.trim(),
         travelMode: formData.travelMode.trim(),
@@ -586,24 +592,57 @@ const EditSchedule = ({ route, navigation }) => {
       if (formattedToDate) {
         updateData.toDate = formattedToDate;
       }
-      // Add banner image if it exists and is not a local file URI
-      if (bannerImage && !bannerImage.startsWith('file://')) {
-        updateData.bannerImage = bannerImage;
+
+      // Check bannerImage type
+      const bannerImage = formData.bannerImage;
+      let useFormData = false;
+      if (bannerImage) {
+        if (/^https?:\/\//.test(bannerImage)) {
+          // Remote URL, send as string
+          updateData.bannerImage = bannerImage;
+        } else if (bannerImage.startsWith('file://')) {
+          useFormData = true;
+        }
       }
 
-      console.log('Sending update data:', updateData);
+      let response, responseData;
+      if (useFormData) {
+        // Use FormData for local file
+        const formDataToSend = new FormData();
+        // Append all updateData fields
+        Object.entries(updateData).forEach(([key, value]) => {
+          if (value !== undefined && value !== null) {
+            formDataToSend.append(key, String(value));
+          }
+        });
+        // Append bannerImage as file
+        formDataToSend.append('bannerImage', {
+          uri: bannerImage,
+          type: 'image/jpeg',
+          name: 'banner.jpg',
+        });
+        response = await fetch(`${base_url}/schedule/edit/${scheduleId}`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            // 'Content-Type' will be set automatically by fetch for FormData
+          },
+          body: formDataToSend,
+        });
+        responseData = await response.json();
+      } else {
+        // Use JSON as before
+        response = await fetch(`${base_url}/schedule/edit/${scheduleId}`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(updateData),
+        });
+        responseData = await response.json();
+      }
 
-      // Make the API call with JSON data
-      const response = await fetch(`${base_url}/schedule/edit/${scheduleId}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(updateData)
-      });
-
-      const responseData = await response.json();
       console.log('Update response:', responseData);
 
       if (!response.ok) {
@@ -618,7 +657,7 @@ const EditSchedule = ({ route, navigation }) => {
       }
 
       // Update all day descriptions
-      a//wait updateAllDayDescriptions(accessToken);
+      // await updateAllDayDescriptions(accessToken);
 
       console.log('Schedule updated successfully');
       showToast('Schedule updated successfully', 'success');
@@ -854,6 +893,24 @@ const EditSchedule = ({ route, navigation }) => {
       )}
     </View>
   );
+
+  // Utility function to save schedule data as JSON with a custom filename
+  const saveScheduleToFile = async (data, filename = 'scheduleData.json') => {
+    try {
+      const folderUri = FileSystem.documentDirectory + 'schedules/';
+      // Ensure the folder exists
+      await FileSystem.makeDirectoryAsync(folderUri, { intermediates: true });
+      const safeFilename = filename.replace(/[^a-zA-Z0-9-_\.]/g, '_');
+      const fileUri = folderUri + safeFilename;
+      await FileSystem.writeAsStringAsync(fileUri, JSON.stringify(data, null, 2));
+      console.log('Schedule data saved to:', fileUri);
+      Alert.alert('Success', `Schedule data saved to file: ${safeFilename}`);
+      return fileUri;
+    } catch (error) {
+      console.error('Error saving schedule data:', error);
+      Alert.alert('Error', 'Failed to save schedule data.');
+    }
+  };
 
   return (
     <KeyboardAvoidingView 
@@ -1131,6 +1188,19 @@ const EditSchedule = ({ route, navigation }) => {
           ) : (
             <Text style={styles.updateButtonText}>Update Schedule</Text>
           )}
+        </TouchableOpacity>
+        {/* Button to save schedule data as JSON file */}
+        <TouchableOpacity
+          style={[styles.updateButton, { backgroundColor: '#4CAF50', marginTop: 10 }]}
+          onPress={() => {
+            // Use trip name and current date for filename
+            const dateStr = new Date().toISOString().replace(/[:.]/g, '-');
+            const tripName = formData.tripName ? formData.tripName.replace(/\s+/g, '_') : 'schedule';
+            const filename = `${tripName}_${dateStr}.json`;
+            saveScheduleToFile({ ...formData, daySchedules }, filename);
+          }}
+        >
+          <Text style={styles.updateButtonText}>Save to JSON</Text>
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>

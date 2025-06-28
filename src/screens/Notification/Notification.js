@@ -86,7 +86,7 @@ const Notification = ({ navigation }) => {
       const token = await AsyncStorage.getItem('accessToken');
       if (!token) throw new Error('User not authenticated. Please login again.');
 
-      const response = await fetch('http://192.168.1.6:3030/user/updateNotificationStatus', {
+      const response = await fetch('https://admin.zypsii.com/api/user/updateNotificationStatus', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -117,7 +117,7 @@ const Notification = ({ navigation }) => {
       const token = await AsyncStorage.getItem('accessToken');
       if (!token) throw new Error('User not authenticated. Please login again.');
 
-      await fetch('http://192.168.1.6:3030/user/updateNotificationStatus', {
+      await fetch('https://admin.zypsii.com/api/user/updateNotificationStatus', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

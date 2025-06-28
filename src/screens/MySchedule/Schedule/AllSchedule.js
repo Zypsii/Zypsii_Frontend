@@ -28,7 +28,6 @@ const AllSchedule = ({item, isFromProfile}) => {
   const socketRef = useRef(null);
   const isShareRoomJoined = useRef(false);
 
-  console.log('AllSchedule item:', item);
 
   useEffect(() => {
     const loadUserId = async () => {
