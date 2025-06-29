@@ -14,6 +14,7 @@ import { base_url } from '../../utils/base_url'
 import { TextDefault } from '../../components';
 import { useToast } from '../../context/ToastContext';
 
+
 function Destination({ route, navigation }) {
   const { showToast } = useToast();
   // Add default values and safe access

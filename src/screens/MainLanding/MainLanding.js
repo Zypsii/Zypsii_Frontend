@@ -708,7 +708,7 @@ function MainLanding(props) {
       fetchPlacesData('nearest')
         .then(result => {
           const formattedData = result.data.slice(0, 100).map(item => ({
-            id: item.id,
+            id: item._id,
             image: item.image,
             title: item.name,
             subtitle: item.address || 'No address',

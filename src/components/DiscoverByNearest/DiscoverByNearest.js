@@ -84,7 +84,6 @@ const DiscoverByNearest = (props) => {
       });
       return;
     }
-            console.log('checking_data12',params)
 
     navigation.navigate('Destination', {
       id: props.id,
