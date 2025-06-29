@@ -87,6 +87,8 @@ function CombinedDestinations() {
           id: item._id || item.name,
           image: item.image,
           name: item.name,
+          subtitle:item.address || 'No address available',
+          address:item.address || 'No address available',
           rating: parseFloat(item.rating) || 0,
           distanceInKilometer: item.distanceInKilometer
         }));

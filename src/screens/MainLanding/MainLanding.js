@@ -159,7 +159,7 @@ function MainLanding(props) {
       if (nextPageToken) {
         url += `&nextPageToken=${nextPageToken}`;
       }
-
+     console.log(accessToken)
       const response = await fetch(url, {
         method: 'GET',
         headers: {
@@ -177,6 +177,7 @@ function MainLanding(props) {
           image: item.image,
           name: item.name,
           address: item.address,
+          subtittle: item.address,
           rating: parseFloat(item.rating) || 0,
           distanceInKilometer: item.distanceInKilometer,
           location: item.location
@@ -1563,7 +1564,8 @@ function MainLanding(props) {
                   id={item.id}
                   title={item.name}
                   name={item.name}
-                  address={item.address}
+                  subtitle={item.address || 'No address available'}
+                  address={item.address || 'No address available'}
                   image={item.image}
                   rating={item.rating}
                   distance={item.distanceInKilometer}
@@ -1630,8 +1632,11 @@ function MainLanding(props) {
               >
                 <DiscoverByNearest
                   styles={styles.itemCardContainer}
+                  id={item.id}
+                  title={item.name}
                   name={item.name}
-                  address={item.address}
+                  subtitle={item.address || 'No address available'}
+                  address={item.address || 'No address available'}
                   image={item.image}
                   rating={parseFloat(item.rating) || 0}
                   distance={item?.distanceInKilometer}
@@ -1725,8 +1730,11 @@ function MainLanding(props) {
               >
                 <DiscoverByNearest
                   styles={styles.itemCardContainer}
+                  id={item.id}
+                  title={item.name}
                   name={item.name}
-                  address={item.address}
+                  subtitle={item.address || 'No address available'}
+                  address={item.address || 'No address available'}
                   image={item.image}
                   rating={parseFloat(item.rating) || 0}
                   distance={item?.distanceInKilometer}
