@@ -136,11 +136,11 @@ const PostDetail = ({ route, navigation }) => {
               <MaterialIcons name="share" size={24} color="#870E6B" />
               <Text style={styles.statText}>{post.shares || '0'}</Text>
             </View>
-              <View style={styles.statItem}>
+              {/* <View style={styles.statItem}>
                 <TouchableOpacity onPress={handleDelete}>
                   <MaterialIcons name="delete" size={24} color="#870E6B" />
                 </TouchableOpacity>
-              </View>
+              </View> */}
           </View>
 
           {post.tags && post.tags.length > 0 && (
