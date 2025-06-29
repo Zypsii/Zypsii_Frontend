@@ -912,6 +912,25 @@ const ChatScreen = ({ route, navigation }) => {
         userShorts: [content],
         initialIndex: 0,
       });
+    } else if (moduleType === 'post') {
+      // Transform shared post data to match PostDetail screen's expected format
+      const transformedPost = {
+        ...content,
+        imageUrl: content.mediaUrl || [], // Map mediaUrl to imageUrl
+        postTitle: content.postTitle || 'Shared post',
+        postType: content.postType || 'Public',
+        likes: content.likes || content.likesCount || 0,
+        comments: content.comments || content.commentsCount || 0,
+        shares: content.shares || content.shareCount || 0,
+        tags: content.tags || [],
+        createdAt: content.createdAt || new Date().toISOString(),
+        id: content._id || content.id
+      };
+      
+      // Navigate to PostDetail screen for shared posts
+      navigation.navigate('PostDetail', { 
+        post: transformedPost 
+      });
     } else {
       // For other content types, show the preview modal
       setPreviewModal({
