@@ -800,7 +800,7 @@ function MainLanding(props) {
       
       if (result.data.length > 0) {
         const formattedData = result.data.map(item => ({
-          id: item.id,
+          id: item._id,
           image: item.image,
           title: item.name,
           subtitle: item.address || 'No address',
