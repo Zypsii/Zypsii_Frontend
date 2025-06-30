@@ -500,13 +500,13 @@ console.log({
                 <Text style={styles.socialButtonText}>Google</Text>
               </TouchableOpacity>
               
-              <TouchableOpacity 
+              {/* <TouchableOpacity 
                 style={styles.socialButton} 
                 onPress={() => setOtpLoginModal(true)}
               >
                 <Ionicons name="phone-portrait-outline" size={24} color="#A60F93" />
                 <Text style={styles.socialButtonText}>Phone</Text>
-              </TouchableOpacity>
+              </TouchableOpacity> */}
             </View>
 
             <View style={styles.signupContainer}>

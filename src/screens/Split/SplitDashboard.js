@@ -58,11 +58,11 @@ function SplitDashboard() {
             <Text style={styles.splitAmount}>
               ₹{item.totalSplitAmount?.toFixed(2) || '0.00'}
             </Text>
-            <View style={styles.splitBadge}>
+            {/* <View style={styles.splitBadge}>
               <Text style={styles.splitBadgeText}>
                 {item.participants?.length || 0} members
               </Text>
-            </View>
+            </View> */}
           </View>
         </View>
         

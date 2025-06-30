@@ -102,7 +102,7 @@ function ProfileContainer({profileInfo}) {
           {[
             // { label: 'Your Profile', icon: 'person-outline', route: 'DummyScreen' },
             // { label: 'Expense Calculator', icon: 'calculate', route: 'ExpenseCalculator' },
-            { label: 'Delete', icon: 'delete', route: 'DeleteButton' },
+            // { label: 'Delete', icon: 'delete', route: 'DeleteButton' },
             { label: 'Logout', icon: 'logout', route: 'Logout' },
             // { label: 'Favourites', icon: 'star-outline', route: 'Favourite' },
             { label: 'FAQ', icon: 'help-outline', route: 'FAQ' },

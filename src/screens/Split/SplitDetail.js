@@ -151,11 +151,11 @@ function SplitDetail() {
           <Text style={styles.balanceAmount}>
             ₹{split.totalSplitAmount?.toFixed(2) || '0.00'}
           </Text>
-          <View style={styles.balanceFooter}>
+          {/* <View style={styles.balanceFooter}>
             <Text style={styles.balanceSubtext}>
               Split between {members.length || 0} members
             </Text>
-          </View>
+          </View> */}
         </View>
 
         {/* Balance Due Card */}
