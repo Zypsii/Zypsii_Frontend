@@ -8,7 +8,8 @@ import {
   Button,
   Modal,
   Dimensions,
-  ScrollView
+  ScrollView,
+  ActivityIndicator
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useDispatch, useSelector } from 'react-redux';
@@ -45,6 +46,9 @@ const Stories = () => {
   const [myStories, setMyStories] = useState([]);
   const [mediaType, setMediaType] = useState(null);
   const [stories, setStories] = useState([]);
+  const [selectedMedia, setSelectedMedia] = useState(null);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const STORY_DURATION = 10000; // 10 seconds for images
   const VIDEO_DURATION = 30000; // 30 seconds for videos
   const PROGRESS_INTERVAL = 100;
@@ -209,7 +213,9 @@ const Stories = () => {
 
       if (!result.canceled) {
         const asset = result.assets[0];
-        await uploadStory(asset);
+        setSelectedMedia(asset);
+        setShowImagePickerModal(false);
+        setShowPreviewModal(true);
       }
     } catch (error) {
       console.error('Error picking media:', error);
@@ -235,7 +241,9 @@ const Stories = () => {
 
       if (!result.canceled) {
         const asset = result.assets[0];
-        await uploadStory(asset);
+        setSelectedMedia(asset);
+        setShowImagePickerModal(false);
+        setShowPreviewModal(true);
       }
     } catch (error) {
       console.error('Error capturing media:', error);
@@ -289,6 +297,7 @@ const Stories = () => {
 
   const uploadStory = async (mediaAsset) => {
     try {
+      setIsUploading(true);
       const accessToken = await AsyncStorage.getItem('accessToken');
       if (!accessToken) {
         throw new Error('No access token found');
@@ -402,13 +411,16 @@ const Stories = () => {
         console.log('Story uploaded successfully:', data.data);
         showToast('Story uploaded successfully', 'success');
         fetchStories();
-        setShowImagePickerModal(false);
+        setShowPreviewModal(false);
+        setSelectedMedia(null);
       } else {
         throw new Error(data.message || 'Failed to create story');
       }
     } catch (error) {
       console.error('Error uploading story:', error);
       showToast('Failed to upload story. Please check your internet connection and try again', 'error');
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -585,6 +597,19 @@ const Stories = () => {
       console.error('Error deleting story:', error);
       showToast('Failed to delete story. Please try again', 'error');
     }
+  };
+
+  const handleSubmit = async () => {
+    if (!selectedMedia) {
+      showToast('No media selected', 'error');
+      return;
+    }
+    await uploadStory(selectedMedia);
+  };
+
+  const handleCancel = () => {
+    setSelectedMedia(null);
+    setShowPreviewModal(false);
   };
 
   const renderStoryContent = () => {
@@ -870,6 +895,84 @@ const Stories = () => {
     </Modal>
   );
 
+  const renderPreviewModal = () => (
+    <Modal
+      visible={showPreviewModal}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={handleCancel}
+    >
+      <View style={styles.instagramPreviewContainer}>
+        {/* Story Header */}
+        <View style={styles.instagramPreviewHeader}>
+          <View style={styles.instagramPreviewUserInfo}>
+            <View style={styles.instagramPreviewUserImage}>
+              <Text style={styles.instagramPreviewUserInitial}>You</Text>
+            </View>
+            <Text style={styles.instagramPreviewUserName}>Your Story</Text>
+          </View>
+          <TouchableOpacity onPress={handleCancel} style={styles.instagramCloseButton}>
+            <Ionicons name="close" size={24} color="#fff" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Story Content */}
+        <View style={styles.instagramPreviewContent}>
+          {selectedMedia?.type?.includes('video') ? (
+            <Video
+              source={{ uri: selectedMedia.uri }}
+              style={styles.instagramPreviewMedia}
+              resizeMode="cover"
+              shouldPlay={false}
+              isMuted={true}
+              usePoster={true}
+              posterSource={{ uri: selectedMedia.uri }}
+              posterStyle={styles.instagramPreviewMedia}
+            />
+          ) : (
+            <Image
+              source={{ uri: selectedMedia?.uri }}
+              style={styles.instagramPreviewMedia}
+              resizeMode="cover"
+            />
+          )}
+        </View>
+
+        {/* Story Footer */}
+        <View style={styles.instagramPreviewFooter}>
+          <View style={styles.instagramPreviewActions}>
+            <TouchableOpacity 
+              style={styles.instagramPreviewActionButton}
+              onPress={handleCancel}
+              disabled={isUploading}
+            >
+              <Ionicons name="close-circle" size={32} color="#fff" />
+              <Text style={styles.instagramPreviewActionText}>Cancel</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.instagramPreviewActionButton, isUploading && styles.instagramPreviewActionDisabled]}
+              onPress={handleSubmit}
+              disabled={isUploading}
+            >
+              {isUploading ? (
+                <View style={styles.instagramLoadingContainer}>
+                  <ActivityIndicator size="small" color="#fff" />
+                  <Text style={styles.instagramPreviewActionText}>Uploading...</Text>
+                </View>
+              ) : (
+                <>
+                  <Ionicons name="checkmark-circle" size={32} color="#fff" />
+                  <Text style={styles.instagramPreviewActionText}>Share</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+
   const renderContent = () => {
     if (error) {
       return (
@@ -903,6 +1006,7 @@ const Stories = () => {
     return (
       <View style={styles.container}>
         {renderImagePickerModal()}
+        {renderPreviewModal()}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -1174,7 +1278,9 @@ const styles = StyleSheet.create({
     padding: 10,
   },
   closeButton: {
-    padding: 10,
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: '#f0f0f0',
   },
   storyText: {
     color: 'white',
@@ -1285,6 +1391,98 @@ const styles = StyleSheet.create({
   },
   deleteButton: {
     marginRight: 15,
+  },
+  instagramPreviewContainer: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  instagramPreviewHeader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    paddingTop: 50,
+    zIndex: 10,
+  },
+  instagramPreviewUserInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  instagramPreviewUserImage: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#c13584',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  instagramPreviewUserInitial: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  instagramPreviewUserName: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginLeft: 10,
+  },
+  instagramCloseButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+  },
+  instagramPreviewContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  instagramPreviewMedia: {
+    width: '100%',
+    height: '100%',
+  },
+  instagramPreviewFooter: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 20,
+    paddingBottom: 40,
+    zIndex: 10,
+  },
+  instagramPreviewActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  instagramPreviewActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 25,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    minWidth: 120,
+    justifyContent: 'center',
+  },
+  instagramPreviewActionDisabled: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    opacity: 0.6,
+  },
+  instagramPreviewActionText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 14,
+    marginLeft: 8,
+  },
+  instagramLoadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
   },
 });
 
