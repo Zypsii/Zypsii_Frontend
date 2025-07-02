@@ -12,7 +12,8 @@ import {
   BackHandler,
   StyleSheet,
   Text,
-  Dimensions
+  Dimensions,
+  RefreshControl
 } from 'react-native';
 import SwiperFlatList from 'react-native-swiper-flatlist';
 import styles from './styles';
@@ -122,29 +123,32 @@ function MainLanding(props) {
   });
 
   // --- STATE FOR OUTDOORS AND ADVENTURE TAGS ---
-  const [selectedAdventureTag, setSelectedAdventureTag] = useState(outdoorsAndAdventureTags[0]);
+  const [selectedAdventureTag, setSelectedAdventureTag] = useState('Beach');
   const [adventurePlaces, setAdventurePlaces] = useState([]);
   const [isAdventureLoading, setIsAdventureLoading] = useState(false);
   const [adventurePagination, setAdventurePagination] = useState({
     nextPageToken: null,
-    hasMore: false
+    hasMore: true
   });
 
   // --- STATE FOR MOUNTAINS PAGINATION ---
   const [mountainPlaces, setMountainPlaces] = useState([]);
-  const [isMountainsLoading, setIsMountainsLoading] = useState(false);
+  const [isMountainsLoading, setIsMountainsLoading] = useState(true);
   const [mountainsPagination, setMountainsPagination] = useState({
     nextPageToken: null,
-    hasMore: false
+    hasMore: true
   });
 
   // --- STATE FOR VIEW POINTS PAGINATION ---
   const [viewPointsPlaces, setViewPointsPlaces] = useState([]);
-  const [isViewPointsLoading, setIsViewPointsLoading] = useState(false);
+  const [isViewPointsLoading, setIsViewPointsLoading] = useState(true);
   const [viewPointsPagination, setViewPointsPagination] = useState({
     nextPageToken: null,
-    hasMore: false
+    hasMore: true
   });
+
+  // Add refreshing state for pull-to-refresh functionality
+  const [refreshing, setRefreshing] = useState(false);
 
   // Add a centralized function to fetch places data
   const fetchPlacesData = async (type, keyword = null, nextPageToken = null) => {
@@ -304,6 +308,76 @@ function MainLanding(props) {
       fetchUnreadNotifications();
     }, [])
   );
+
+  // Refresh schedule data when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      refreshScheduleData();
+    }, [])
+  );
+
+  // Function to refresh only schedule data
+  const refreshScheduleData = async () => {
+    try {
+      setIsScheduleLoading(true);
+      const accessToken = await AsyncStorage.getItem('accessToken');
+      if (!accessToken) {
+        setIsScheduleLoading(false);
+        return;
+      }
+
+      const response = await fetch(`${base_url}/schedule/listing/filter?filter=Public`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      });
+
+      const data = await response.json();
+      
+      if (Array.isArray(data?.data)) {
+        setAll_schedule(data.data.map(item => ({
+          id: item._id,
+          _id: item._id,
+          title: item.tripName,
+          from: (item.locationDetails?.[0]?.address 
+            ? item.locationDetails[0].address.slice(0, 5) + '...'
+            : 'Unknown'),
+          to: (item.locationDetails?.[1]?.address 
+          ? item.locationDetails[1].address.slice(0, 5) + '...'
+          : 'Unknown'),
+          date: new Date(item.Dates.from).toLocaleDateString(),
+          endDate: new Date(item.Dates.end).toLocaleDateString(),
+          travelMode: item.travelMode,
+          visible: item.visible,
+          numberOfDays: item.numberOfDays.toString(),
+          imageUrl: item.bannerImage,
+          locationDetails: item.locationDetails,
+          createdAt: new Date(item.createdAt).toLocaleDateString(),
+          createdBy: item.createdBy,
+          riders: '0 riders',
+          joined: false,
+          rawLocation: {
+            from: {
+              latitude: item.location?.from?.latitude || 0,
+              longitude: item.location?.from?.longitude || 0
+            },
+            to: {
+              latitude: item.location?.to?.latitude || 0,
+              longitude: item.location?.to?.longitude || 0
+            }
+          }
+        })));
+      } else {
+        setAll_schedule([]);
+      }
+    } catch (error) {
+      console.error('Error refreshing schedule data:', error);
+      setAll_schedule([]);
+    } finally {
+      setIsScheduleLoading(false);
+    }
+  };
 
   const fetchShorts = async () => {
     try {
@@ -1294,16 +1368,29 @@ function MainLanding(props) {
     if (!all_schedule || all_schedule.length === 0) {
       return (
         <View style={styles.scheduleContainer}>
-          <View style={styles.scheduleheadContainer}>
-            <TextDefault textColor={colors.fontMainColor} H5 bold>
-              {'Schedule'}
-            </TextDefault>
+                  <View style={styles.scheduleheadContainer}>
+          <TextDefault textColor={colors.fontMainColor} H5 bold>
+            {'Schedule'}
+          </TextDefault>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <TouchableOpacity 
+              onPress={refreshScheduleData}
+              style={{ marginRight: 15 }}
+              disabled={isScheduleLoading}
+            >
+              <MaterialIcons
+                name="refresh"
+                size={20}
+                color={isScheduleLoading ? colors.fontSecondColor : colors.btncolor}
+              />
+            </TouchableOpacity>
             <TouchableOpacity onPress={() => navigation.navigate('MySchedule')}>
               <TextDefault textColor={colors.btncolor} H5>
                 {'View All'}
               </TextDefault>
             </TouchableOpacity>
           </View>
+        </View>
           <TextDefault style={{ marginLeft: 20, color: colors.fontSecondColor }}>
             No schedule available
           </TextDefault>
@@ -1317,11 +1404,24 @@ function MainLanding(props) {
           <TextDefault textColor={colors.fontMainColor} H5 bold>
             {'Schedule'}
           </TextDefault>
-          <TouchableOpacity onPress={() => navigation.navigate('MySchedule')}>
-            <TextDefault textColor={colors.btncolor} H5>
-              {'View All'}
-            </TextDefault>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <TouchableOpacity 
+              onPress={refreshScheduleData}
+              style={{ marginRight: 15 }}
+              disabled={isScheduleLoading}
+            >
+              <MaterialIcons
+                name="refresh"
+                size={20}
+                color={isScheduleLoading ? colors.fontSecondColor : colors.btncolor}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => navigation.navigate('MySchedule')}>
+              <TextDefault textColor={colors.btncolor} H5>
+                {'View All'}
+              </TextDefault>
+            </TouchableOpacity>
+          </View>
         </View>
   
         <FlatList
@@ -1366,11 +1466,24 @@ function MainLanding(props) {
           <TextDefault textColor={colors.fontMainColor} H5 bold>
             {'Schedule'}
           </TextDefault>
-          <TouchableOpacity onPress={() => navigation.navigate('MySchedule')}>
-            <TextDefault textColor={colors.btncolor} H5>
-              {'View All'}
-            </TextDefault>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <TouchableOpacity 
+              onPress={refreshScheduleData}
+              style={{ marginRight: 15 }}
+              disabled={isScheduleLoading}
+            >
+              <MaterialIcons
+                name="refresh"
+                size={20}
+                color={isScheduleLoading ? colors.fontSecondColor : colors.btncolor}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => navigation.navigate('MySchedule')}>
+              <TextDefault textColor={colors.btncolor} H5>
+                {'View All'}
+              </TextDefault>
+            </TouchableOpacity>
+          </View>
         </View>
   
         <FlatList
@@ -1838,7 +1951,20 @@ function MainLanding(props) {
     }
   };
 
-  // Removed unnecessary useEffect that was causing multiple refreshes
+  // Function to handle pull-to-refresh
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      // Refresh all data including schedules
+      await fetchAllData();
+      // Also refresh notifications
+      await fetchUnreadNotifications();
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
 
   return (
     <SafeAreaView style={[styles.flex, styles.safeAreaStyle]}>
@@ -1851,6 +1977,14 @@ function MainLanding(props) {
             data={[]}
             renderItem={() => null}
             ListEmptyComponent={null}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                colors={[colors.btncolor]}
+                tintColor={colors.btncolor}
+              />
+            }
           />
         </View>
         <View style={styles.bottomTabContainer}>
