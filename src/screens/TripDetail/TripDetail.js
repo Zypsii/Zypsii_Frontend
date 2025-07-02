@@ -141,7 +141,7 @@ const TripDetail = ({ route, navigation }) => {
       const data = await response.json();
       console.log('Joined members response data:', data);
       
-      if (response.ok && data.success) {
+      if (response.ok && data.status) {
         setMembersList(data.data || []);
         console.log('Joined members loaded:', data.data?.length || 0);
       } else {
@@ -180,7 +180,7 @@ const TripDetail = ({ route, navigation }) => {
       const data = await response.json();
       console.log('Requested members response data:', data);
       
-      if (response.ok && data.success) {
+      if (response.ok && data.status) {
         setRequestsList(data.data || []);
         console.log('Requested members loaded:', data.data?.length || 0);
       } else {

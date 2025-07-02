@@ -49,9 +49,6 @@ const SelectPayerModal = ({ visible, onClose, participants, selectedPayer, onSel
                     <Text style={styles.payerName}>
                       {participant.memberId?.fullName || 'User'}
                     </Text>
-                    <Text style={styles.payerEmail}>
-                      {participant.memberId?.email || 'No email'}
-                    </Text>
                   </View>
                 </View>
                 <View style={[

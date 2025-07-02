@@ -38,7 +38,6 @@ const ParticipantsSection = ({ participants, loadingParticipants }) => {
             </View>
             <View style={styles.participantDetails}>
               <Text style={styles.participantName}>{item.memberId.fullName}</Text>
-              <Text style={styles.participantContact}>{item.memberId.email}</Text>
             </View>
           </View>
         </View>

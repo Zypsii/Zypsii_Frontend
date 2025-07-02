@@ -147,18 +147,31 @@ function SplitDetail() {
   const renderBalanceTab = () => {
     // Calculate total dues per member
     const memberDues = {};
-    if (balance?.data) {
+    
+    // Add null checks to prevent forEach errors
+    if (balance?.data && Array.isArray(balance.data)) {
       balance.data.forEach(expense => {
-        expense.dueByMembers.forEach(member => {
-          if (!memberDues[member.memberId]) {
-            memberDues[member.memberId] = {
-              fullName: member.fullName,
-              email: member.email,
-              totalDue: 0
-            };
-          }
-          memberDues[member.memberId].totalDue += member.amountDue;
-        });
+        if (expense && expense.memberDetails && Array.isArray(expense.memberDetails)) {
+          expense.memberDetails.forEach(member => {
+            if (member && member.memberId) {
+              if (!memberDues[member.memberId]) {
+                memberDues[member.memberId] = {
+                  fullName: member.fullName || 'Unknown',
+                  email: member.email || '',
+                  totalDue: 0,
+                  totalToReceive: 0
+                };
+              }
+              
+              // Handle different balance scenarios
+              if (member.status === 'owes') {
+                memberDues[member.memberId].totalDue += member.amountToPay || 0;
+              } else if (member.status === 'owed') {
+                memberDues[member.memberId].totalToReceive += member.amountToReceive || 0;
+              }
+            }
+          });
+        }
       });
     }
 
@@ -187,7 +200,25 @@ function SplitDetail() {
             <Text style={styles.balanceLabel}>Total Balance Due</Text>
           </View>
           <Text style={[styles.balanceAmount, { color: colors.error }]}>
-            ₹{balance?.totalBalanceDueAcrossSplit?.toFixed(2) || '0.00'}
+            ₹{(() => {
+              if (balance?.totalBalanceDueAcrossSplit !== undefined) {
+                return balance.totalBalanceDueAcrossSplit.toFixed(2);
+              }
+              // Calculate from member details if not provided
+              let totalDue = 0;
+              if (balance?.data && Array.isArray(balance.data)) {
+                balance.data.forEach(expense => {
+                  if (expense && expense.memberDetails && Array.isArray(expense.memberDetails)) {
+                    expense.memberDetails.forEach(member => {
+                      if (member && member.status === 'owes') {
+                        totalDue += member.amountToPay || 0;
+                      }
+                    });
+                  }
+                });
+              }
+              return totalDue.toFixed(2);
+            })()}
           </Text>
           <View style={styles.balanceFooter}>
             <Text style={styles.balanceSubtext}>
@@ -196,50 +227,141 @@ function SplitDetail() {
           </View>
         </View>
 
-        {/* Individual Balances */}
-        <View style={styles.section}>
+        {/* Total Balance Summary */}
+        <View style={styles.summaryCard}>
+          <View style={styles.summaryHeader}>
+            <Ionicons name="calculator" size={20} color={colors.fontMainColor} />
+            <Text style={styles.summaryTitle}>Balance Summary</Text>
+          </View>
+          <View style={styles.summaryContent}>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Total Amount:</Text>
+              <Text style={styles.summaryValue}>
+                ₹{split.totalSplitAmount?.toFixed(2) || '0.00'}
+              </Text>
+            </View>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Total Due:</Text>
+              <Text style={[styles.summaryValue, { color: colors.error }]}>
+                ₹{(() => {
+                  if (balance?.totalBalanceDueAcrossSplit !== undefined) {
+                    return balance.totalBalanceDueAcrossSplit.toFixed(2);
+                  }
+                  let totalDue = 0;
+                  if (balance?.data && Array.isArray(balance.data)) {
+                    balance.data.forEach(expense => {
+                      if (expense && expense.memberDetails && Array.isArray(expense.memberDetails)) {
+                        expense.memberDetails.forEach(member => {
+                          if (member && member.status === 'owes') {
+                            totalDue += member.amountToPay || 0;
+                          }
+                        });
+                      }
+                    });
+                  }
+                  return totalDue.toFixed(2);
+                })()}
+              </Text>
+            </View>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Settled:</Text>
+              <Text style={[styles.summaryValue, { color: colors.success }]}>
+                ₹{(() => {
+                  const totalAmount = split.totalSplitAmount || 0;
+                  const totalDue = (() => {
+                    if (balance?.totalBalanceDueAcrossSplit !== undefined) {
+                      return balance.totalBalanceDueAcrossSplit;
+                    }
+                    let due = 0;
+                    if (balance?.data && Array.isArray(balance.data)) {
+                      balance.data.forEach(expense => {
+                        if (expense && expense.memberDetails && Array.isArray(expense.memberDetails)) {
+                          expense.memberDetails.forEach(member => {
+                            if (member && member.status === 'owes') {
+                              due += member.amountToPay || 0;
+                            }
+                          });
+                        }
+                      });
+                    }
+                    return due;
+                  })();
+                  return (totalAmount - totalDue).toFixed(2);
+                })()}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Individual Balances - Commented Out */}
+        {/* <View style={styles.section}>
           <Text style={styles.sectionTitle}>Individual Balances</Text>
           {Object.values(memberDues).length > 0 ? (
-            Object.values(memberDues).map((member) => (
-              <View key={member.email} style={styles.balanceItem}>
-                <View style={styles.balanceItemLeft}>
-                  <View style={[
-                    styles.balanceAvatar,
-                    { backgroundColor: '#ffe8e8' }
-                  ]}>
-                    <Text style={[
-                      styles.balanceAvatarText,
-                      { color: colors.error }
+            Object.values(memberDues).map((member) => {
+              const hasDebt = member.totalDue > 0;
+              const hasCredit = member.totalToReceive > 0;
+              
+              return (
+                <View key={member.email} style={styles.balanceItem}>
+                  <View style={styles.balanceItemLeft}>
+                    <View style={[
+                      styles.balanceAvatar,
+                      { backgroundColor: hasDebt ? '#ffe8e8' : '#e8f5e8' }
                     ]}>
-                      {member.fullName?.charAt(0)?.toUpperCase() || 'U'}
-                    </Text>
+                      <Text style={[
+                        styles.balanceAvatarText,
+                        { color: hasDebt ? colors.error : colors.success }
+                      ]}>
+                        {member.fullName?.charAt(0)?.toUpperCase() || 'U'}
+                      </Text>
+                    </View>
+                    <View>
+                      <Text style={styles.balanceName}>{member.fullName}</Text>
+                      <Text style={[
+                        styles.balanceStatus,
+                        { color: hasDebt ? colors.error : colors.success }
+                      ]}>
+                        {hasDebt ? 'Owes' : hasCredit ? 'Owed' : 'Settled'}
+                      </Text>
+                    </View>
                   </View>
-                  <View>
-                    <Text style={styles.balanceName}>{member.fullName}</Text>
-                    <Text style={[
-                      styles.balanceStatus,
-                      { color: colors.error }
-                    ]}>
-                      Owes
-                    </Text>
+                  <View style={styles.balanceAmounts}>
+                    {hasDebt && (
+                      <Text style={[
+                        styles.balanceAmountText,
+                        { color: colors.error }
+                      ]}>
+                        -₹{member.totalDue.toFixed(2)}
+                      </Text>
+                    )}
+                    {hasCredit && (
+                      <Text style={[
+                        styles.balanceAmountText,
+                        { color: colors.success }
+                      ]}>
+                        +₹{member.totalToReceive.toFixed(2)}
+                      </Text>
+                    )}
+                    {!hasDebt && !hasCredit && (
+                      <Text style={[
+                        styles.balanceAmountText,
+                        { color: colors.grayLinesColor }
+                      ]}>
+                        ₹0.00
+                      </Text>
+                    )}
                   </View>
                 </View>
-                <Text style={[
-                  styles.balanceAmountText,
-                  { color: colors.error }
-                ]}>
-                  ₹{member.totalDue.toFixed(2)}
-                </Text>
-              </View>
-            ))
+              );
+            })
           ) : (
             <View style={styles.emptyStateCard}>
               <Ionicons name="checkmark-circle-outline" size={48} color={colors.grayLinesColor} />
-              <Text style={styles.emptyStateTitle}>No dues found</Text>
+              <Text style={styles.emptyStateTitle}>No balances found</Text>
               <Text style={styles.emptyStateText}>All expenses have been settled</Text>
             </View>
           )}
-        </View>
+        </View> */}
 
         {/* Balance Due Details */}
         <View style={styles.section}>
@@ -259,55 +381,84 @@ function SplitDetail() {
                   </View>
                   <View style={styles.expenseAmountContainer}>
                     <Text style={[styles.expenseAmount, { color: colors.error }]}>
-                      ₹{expense.totalDueInExpense?.toFixed(2)}
+                      ₹{expense.totalExpenseAmount?.toFixed(2)}
                     </Text>
                     <Text style={styles.expensePerPerson}>
-                      {expense.dueByMembers.length} members
+                      {expense.memberDetails?.length || 0} members
                     </Text>
                   </View>
                 </View>
                 
                 <View style={styles.expenseFooter}>
                   <View style={styles.membersContainer}>
-                    <Text style={styles.membersLabel}>Due by Members</Text>
+                    <Text style={styles.membersLabel}>Member Balances</Text>
                     <View style={styles.membersList}>
-                      {expense.dueByMembers.map((member) => (
+                      {expense.memberDetails && expense.memberDetails.map((member) => (
                         <View key={member.memberId} style={styles.memberItem}>
                           <View style={styles.memberInfo}>
                             <View style={styles.memberAvatar}>
                               <Text style={styles.memberAvatarText}>
-                                {member.fullName.charAt(0).toUpperCase()}
+                                {member.fullName?.charAt(0)?.toUpperCase() || 'U'}
                               </Text>
                             </View>
                             <View style={styles.memberDetails}>
                               <Text style={styles.memberName}>{member.fullName}</Text>
                               <Text style={styles.memberAmount}>
-                                ₹{member.amountDue.toFixed(2)}
+                                {member.status === 'owes' ? '-' : member.status === 'owed' ? '+' : ''}₹{Math.abs(member.balanceAmount || 0).toFixed(2)}
                               </Text>
                             </View>
                           </View>
                           <View style={styles.memberActions}>
-                            <View style={[styles.paymentStatus, { backgroundColor: colors.error }]}>
-                              <Text style={styles.paymentStatusText}>Due</Text>
+                            <View style={[
+                              styles.paymentStatus, 
+                              { 
+                                backgroundColor: member.status === 'owes' ? colors.error : 
+                                                member.status === 'owed' ? colors.success : 
+                                                colors.grayLinesColor 
+                              }
+                            ]}>
+                              <Text style={styles.paymentStatusText}>
+                                {member.status === 'owes' ? 'Owes' : 
+                                 member.status === 'owed' ? 'Owed' : 
+                                 'Settled'}
+                              </Text>
                             </View>
-                            <TouchableOpacity
-                              style={[styles.markAsPaidButton, { backgroundColor: colors.btncolor }]}
-                              onPress={() => handleMarkAsPaid(expense.expenseId, member.memberId)}
-                            >
-                              <Text style={styles.markAsPaidButtonText}>Mark as Paid</Text>
-                            </TouchableOpacity>
+                            {member.status === 'owes' && (
+                              <TouchableOpacity
+                                style={[styles.markAsPaidButton, { backgroundColor: colors.btncolor }]}
+                                onPress={() => handleMarkAsPaid(expense.expenseId, member.memberId)}
+                              >
+                                <Text style={styles.markAsPaidButtonText}>Mark as Paid</Text>
+                              </TouchableOpacity>
+                            )}
                           </View>
                         </View>
                       ))}
                     </View>
                   </View>
+                  
+                  {/* Settlement Suggestions */}
+                  {expense.settlementSuggestions && expense.settlementSuggestions.length > 0 && (
+                    <View style={styles.settlementContainer}>
+                      <Text style={styles.settlementLabel}>Settlement Suggestions</Text>
+                      <View style={styles.settlementList}>
+                        {expense.settlementSuggestions.map((settlement, index) => (
+                          <View key={index} style={styles.settlementItem}>
+                            <Text style={styles.settlementText}>
+                              {settlement.description}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  )}
                 </View>
               </View>
             ))
           ) : (
             <View style={styles.emptyStateCard}>
               <Ionicons name="checkmark-circle-outline" size={48} color={colors.grayLinesColor} />
-              <Text style={styles.emptyStateTitle}>No dues found</Text>
+              <Text style={styles.emptyStateTitle}>No balances found</Text>
               <Text style={styles.emptyStateText}>All expenses have been settled</Text>
             </View>
           )}
@@ -460,7 +611,6 @@ function SplitDetail() {
                 </View>
                 <View style={styles.memberInfo}>
                   <Text style={styles.memberName}>{member.memberId?.fullName || 'Unknown User'}</Text>
-                  <Text style={styles.memberEmail}>{member.memberId?.email || 'No email'}</Text>
                 </View>
                 <View style={styles.memberStatus}>
                   
@@ -920,10 +1070,7 @@ const styles = StyleSheet.create({
     color: colors.fontMainColor,
     marginBottom: 4,
   },
-  memberEmail: {
-    fontSize: 14,
-    color: colors.fontSecondColor,
-  },
+
   memberStatus: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1135,9 +1282,82 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   markAsPaidButtonText: {
-    fontSize: 12,
     color: colors.white,
+    fontSize: 12,
     fontWeight: '500',
+  },
+  balanceAmounts: {
+    alignItems: 'flex-end',
+  },
+  settlementContainer: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+  },
+  settlementLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.fontMainColor,
+    marginBottom: 8,
+  },
+  settlementList: {
+    gap: 8,
+  },
+  settlementItem: {
+    backgroundColor: '#f8f9fa',
+    padding: 12,
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.btncolor,
+  },
+  settlementText: {
+    fontSize: 14,
+    color: colors.fontMainColor,
+    lineHeight: 20,
+  },
+
+  // Summary Card Styles
+  summaryCard: {
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    elevation: 2,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+  },
+  summaryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  summaryTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.fontMainColor,
+    marginLeft: 8,
+  },
+  summaryContent: {
+    gap: 8,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  summaryLabel: {
+    fontSize: 14,
+    color: colors.fontSecondColor,
+    fontWeight: '500',
+  },
+  summaryValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.fontMainColor,
   },
 });
 

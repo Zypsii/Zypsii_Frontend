@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, FlatList, TouchableOpacity, Text, StyleSheet, TextInput, Image, ActivityIndicator, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import axios from 'axios';
 import { base_url } from '../../utils/base_url';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -10,6 +11,7 @@ const MessageList = ({ navigation }) => {
   const [users, setUsers] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [searchFocused, setSearchFocused] = useState(false);
   const { showToast } = useToast();
@@ -17,6 +19,13 @@ const MessageList = ({ navigation }) => {
   useEffect(() => {
     fetchUsers();
   }, []);
+
+  // Refresh chat list when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchUsers();
+    }, [])
+  );
 
   const fetchUsers = async () => {
     try {
@@ -27,6 +36,18 @@ const MessageList = ({ navigation }) => {
       const token = await AsyncStorage.getItem('accessToken');
       if (!token) {
         throw new Error('No authentication token found');
+      }
+
+      // Get current user ID for last message comparison
+      let currentUserId = null;
+      try {
+        const userDataString = await AsyncStorage.getItem('user');
+        if (userDataString) {
+          const userData = JSON.parse(userDataString);
+          currentUserId = userData._id;
+        }
+      } catch (error) {
+        console.error('Error getting current user ID:', error);
       }
 
       const response = await axios.get(`${base_url}/user/list-chat-members`, {
@@ -61,14 +82,26 @@ const MessageList = ({ navigation }) => {
         // Extract name from userName (remove _ZY_ and numbers)
         const name = user.userName ? user.userName.split('_ZY_')[0] : 'Unknown User';
         
+        // Determine last message display
+        let lastMessageDisplay = 'No messages yet';
+        if (user.lastMessage) {
+          if (currentUserId && user.lastMessageSenderId === currentUserId) {
+            lastMessageDisplay = `You: ${user.lastMessage}`;
+          } else {
+            lastMessageDisplay = user.lastMessage;
+          }
+        }
+        
         return {
           _id: user.userId || '',
           name: name,
           userName: user.userName || '',
           email: '', // Not provided in response
           profileImage: user.profilePicture || null,
-          lastMessage: 'No messages yet',
-          lastMessageTime: user.lastMessageTime ? new Date(user.lastMessageTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'No time'
+          lastMessage: lastMessageDisplay,
+          lastMessageSenderId: user.lastMessageSenderId || null,
+          lastMessageTime: user.lastMessageTime ? new Date(user.lastMessageTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'No time',
+          unreadCount: user.unreadCount || 0
         };
       });
       
@@ -105,6 +138,12 @@ const MessageList = ({ navigation }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchUsers();
+    setRefreshing(false);
   };
 
   const filteredUsers = users.filter(user =>
@@ -164,12 +203,12 @@ const MessageList = ({ navigation }) => {
               <Text style={styles.timeText}>{item.lastMessageTime}</Text>
             </View>
             <Text style={styles.userName} numberOfLines={1}>@{item.userName}</Text>
-            {/* <Text style={styles.lastMessage} numberOfLines={2}>
+            <Text style={styles.lastMessage} numberOfLines={2}>
               {item.lastMessage}
-            </Text> */}
+            </Text>
           </View>
           
-          {/* <View style={styles.rightContent}>
+          <View style={styles.rightContent}>
             {item.unreadCount > 0 && (
               <View style={styles.unreadBadge}>
                 <Text style={styles.unreadCount}>
@@ -178,7 +217,7 @@ const MessageList = ({ navigation }) => {
               </View>
             )}
             <Ionicons name="chevron-forward" size={16} color="#C7C7CC" style={styles.chevron} />
-          </View> */}
+          </View>
         </TouchableOpacity>
       </Animated.View>
     );
@@ -271,6 +310,8 @@ const MessageList = ({ navigation }) => {
             </Text>
           </View>
         }
+        onRefresh={onRefresh}
+        refreshing={refreshing}
       />
     </View>
   );
@@ -466,6 +507,26 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#8E8E93',
     lineHeight: 20,
+  },
+  rightContent: {
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    minHeight: 56,
+  },
+  unreadBadge: {
+    backgroundColor: '#A60F93',
+    borderRadius: 12,
+    minWidth: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  unreadCount: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: 'bold',
+    textAlign: 'center',
   },
   chevron: {
     opacity: 0.6,

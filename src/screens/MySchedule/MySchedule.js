@@ -155,7 +155,7 @@ function MySchedule({ navigation }) {
         },
       }); 
       const data = await response.json();
-      if (data.success && data.data) {
+      if (data.status && data.data) {
         const formattedData = data.data
           .filter(item => !loadedIds.has(item._id)) // Filter out already loaded items
           .map((item) => {

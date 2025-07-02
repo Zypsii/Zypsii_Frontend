@@ -437,13 +437,7 @@ const AddExpenseModal = ({ visible, onClose, onAddExpense, participants, splitId
               <Text style={styles.paidByLabel}>Paid by</Text>
               <Text style={[styles.paidByName, { color: colors.fontMainColor }]}>
                 {paidBy ? (
-                  <>
-                    {participants.find(p => p.memberId?._id === paidBy)?.memberId?.fullName || 'User'}
-                    {'\n'}
-                    <Text style={styles.paidByEmail}>
-                      {participants.find(p => p.memberId?._id === paidBy)?.memberId?.email || 'No email'}
-                    </Text>
-                  </>
+                  participants.find(p => p.memberId?._id === paidBy)?.memberId?.fullName || 'User'
                 ) : 'Select payer'}
               </Text>
             </View>
@@ -495,8 +489,7 @@ const AddExpenseModal = ({ visible, onClose, onAddExpense, participants, splitId
                     </Text>
                   </View>
                   <Text style={styles.participantName}>
-                    {participant.memberId?.fullName || participant.memberId?.email?.split('@')[0] || 'User'} 
-                    <Text style={styles.userIdText}>{'\n'}{participant.memberId?.email || 'No ID'}</Text>
+                    {participant.memberId?.fullName || 'User'}
                   </Text>
                 </View>
               </TouchableOpacity>

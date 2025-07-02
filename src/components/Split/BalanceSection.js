@@ -29,7 +29,25 @@ const BalanceSection = ({ balanceData, loadingBalance }) => {
     <View style={styles.balanceSection}>
       <View style={styles.balanceHeader}>
         <Text style={styles.balanceTitle}>Total Balance Due</Text>
-        <Text style={styles.totalAmount}>₹{balanceData.totalBalanceDueAcrossSplit?.toFixed(2) || '0.00'}</Text>
+        <Text style={styles.totalAmount}>₹{(() => {
+          if (balanceData.totalBalanceDueAcrossSplit !== undefined) {
+            return balanceData.totalBalanceDueAcrossSplit.toFixed(2);
+          }
+          // Calculate from member details if not provided
+          let totalDue = 0;
+          if (balanceData.data && Array.isArray(balanceData.data)) {
+            balanceData.data.forEach(expense => {
+              if (expense && expense.memberDetails && Array.isArray(expense.memberDetails)) {
+                expense.memberDetails.forEach(member => {
+                  if (member && member.status === 'owes') {
+                    totalDue += member.amountToPay || 0;
+                  }
+                });
+              }
+            });
+          }
+          return totalDue.toFixed(2);
+        })()}</Text>
       </View>
 
       <FlatList
@@ -43,12 +61,22 @@ const BalanceSection = ({ balanceData, loadingBalance }) => {
               </View>
               <View style={styles.balanceCardAmounts}>
                 <Text style={styles.balanceCardTotal}>₹{item.totalExpenseAmount?.toFixed(2)}</Text>
-                <Text style={styles.balanceCardDue}>Due: ₹{item.totalDueInExpense?.toFixed(2)}</Text>
+                <Text style={styles.balanceCardDue}>Due: ₹{(() => {
+                  let totalDue = 0;
+                  if (item.memberDetails && Array.isArray(item.memberDetails)) {
+                    item.memberDetails.forEach(member => {
+                      if (member && member.status === 'owes') {
+                        totalDue += member.amountToPay || 0;
+                      }
+                    });
+                  }
+                  return totalDue.toFixed(2);
+                })()}</Text>
               </View>
             </View>
 
             <View style={styles.dueMembersList}>
-              {item.dueByMembers?.map((member, index) => (
+              {item.memberDetails?.filter(member => member.status === 'owes').map((member, index) => (
                 <View key={member.memberId || index} style={styles.dueMemberItem}>
                   <View style={styles.dueMemberInfo}>
                     <View style={styles.dueMemberAvatar}>
@@ -58,10 +86,9 @@ const BalanceSection = ({ balanceData, loadingBalance }) => {
                     </View>
                     <View style={styles.dueMemberDetails}>
                       <Text style={styles.dueMemberName}>{member.fullName}</Text>
-                      <Text style={styles.dueMemberEmail}>{member.email}</Text>
                     </View>
                   </View>
-                  <Text style={styles.dueMemberAmount}>₹{member.amountDue?.toFixed(2)}</Text>
+                  <Text style={styles.dueMemberAmount}>₹{member.amountToPay?.toFixed(2)}</Text>
                 </View>
               ))}
             </View>

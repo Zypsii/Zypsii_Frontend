@@ -18,6 +18,7 @@ import {
   Modal
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import io from 'socket.io-client';
 import { socket_url } from '../../utils/base_url';
@@ -116,6 +117,19 @@ const ChatScreen = ({ route, navigation }) => {
       }
     };
   }, []);
+
+  // Refresh messages and mark as read when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      if (socket && currentUserId && isConnected) {
+        // Mark messages as read when entering chat
+        socket.emit('mark-as-read', {
+          senderId: currentUserId,
+          receiverId: userId
+        });
+      }
+    }, [socket, currentUserId, isConnected, userId])
+  );
 
   // Effect to scroll to bottom when messages change
   useEffect(() => {
