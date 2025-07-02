@@ -194,9 +194,9 @@ function SplitDetail() {
             <Ionicons name="wallet" size={24} color={colors.btncolor} />
             <Text style={styles.balanceLabel}>Total Split Amount</Text>
           </View>
-          <Text style={styles.balanceAmount}>
-            ₹{split.totalSplitAmount?.toFixed(2) || '0.00'}
-          </Text>
+                      <Text style={styles.balanceAmount}>
+              ₹{Math.round(split.totalSplitAmount || 0)}
+            </Text>
           <View style={styles.balanceFooter}>
             <Text style={styles.balanceSubtext}>
               Split between {members.length || 0} members
@@ -342,7 +342,7 @@ function SplitDetail() {
                         styles.balanceAmountText,
                         { color: colors.error }
                       ]}>
-                        -₹{member.totalDue.toFixed(2)}
+                        -₹{Math.round(member.totalDue)}
                       </Text>
                     )}
                     {hasCredit && (
@@ -350,7 +350,7 @@ function SplitDetail() {
                         styles.balanceAmountText,
                         { color: colors.success }
                       ]}>
-                        +₹{member.totalToReceive.toFixed(2)}
+                        +₹{Math.round(member.totalToReceive)}
                       </Text>
                     )}
                     {!hasDebt && !hasCredit && (
@@ -525,10 +525,10 @@ function SplitDetail() {
                 </View>
                 <View style={styles.expenseAmountContainer}>
                   <Text style={styles.expenseAmount}>
-                    ₹{expense.expenseTotalAmount?.toFixed(2) || '0.00'}
+                    ₹{Math.round(expense.expenseTotalAmount || 0)}
                   </Text>
                   <Text style={styles.expensePerPerson}>
-                    ₹{(expense.expenseTotalAmount / expense.membersInExpense.length).toFixed(2)} per person
+                    ₹{Math.round(expense.expenseTotalAmount / expense.membersInExpense.length)} per person
                   </Text>
                 </View>
               </View>
@@ -551,7 +551,7 @@ function SplitDetail() {
                           <View style={styles.memberDetails}>
                             <Text style={styles.memberName}>{member.memberId.fullName}</Text>
                             <Text style={styles.memberAmount}>
-                              ₹{member.amountNeedToPay.toFixed(2)}
+                              ₹{Math.round(member.amountNeedToPay)}
                             </Text>
                           </View>
                         </View>

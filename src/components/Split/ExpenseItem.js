@@ -28,7 +28,7 @@ const ExpenseItem = ({
 
   // Defensive checks for amount and description
   const safeAmount = (item.expenseTotalAmount !== undefined && item.expenseTotalAmount !== null && !isNaN(Number(item.expenseTotalAmount))) 
-    ? parseFloat(item.expenseTotalAmount).toFixed(2) 
+                    ? Math.round(parseFloat(item.expenseTotalAmount)) 
     : '0.00';
   const safeDescription = item.description && item.description.trim() ? item.description : 'No description';
 
@@ -131,7 +131,7 @@ const ExpenseItem = ({
                       {member.memberId?.fullName || member.memberId?.email?.split('@')[0] || 'User'}
                     </Text>
                     <Text style={styles.memberAmount}>
-                      ₹{member.amountNeedToPay?.toFixed(2) || '0.00'}
+                      ₹{Math.round(member.amountNeedToPay || 0)}
                     </Text>
                   </View>
                 </View>

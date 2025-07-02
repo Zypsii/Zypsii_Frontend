@@ -56,7 +56,7 @@ function SplitDashboard() {
           </Text>
           <View style={styles.splitMeta}>
             <Text style={styles.splitAmount}>
-              ₹{item.totalSplitAmount?.toFixed(2) || '0.00'}
+                              ₹{Math.round(item.totalSplitAmount || 0)}
             </Text>
             {/* <View style={styles.splitBadge}>
               <Text style={styles.splitBadgeText}>

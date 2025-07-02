@@ -31,7 +31,7 @@ const BalanceSection = ({ balanceData, loadingBalance }) => {
         <Text style={styles.balanceTitle}>Total Balance Due</Text>
         <Text style={styles.totalAmount}>₹{(() => {
           if (balanceData.totalBalanceDueAcrossSplit !== undefined) {
-            return balanceData.totalBalanceDueAcrossSplit.toFixed(2);
+            return Math.round(balanceData.totalBalanceDueAcrossSplit);
           }
           // Calculate from member details if not provided
           let totalDue = 0;
@@ -46,7 +46,7 @@ const BalanceSection = ({ balanceData, loadingBalance }) => {
               }
             });
           }
-          return totalDue.toFixed(2);
+          return Math.round(totalDue);
         })()}</Text>
       </View>
 
@@ -60,7 +60,7 @@ const BalanceSection = ({ balanceData, loadingBalance }) => {
                 <Text style={styles.balanceCardCategory}>{item.category}</Text>
               </View>
               <View style={styles.balanceCardAmounts}>
-                <Text style={styles.balanceCardTotal}>₹{item.totalExpenseAmount?.toFixed(2)}</Text>
+                <Text style={styles.balanceCardTotal}>₹{Math.round(item.totalExpenseAmount || 0)}</Text>
                 <Text style={styles.balanceCardDue}>Due: ₹{(() => {
                   let totalDue = 0;
                   if (item.memberDetails && Array.isArray(item.memberDetails)) {
@@ -70,7 +70,7 @@ const BalanceSection = ({ balanceData, loadingBalance }) => {
                       }
                     });
                   }
-                  return totalDue.toFixed(2);
+                  return Math.round(totalDue);
                 })()}</Text>
               </View>
             </View>
@@ -88,7 +88,7 @@ const BalanceSection = ({ balanceData, loadingBalance }) => {
                       <Text style={styles.dueMemberName}>{member.fullName}</Text>
                     </View>
                   </View>
-                  <Text style={styles.dueMemberAmount}>₹{member.amountToPay?.toFixed(2)}</Text>
+                  <Text style={styles.dueMemberAmount}>₹{Math.round(member.amountToPay || 0)}</Text>
                 </View>
               ))}
             </View>
