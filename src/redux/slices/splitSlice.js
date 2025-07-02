@@ -171,15 +171,13 @@ export const updateExpense = createAsyncThunk(
 // Update Payment Status
 export const updatePaymentStatus = createAsyncThunk(
   'split/updatePaymentStatus',
-  async ({ splitId, expenseId, memberId, paid }) => {
+  async ({ expenseId, memberId }) => {
     const token = await AsyncStorage.getItem('accessToken');
     const response = await axios.put(
-      `${base_url}/split/update-payment-status`,
+      `${base_url}/split/mark-as-paid`,
       {
-        splitId,
         expenseId,
-        memberId,
-        paid
+        memberId
       },
       {
         headers: {

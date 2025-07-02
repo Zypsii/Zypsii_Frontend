@@ -92,7 +92,13 @@ function SplitDetail() {
     try {
       await dispatch(addExpense({ splitId: split._id, expenseData })).unwrap();
       setShowAddExpenseModal(false);
-      await dispatch(fetchExpenses(split._id));
+      
+      // Refresh both expenses and balance data
+      await Promise.all([
+        dispatch(fetchExpenses(split._id)),
+        dispatch(fetchSplitBalance(split._id))
+      ]);
+      
       showToast('Expense added successfully', 'success');
     } catch (error) {
       console.error('Error adding expense:', error);
@@ -103,6 +109,13 @@ function SplitDetail() {
   const handleUpdateExpense = async (expenseId, expenseData) => {
     try {
       await dispatch(updateExpense({ splitId: split._id, expenseId, newAmount: expenseData.amount })).unwrap();
+      
+      // Refresh both expenses and balance data
+      await Promise.all([
+        dispatch(fetchExpenses(split._id)),
+        dispatch(fetchSplitBalance(split._id))
+      ]);
+      
       showToast('Expense updated successfully', 'success');
     } catch (error) {
       console.error('Error updating expense:', error);
@@ -113,10 +126,8 @@ function SplitDetail() {
   const handleMarkAsPaid = async (expenseId, memberId) => {
     try {
       await dispatch(updatePaymentStatus({ 
-        splitId: split._id, 
         expenseId, 
-        memberId, 
-        paid: true 
+        memberId
       })).unwrap();
       
       // Refresh both balance and expenses data to reflect the changes
@@ -178,7 +189,7 @@ function SplitDetail() {
     return (
       <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
         {/* Total Balance Card */}
-        <View style={styles.balanceCard}>
+        {/* <View style={styles.balanceCard}>
           <View style={styles.balanceHeader}>
             <Ionicons name="wallet" size={24} color={colors.btncolor} />
             <Text style={styles.balanceLabel}>Total Split Amount</Text>
@@ -186,15 +197,15 @@ function SplitDetail() {
           <Text style={styles.balanceAmount}>
             ₹{split.totalSplitAmount?.toFixed(2) || '0.00'}
           </Text>
-          {/* <View style={styles.balanceFooter}>
+          <View style={styles.balanceFooter}>
             <Text style={styles.balanceSubtext}>
               Split between {members.length || 0} members
             </Text>
-          </View> */}
-        </View>
+          </View>
+        </View> */}
 
         {/* Balance Due Card */}
-        <View style={styles.balanceCard}>
+        {/* <View style={styles.balanceCard}>
           <View style={styles.balanceHeader}>
             <Ionicons name="alert-circle" size={24} color={colors.error} />
             <Text style={styles.balanceLabel}>Total Balance Due</Text>
@@ -202,7 +213,7 @@ function SplitDetail() {
           <Text style={[styles.balanceAmount, { color: colors.error }]}>
             ₹{(() => {
               if (balance?.totalBalanceDueAcrossSplit !== undefined) {
-                return balance.totalBalanceDueAcrossSplit.toFixed(2);
+                return Math.round(balance.totalBalanceDueAcrossSplit);
               }
               // Calculate from member details if not provided
               let totalDue = 0;
@@ -217,7 +228,7 @@ function SplitDetail() {
                   }
                 });
               }
-              return totalDue.toFixed(2);
+              return Math.round(totalDue);
             })()}
           </Text>
           <View style={styles.balanceFooter}>
@@ -225,7 +236,7 @@ function SplitDetail() {
               Across {balance?.data?.length || 0} expenses
             </Text>
           </View>
-        </View>
+        </View> */}
 
         {/* Total Balance Summary */}
         <View style={styles.summaryCard}>
@@ -237,7 +248,7 @@ function SplitDetail() {
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Total Amount:</Text>
               <Text style={styles.summaryValue}>
-                ₹{split.totalSplitAmount?.toFixed(2) || '0.00'}
+                ₹{Math.round(split.totalSplitAmount || 0)}
               </Text>
             </View>
             <View style={styles.summaryRow}>
@@ -245,7 +256,7 @@ function SplitDetail() {
               <Text style={[styles.summaryValue, { color: colors.error }]}>
                 ₹{(() => {
                   if (balance?.totalBalanceDueAcrossSplit !== undefined) {
-                    return balance.totalBalanceDueAcrossSplit.toFixed(2);
+                    return Math.round(balance.totalBalanceDueAcrossSplit);
                   }
                   let totalDue = 0;
                   if (balance?.data && Array.isArray(balance.data)) {
@@ -259,11 +270,11 @@ function SplitDetail() {
                       }
                     });
                   }
-                  return totalDue.toFixed(2);
+                  return Math.round(totalDue);
                 })()}
               </Text>
             </View>
-            <View style={styles.summaryRow}>
+            {/* <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Settled:</Text>
               <Text style={[styles.summaryValue, { color: colors.success }]}>
                 ₹{(() => {
@@ -286,10 +297,10 @@ function SplitDetail() {
                     }
                     return due;
                   })();
-                  return (totalAmount - totalDue).toFixed(2);
+                  return Math.round(totalAmount - totalDue);
                 })()}
               </Text>
-            </View>
+            </View> */}
           </View>
         </View>
 
@@ -381,7 +392,7 @@ function SplitDetail() {
                   </View>
                   <View style={styles.expenseAmountContainer}>
                     <Text style={[styles.expenseAmount, { color: colors.error }]}>
-                      ₹{expense.totalExpenseAmount?.toFixed(2)}
+                      ₹{Math.round(expense.totalExpenseAmount || 0)}
                     </Text>
                     <Text style={styles.expensePerPerson}>
                       {expense.memberDetails?.length || 0} members
@@ -404,7 +415,7 @@ function SplitDetail() {
                             <View style={styles.memberDetails}>
                               <Text style={styles.memberName}>{member.fullName}</Text>
                               <Text style={styles.memberAmount}>
-                                {member.status === 'owes' ? '-' : member.status === 'owed' ? '+' : ''}₹{Math.abs(member.balanceAmount || 0).toFixed(2)}
+                                {member.status === 'owes' ? '-' : member.status === 'owed' ? '+' : ''}₹{Math.round(Math.abs(member.balanceAmount || 0))}
                               </Text>
                             </View>
                           </View>
@@ -553,14 +564,6 @@ function SplitDetail() {
                               {member.paid ? 'Paid' : 'Unpaid'}
                             </Text>
                           </View>
-                          {!member.paid && (
-                            <TouchableOpacity
-                              style={[styles.markAsPaidButton, { backgroundColor: colors.btncolor }]}
-                              onPress={() => handleMarkAsPaid(expense._id, member.memberId._id)}
-                            >
-                              <Text style={styles.markAsPaidButtonText}>Mark as Paid</Text>
-                            </TouchableOpacity>
-                          )}
                         </View>
                       </View>
                     ))}
