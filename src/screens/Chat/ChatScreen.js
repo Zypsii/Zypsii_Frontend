@@ -131,8 +131,8 @@ const ChatScreen = ({ route, navigation }) => {
     navigation.setOptions({
       title: userName,
       headerStyle: {
-        backgroundColor: colors.Zypsii_color,
-        shadowColor: colors.Zypsii_color,
+        backgroundColor: colors.Zypsii_color || '#A60F93',
+        shadowColor: colors.Zypsii_color || '#A60F93',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
         shadowRadius: 8,
@@ -292,17 +292,31 @@ const ChatScreen = ({ route, navigation }) => {
       });
 
       socketInstance.on('receive-message', (message) => {
-        console.log('Received message:', message);
         if (message && message.message) {
-          // Handle both old and new message formats
-          const senderId = message.sender ? message.sender._id : (message.senderId ? (typeof message.senderId === 'string' ? message.senderId : message.senderId._id) : null);
+          // Helper function to extract sender ID consistently
+          const getSenderId = (msg) => {
+            if (msg.sender && msg.sender._id) {
+              return msg.sender._id;
+            }
+            if (msg.senderId) {
+              if (typeof msg.senderId === 'string') {
+                return msg.senderId;
+              }
+              if (msg.senderId._id) {
+                return msg.senderId._id;
+              }
+            }
+            return null;
+          };
+          
+          const senderId = getSenderId(message);
           
           if (senderId) {
             setMessages(prevMessages => [...prevMessages, message]);
             scrollToBottom();
             
             // Mark message as read if it's from the other user
-            if (senderId === userId) {
+            if (String(senderId) === String(userId)) {
               socketInstance.emit('mark-as-read', {
                 senderId: userIdFromStorage,
                 receiverId: userId
@@ -315,7 +329,6 @@ const ChatScreen = ({ route, navigation }) => {
       });
 
       socketInstance.on('chat-history-result', (chatHistory) => {
-        console.log('Chat history received:', chatHistory);
         if (Array.isArray(chatHistory)) {
           setMessages(chatHistory);
           setLoading(false);
@@ -605,7 +618,7 @@ const ChatScreen = ({ route, navigation }) => {
         activeOpacity={0.8}
       >
         <LinearGradient
-          colors={[colors.Zypsii_color, colors.Zypsii_secondary]}
+          colors={[colors.Zypsii_color || '#A60F93', colors.Zypsii_secondary || '#6366f1']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.scheduleGradient}
@@ -1078,22 +1091,73 @@ const ChatScreen = ({ route, navigation }) => {
     );
   };
 
+  // Helper function to generate avatar color based on user name
+  const getAvatarColor = (name) => {
+    const colors = [
+      '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
+      '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9'
+    ];
+    const index = name ? name.charCodeAt(0) % colors.length : 0;
+    return colors[index];
+  };
+
   const renderMessage = ({ item, index }) => {
-    const senderId = item.sender ? item.sender._id : (item.senderId ? (typeof item.senderId === 'string' ? item.senderId : item.senderId._id) : null);
-    const isMyMessage = senderId === currentUserId;
+    // Helper function to extract sender ID consistently
+    const getSenderId = (message) => {
+      // Handle different data structures
+      if (message.sender && message.sender._id) {
+        return message.sender._id;
+      }
+      if (message.senderId) {
+        if (typeof message.senderId === 'string') {
+          return message.senderId;
+        }
+        if (message.senderId._id) {
+          return message.senderId._id;
+        }
+      }
+      return null;
+    };
+
+    // Helper function to get sender's profile picture
+    const getSenderProfilePicture = (message) => {
+      if (message.sender && message.sender.profilePicture) {
+        return message.sender.profilePicture;
+      }
+      if (message.senderId && message.senderId.profilePicture) {
+        return message.senderId.profilePicture;
+      }
+      return userProfilePicture || 'https://via.placeholder.com/32'; // Fallback to route param or placeholder
+    };
+
+    // Helper function to get sender's user name
+    const getSenderUserName = (message) => {
+      if (message.sender && message.sender.userName) {
+        return message.sender.userName;
+      }
+      if (message.senderId && message.senderId.userName) {
+        return message.senderId.userName;
+      }
+      return userName; // Fallback to route param
+    };
+
+    const senderId = getSenderId(item);
+    const isMyMessage = String(senderId) === String(currentUserId);
+    const senderProfilePicture = getSenderProfilePicture(item);
+    const senderUserName = getSenderUserName(item);
     
     const isFirstInGroup = index === 0 || 
       (() => {
         const prevItem = messages[index - 1];
-        const prevSenderId = prevItem.sender ? prevItem.sender._id : (prevItem.senderId ? (typeof prevItem.senderId === 'string' ? prevItem.senderId : prevItem.senderId._id) : null);
-        return prevSenderId !== senderId;
+        const prevSenderId = getSenderId(prevItem);
+        return String(prevSenderId) !== String(senderId);
       })();
     
     const isLastInGroup = index === messages.length - 1 || 
       (() => {
         const nextItem = messages[index + 1];
-        const nextSenderId = nextItem.sender ? nextItem.sender._id : (nextItem.senderId ? (typeof nextItem.senderId === 'string' ? nextItem.senderId : nextItem.senderId._id) : null);
-        return nextSenderId !== senderId;
+        const nextSenderId = getSenderId(nextItem);
+        return String(nextSenderId) !== String(senderId);
       })();
 
     return (
@@ -1108,18 +1172,30 @@ const ChatScreen = ({ route, navigation }) => {
           {!isMyMessage && isFirstInGroup && (
             <View style={styles.messageHeader}>
               <View style={styles.avatarContainer}>
-                <Image
-                  source={{ uri: userProfilePicture }}
-                  style={styles.userAvatar}
-                />
+                {senderProfilePicture ? (
+                  <Image
+                    source={{ uri: senderProfilePicture }}
+                    style={styles.userAvatar}
+                  />
+                ) : (
+                  <View style={[
+                    styles.userAvatar, 
+                    styles.avatarPlaceholder, 
+                    { backgroundColor: getAvatarColor(senderUserName) }
+                  ]}>
+                    <Text style={styles.avatarText}>
+                      {senderUserName ? senderUserName.charAt(0).toUpperCase() : 'U'}
+                    </Text>
+                  </View>
+                )}
                 <View style={styles.onlineIndicator} />
               </View>
-              <Text style={styles.userName}>{userName}</Text>
+              <Text style={styles.userName}>{senderUserName}</Text>
             </View>
           )}
           <LinearGradient
             colors={isMyMessage ? 
-              [colors.Zypsii_color, '#6366f1'] : 
+              [colors.Zypsii_color || '#A60F93', '#6366f1'] : 
               ['#ffffff', '#f8fafc']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
@@ -1172,7 +1248,7 @@ const ChatScreen = ({ route, navigation }) => {
     return (
       <View style={styles.loadingContainer}>
         <View style={styles.loadingContent}>
-          <ActivityIndicator size="large" color={colors.Zypsii_color} />
+          <ActivityIndicator size="large" color={colors.Zypsii_color || '#A60F93'} />
           <Text style={styles.loadingText}>Loading chat...</Text>
         </View>
       </View>
@@ -1181,7 +1257,7 @@ const ChatScreen = ({ route, navigation }) => {
 
   return (
     <>
-      <StatusBar barStyle="light-content" backgroundColor={colors.Zypsii_color} />
+      <StatusBar barStyle="light-content" backgroundColor={colors.Zypsii_color || '#A60F93'} />
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -1593,8 +1669,8 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.Zypsii_color,
-    shadowColor: colors.Zypsii_color,
+    backgroundColor: colors.Zypsii_color || '#A60F93',
+    shadowColor: colors.Zypsii_color || '#A60F93',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
@@ -1863,6 +1939,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#fff',
+  },
+  avatarPlaceholder: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: 'bold',
   },
 });
 

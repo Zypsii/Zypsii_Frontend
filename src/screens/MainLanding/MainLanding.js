@@ -1844,6 +1844,21 @@ function MainLanding(props) {
     }
   };
 
+  // Mark all notifications as read when notification icon is pressed
+  const handleNotificationPress = async () => {
+    // try {
+    //   const accessToken = await AsyncStorage.getItem('accessToken');
+    //   if (!accessToken) return;
+    //   // Call your backend to mark all as read (if available), otherwise just set to 0 locally
+    //   // Example: await fetch(`${base_url}/user/markAllNotificationsRead`, { ... })
+    //   setUnreadNotifications(0);
+    //   navigation.navigate('Notification');
+    // } catch (error) {
+    //   console.error('Error marking notifications as read:', error);
+     navigation.navigate('Notification');
+    // }
+  };
+
   // Memoize the renderHeader function to prevent unnecessary re-renders
   const renderHeader = useMemo(() => (
     <>
@@ -1935,21 +1950,6 @@ function MainLanding(props) {
   ), [selectedButton, unreadNotifications, isScheduleLoading, isNearestLoading, isMountainsLoading, isViewPointsLoading, isPostsLoading, isShortsLoading, all_schedule, discoverbynearest, mountainPlaces, viewPointsPlaces, all_posts, all_shorts, adventurePlaces, selectedAdventureTag]);
 
   useStatusBar(colors.btncolor, 'light-content');
-
-  // Mark all notifications as read when notification icon is pressed
-  const handleNotificationPress = async () => {
-    try {
-      const accessToken = await AsyncStorage.getItem('accessToken');
-      if (!accessToken) return;
-      // Call your backend to mark all as read (if available), otherwise just set to 0 locally
-      // Example: await fetch(`${base_url}/user/markAllNotificationsRead`, { ... })
-      setUnreadNotifications(0);
-      navigation.navigate('Notification');
-    } catch (error) {
-      console.error('Error marking notifications as read:', error);
-      navigation.navigate('Notification');
-    }
-  };
 
   // Function to handle pull-to-refresh
   const onRefresh = useCallback(async () => {
