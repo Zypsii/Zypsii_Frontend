@@ -4,8 +4,8 @@
     "scheme": "zypsii",
     "version": "1.0.15",
     "description": "Zypsii Travel is a modern travel companion app built in React Native using Expo for iOS and Android. It's designed with beautiful aesthetics and best coding practices in mind, helping travelers plan, book, and manage their journeys seamlessly. The app features trip planning, booking management, and local experiences discovery.",
-    "slug": "zypsii",
-    "owner": "jebilin95",
+    "slug": "qauds",
+    "owner": "jebilinjebilin76",
     "privacy": "public",
     "androidStatusBar": {
       "backgroundColor": "#000000"
@@ -55,7 +55,7 @@
       "androidCollapsedTitle": "Zypsii"
     },
     "android": {
-      "versionCode": 17,
+      "versionCode": 19,
       "package": "com.SmartKal.founder",
       "googleServicesFile": "./google-services.json",
       "userInterfaceStyle": "automatic",
@@ -101,7 +101,7 @@
     },
     "extra": {
       "eas": {
-        "projectId": "6b732e11-cf69-4924-a915-26f6c3558478"
+        "projectId": "759f04a9-dff4-41a3-a02e-722ada8df2d9"
       }
     }
   }

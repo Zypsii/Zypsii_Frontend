@@ -22,6 +22,7 @@ import { base_url } from '../../utils/base_url';
 import {
   addExpense,
   updateExpense,
+  updatePaymentStatus,
   fetchSplitMembers,
   fetchSplitBalance,
   addParticipant,
@@ -106,6 +107,27 @@ function SplitDetail() {
     } catch (error) {
       console.error('Error updating expense:', error);
       showToast(error.message || 'Failed to update expense', 'error');
+    }
+  };
+
+  const handleMarkAsPaid = async (expenseId, memberId) => {
+    try {
+      await dispatch(updatePaymentStatus({ 
+        splitId: split._id, 
+        expenseId, 
+        memberId, 
+        paid: true 
+      })).unwrap();
+      
+      // Refresh both balance and expenses data to reflect the changes
+      await Promise.all([
+        dispatch(fetchSplitBalance(split._id)),
+        dispatch(fetchExpenses(split._id))
+      ]);
+      showToast('Payment marked as paid successfully', 'success');
+    } catch (error) {
+      console.error('Error marking payment as paid:', error);
+      showToast(error.message || 'Failed to mark payment as paid', 'error');
     }
   };
 
@@ -264,8 +286,16 @@ function SplitDetail() {
                               </Text>
                             </View>
                           </View>
-                          <View style={[styles.paymentStatus, { backgroundColor: colors.error }]}>
-                            <Text style={styles.paymentStatusText}>Due</Text>
+                          <View style={styles.memberActions}>
+                            <View style={[styles.paymentStatus, { backgroundColor: colors.error }]}>
+                              <Text style={styles.paymentStatusText}>Due</Text>
+                            </View>
+                            <TouchableOpacity
+                              style={[styles.markAsPaidButton, { backgroundColor: colors.btncolor }]}
+                              onPress={() => handleMarkAsPaid(expense.expenseId, member.memberId)}
+                            >
+                              <Text style={styles.markAsPaidButtonText}>Mark as Paid</Text>
+                            </TouchableOpacity>
                           </View>
                         </View>
                       ))}
@@ -363,13 +393,23 @@ function SplitDetail() {
                             </Text>
                           </View>
                         </View>
-                        <View style={[
-                          styles.paymentStatus,
-                          { backgroundColor: member.paid ? colors.success : colors.error }
-                        ]}>
-                          <Text style={styles.paymentStatusText}>
-                            {member.paid ? 'Paid' : 'Unpaid'}
-                          </Text>
+                        <View style={styles.memberActions}>
+                          <View style={[
+                            styles.paymentStatus,
+                            { backgroundColor: member.paid ? colors.success : colors.error }
+                          ]}>
+                            <Text style={styles.paymentStatusText}>
+                              {member.paid ? 'Paid' : 'Unpaid'}
+                            </Text>
+                          </View>
+                          {!member.paid && (
+                            <TouchableOpacity
+                              style={[styles.markAsPaidButton, { backgroundColor: colors.btncolor }]}
+                              onPress={() => handleMarkAsPaid(expense._id, member.memberId._id)}
+                            >
+                              <Text style={styles.markAsPaidButtonText}>Mark as Paid</Text>
+                            </TouchableOpacity>
+                          )}
                         </View>
                       </View>
                     ))}
@@ -1080,6 +1120,21 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   paymentStatusText: {
+    fontSize: 12,
+    color: colors.white,
+    fontWeight: '500',
+  },
+  memberActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  markAsPaidButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  markAsPaidButtonText: {
     fontSize: 12,
     color: colors.white,
     fontWeight: '500',

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -9,7 +9,8 @@ import {
   Modal,
   Dimensions,
   ScrollView,
-  ActivityIndicator
+  ActivityIndicator,
+  RefreshControl
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useDispatch, useSelector } from 'react-redux';
@@ -24,11 +25,13 @@ import { Video } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
 import { markStorySeen, setSeenStories } from '../../redux/reducers/storiesReducer';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../Auth/AuthContext';
 
 const { width } = Dimensions.get('window');
 
-const Stories = () => {
+const Stories = React.memo(() => {
   const { showToast } = useToast();
+  const { user: currentUser } = useAuth();
   const navigation = useNavigation();
   const dispatch = useDispatch();
   const seenStories = useSelector(state => state.stories?.seenStories || {});
@@ -49,11 +52,16 @@ const Stories = () => {
   const [selectedMedia, setSelectedMedia] = useState(null);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [fallbackProfileImage, setFallbackProfileImage] = useState('https://via.placeholder.com/150');
   const STORY_DURATION = 10000; // 10 seconds for images
   const VIDEO_DURATION = 30000; // 30 seconds for videos
   const PROGRESS_INTERVAL = 100;
 
-  const loadUserId = async () => {
+  // Add ref to track if data has been fetched
+  const hasFetchedData = useRef(false);
+
+  const loadUserId = useCallback(async () => {
     try {
       const user = await AsyncStorage.getItem('user');
       const parsedUser = user ? JSON.parse(user) : null;
@@ -66,12 +74,22 @@ const Stories = () => {
     } catch (error) {
       console.error('Error loading user ID:', error);
     }
-  };
+  }, []);
 
-  const fetchStories = async () => {
+  const fetchStories = useCallback(async () => {
+    // Prevent multiple API calls
+    if (hasFetchedData.current && !refreshing) {
+      return;
+    }
+
     try {
       setIsLoading(true);
       const accessToken = await AsyncStorage.getItem('accessToken');
+      
+      if (!accessToken) {
+        setError('Authentication token not found');
+        return;
+      }
       
       // Fetch stories
       const response = await fetch(`${base_url}/story/list`, {
@@ -80,92 +98,152 @@ const Stories = () => {
         },
       });
       
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
       const data = await response.json();
       
-      if (data.status) {
+      console.log('Stories API response:', data);
+      
+      if (data.status && data.data && data.data.stories) {
         // Get current user ID
         const user = await AsyncStorage.getItem('user');
         const currentUserId = user ? JSON.parse(user)._id : null;
 
         // Fetch seen stories from API
-        const seenResponse = await fetch(`${base_url}/story/seen-stories`, {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-          },
-        });
-        
-        const seenData = await seenResponse.json();
-        let seenStoriesMap = {};
-        
-        if (seenData.status && seenData.data) {
-          // Transform seen stories data into the format we need
-          seenStoriesMap = seenData.data.reduce((acc, story) => {
-            if (!acc[story.userId]) {
-              acc[story.userId] = [];
+        try {
+          const seenResponse = await fetch(`${base_url}/story/seen-stories`, {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+            },
+          });
+          
+          if (seenResponse.ok) {
+            const seenData = await seenResponse.json();
+            let seenStoriesMap = {};
+            
+            if (seenData.status && seenData.data) {
+              // Transform seen stories data into the format we need
+              seenStoriesMap = seenData.data.reduce((acc, story) => {
+                if (!acc[story.userId]) {
+                  acc[story.userId] = [];
+                }
+                acc[story.userId].push(story.storyId);
+                return acc;
+              }, {});
+              
+              // Update Redux with seen stories
+              dispatch(setSeenStories(seenStoriesMap));
+              
+              // Save to AsyncStorage
+              await AsyncStorage.setItem('seenStories', JSON.stringify(seenStoriesMap));
             }
-            acc[story.userId].push(story.storyId);
-            return acc;
-          }, {});
-          
-          // Update Redux with seen stories
-          dispatch(setSeenStories(seenStoriesMap));
-          
-          // Save to AsyncStorage
-          await AsyncStorage.setItem('seenStories', JSON.stringify(seenStoriesMap));
+          }
+        } catch (seenError) {
+          console.log('Error fetching seen stories:', seenError);
+          // Continue without seen stories data
         }
 
         // Separate stories into user's stories and other stories
         const userStories = [];
         const otherStories = [];
 
-        data.data.stories.forEach(userStory => {
-          const transformedStory = {
-            user_id: userStory.userId,
-            user_image: userStory.stories[0]?.thumbnailUrl || 'https://via.placeholder.com/150',
-            user_name: userStory.userName,
-            stories: userStory.stories.map(story => ({
-              story_id: story._id || Date.now(),
-              story_image: story.videoUrl || story.thumbnailUrl,
-              thumbnail_image: story.thumbnailUrl || story.videoUrl,
-              mediaType: story.videoUrl?.includes('.mp4') ? 'video' : 'image',
-              swipeText: story.description,
-              onPress: () => console.log('story swiped'),
-              viewsCount: story.viewsCount,
-              likesCount: story.likesCount,
-              commentsCount: story.commentsCount,
-              createdAt: story.createdAt
-            }))
-          };
+        if (Array.isArray(data.data.stories)) {
+          data.data.stories.forEach(userStory => {
+            if (!userStory.stories || userStory.stories.length === 0) {
+              return; // Skip users with no stories
+            }
 
-          // Check if the story belongs to the current user
-          if (userStory.userId === currentUserId) {
-            userStories.push(transformedStory);
-          } else {
-            otherStories.push(transformedStory);
-          }
-        });
+            // Use current user's profile image for their stories, otherwise use the story's profile picture
+            const userImage = userStory.userId === currentUserId 
+              ? (currentUser?.profilePicture || fallbackProfileImage || userStory.profilePicture || 'https://via.placeholder.com/150')
+              : (userStory.profilePicture || userStory.stories[0]?.thumbnailUrl || 'https://via.placeholder.com/150');
+
+            const transformedStory = {
+              user_id: userStory.userId,
+              user_image: userImage,
+              user_name: userStory.userName || 'Unknown User',
+              stories: userStory.stories.map(story => ({
+                story_id: story._id || Date.now(),
+                story_image: story.videoUrl || story.thumbnailUrl,
+                thumbnail_image: story.thumbnailUrl || story.videoUrl,
+                mediaType: story.videoUrl?.includes('.mp4') ? 'video' : 'image',
+                swipeText: story.description || story.title || '',
+                onPress: () => console.log('story swiped'),
+                viewsCount: story.viewsCount || 0,
+                likesCount: story.likesCount || 0,
+                commentsCount: story.commentsCount || 0,
+                createdAt: story.createdAt
+              }))
+            };
+
+            // Check if the story belongs to the current user
+            if (userStory.userId === currentUserId) {
+              userStories.push(transformedStory);
+            } else {
+              otherStories.push(transformedStory);
+            }
+          });
+        } else {
+          console.warn('Stories data is not in expected format:', data.data.stories);
+        }
 
         // Set user's stories for create page
         setMyStories(userStories);
         // Set other users' stories for story circle
         setStories(otherStories);
+        
+        // Mark that data has been fetched
+        hasFetchedData.current = true;
+        
+        console.log('Processed stories:', {
+          userStories: userStories.length,
+          otherStories: otherStories.length,
+          totalStories: userStories.length + otherStories.length
+        });
       } else {
         setError(data.message || 'Failed to fetch stories');
       }
     } catch (error) {
+      console.error('Error fetching stories:', error);
       setError('Error fetching stories: ' + error.message);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [dispatch, refreshing]);
 
   useEffect(() => {
-    fetchStories();
-  }, []);
+    if (!hasFetchedData.current) {
+      fetchStories();
+    }
+  }, [fetchStories]);
 
   useEffect(() => {
     loadUserId();
-  }, []);
+  }, [loadUserId]);
+
+  // Ensure we have current user data for profile image
+  useEffect(() => {
+    if (!currentUser?.profilePicture) {
+      // If current user profile picture is not available from AuthContext, try to load from AsyncStorage
+      const loadCurrentUser = async () => {
+        try {
+          const userData = await AsyncStorage.getItem('user');
+          if (userData) {
+            const parsedUser = JSON.parse(userData);
+            if (parsedUser.profilePicture) {
+              setFallbackProfileImage(parsedUser.profilePicture);
+            }
+            console.log('Loaded user data from AsyncStorage for stories:', parsedUser);
+          }
+        } catch (error) {
+          console.error('Error loading current user data:', error);
+        }
+      };
+      loadCurrentUser();
+    }
+  }, [currentUser?.profilePicture]);
 
   useEffect(() => {
     if (showStories && selectedUser) {
@@ -183,7 +261,7 @@ const Stories = () => {
     loadSeenStories();
   }, []);
 
-  const loadSeenStories = async () => {
+  const loadSeenStories = useCallback(async () => {
     try {
       const seenStoriesData = await AsyncStorage.getItem('seenStories');
       if (seenStoriesData) {
@@ -193,9 +271,22 @@ const Stories = () => {
     } catch (error) {
       console.error('Error loading seen stories:', error);
     }
-  };
+  }, [dispatch]);
 
-  const pickImage = async () => {
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      // Reset the fetch flag to allow fresh data
+      hasFetchedData.current = false;
+      await fetchStories();
+    } catch (error) {
+      console.error('Error refreshing stories:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [fetchStories]);
+
+  const pickImage = useCallback(async () => {
     try {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
       
@@ -221,9 +312,9 @@ const Stories = () => {
       console.error('Error picking media:', error);
       showToast('Failed to pick media. Please try again', 'error');
     }
-  };
+  }, [showToast]);
 
-  const takePhoto = async () => {
+  const takePhoto = useCallback(async () => {
     try {
       const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
       
@@ -249,9 +340,9 @@ const Stories = () => {
       console.error('Error capturing media:', error);
       showToast('Failed to capture media. Please try again', 'error');
     }
-  };
+  }, [showToast]);
 
-  const trimVideo = async (videoUri) => {
+  const trimVideo = useCallback(async (videoUri) => {
     try {
       // For now, we'll just return the original video URI
       // The 30-second limit will be enforced during playback
@@ -260,13 +351,13 @@ const Stories = () => {
       console.error('Error processing video:', error);
       return videoUri;
     }
-  };
+  }, []);
 
-  const getStoryDuration = (mediaType) => {
+  const getStoryDuration = useCallback((mediaType) => {
     return mediaType === 'video' ? VIDEO_DURATION : STORY_DURATION;
-  };
+  }, []);
 
-  const startStoryTimer = () => {
+  const startStoryTimer = useCallback(() => {
     if (storyTimer) {
       clearInterval(storyTimer);
     }
@@ -293,9 +384,9 @@ const Stories = () => {
     }, PROGRESS_INTERVAL);
 
     setStoryTimer(timer);
-  };
+  }, [storyTimer, selectedUser, currentStoryIndex, handleNextStory]);
 
-  const uploadStory = async (mediaAsset) => {
+  const uploadStory = useCallback(async (mediaAsset) => {
     try {
       setIsUploading(true);
       const accessToken = await AsyncStorage.getItem('accessToken');
@@ -316,37 +407,16 @@ const Stories = () => {
       // If it's a video, extract thumbnail
       if (isVideo) {
         try {
-          // Create a temporary file for the thumbnail
-          const thumbnailPath = `${FileSystem.cacheDirectory}thumbnail_${Date.now()}.jpg`;
+          // For now, use the video URI as the thumbnail
+          // In a production app, you might want to use a video thumbnail library
+          thumbnailUri = fileUri;
           
-          // Load the video
-          const { status } = await Video.createForAsync({
+          // Add thumbnail to form data (same as video for now)
+          uploadFormData.append('thumbnailFile', {
             uri: fileUri,
-            shouldPlay: false,
+            type: 'video/mp4',
+            name: `thumbnail_${Date.now()}.mp4`
           });
-
-          if (status.isLoaded) {
-            // Get the first frame as a thumbnail
-            const { uri } = await Video.getThumbnailAsync(fileUri, {
-              time: 0,
-              quality: 0.5,
-            });
-
-            // Copy the thumbnail to our cache directory
-            await FileSystem.copyAsync({
-              from: uri,
-              to: thumbnailPath
-            });
-
-            // Add thumbnail to form data
-            uploadFormData.append('thumbnailFile', {
-              uri: thumbnailPath,
-              type: 'image/jpeg',
-              name: `thumbnail_${Date.now()}.jpg`
-            });
-
-            thumbnailUri = thumbnailPath;
-          }
         } catch (error) {
           console.error('Error extracting video thumbnail:', error);
           // If thumbnail extraction fails, use the video URI as fallback
@@ -366,7 +436,6 @@ const Stories = () => {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'multipart/form-data',
         },
         body: uploadFormData,
       });
@@ -410,6 +479,8 @@ const Stories = () => {
       if (response.ok) {
         console.log('Story uploaded successfully:', data.data);
         showToast('Story uploaded successfully', 'success');
+        // Reset the fetch flag to allow fresh data
+        hasFetchedData.current = false;
         fetchStories();
         setShowPreviewModal(false);
         setSelectedMedia(null);
@@ -422,13 +493,13 @@ const Stories = () => {
     } finally {
       setIsUploading(false);
     }
-  };
+  }, [showToast, fetchStories]);
 
-  const isStorySeen = (userId, storyId) => {
+  const isStorySeen = useCallback((userId, storyId) => {
     return seenStories[userId]?.includes(storyId) || false;
-  };
+  }, [seenStories]);
 
-  const markStoryAsSeen = async (userId, storyId) => {
+  const markStoryAsSeen = useCallback(async (userId, storyId) => {
     if (!isStorySeen(userId, storyId)) {
       try {
         // Create a new object for seen stories
@@ -466,9 +537,9 @@ const Stories = () => {
         console.error('Error marking story as seen:', error);
       }
     }
-  };
+  }, [seenStories, isStorySeen, dispatch]);
 
-  const handleStoryPress = (user) => {
+  const handleStoryPress = useCallback((user) => {
     if (!user || !user.stories || user.stories.length === 0) return;
     
     // Use setTimeout to avoid state updates during render
@@ -483,9 +554,9 @@ const Stories = () => {
         clearInterval(storyTimer);
       }
     }, 0);
-  };
+  }, [storyTimer]);
 
-  const handleNextStory = () => {
+  const handleNextStory = useCallback(() => {
     if (selectedUser && selectedUser.stories) {
       if (currentStoryIndex < selectedUser.stories.length - 1) {
         const currentStory = selectedUser.stories[currentStoryIndex];
@@ -521,9 +592,9 @@ const Stories = () => {
         }, 0);
       }
     }
-  };
+  }, [selectedUser, currentStoryIndex, stories, markStoryAsSeen]);
 
-  const handlePreviousStory = () => {
+  const handlePreviousStory = useCallback(() => {
     if (currentStoryIndex > 0) {
       // Use setTimeout to avoid state updates during render
       setTimeout(() => {
@@ -545,9 +616,9 @@ const Stories = () => {
         }, 0);
       }
     }
-  };
+  }, [currentStoryIndex, stories, selectedUser]);
 
-  const handleDeleteStory = async (storyId) => {
+  const handleDeleteStory = useCallback(async (storyId) => {
     try {
       const accessToken = await AsyncStorage.getItem('accessToken');
       if (!accessToken) {
@@ -597,20 +668,20 @@ const Stories = () => {
       console.error('Error deleting story:', error);
       showToast('Failed to delete story. Please try again', 'error');
     }
-  };
+  }, [myStories, userId, selectedUser, currentStoryIndex, showToast]);
 
-  const handleSubmit = async () => {
+  const handleSubmit = useCallback(async () => {
     if (!selectedMedia) {
       showToast('No media selected', 'error');
       return;
     }
     await uploadStory(selectedMedia);
-  };
+  }, [selectedMedia, showToast]);
 
-  const handleCancel = () => {
+  const handleCancel = useCallback(() => {
     setSelectedMedia(null);
     setShowPreviewModal(false);
-  };
+  }, []);
 
   const renderStoryContent = () => {
     if (!selectedUser || !selectedUser.stories || !selectedUser.stories[currentStoryIndex]) return null;
@@ -738,7 +809,7 @@ const Stories = () => {
           </View>
         </View>
         <View style={styles.storyProgress}>
-          {selectedUser.stories.map((story, index) => (
+          {selectedUser.stories && selectedUser.stories.length > 0 && selectedUser.stories.map((story, index) => (
             <View
               key={index}
               style={[
@@ -751,7 +822,7 @@ const Stories = () => {
                 <View 
                   style={[
                     styles.progressBarFill,
-                    { width: `${progress}%` }
+                    { width: `${Math.min(progress, 100)}%` }
                   ]}
                 />
               )}
@@ -815,6 +886,10 @@ const Stories = () => {
 
   const renderYourStory = () => {
     const hasStories = myStories.length > 0;
+    
+    // Get profile image from current user or fallback to AsyncStorage
+    const currentUserProfileImage = currentUser?.profilePicture || fallbackProfileImage;
+    
     return (
       <TouchableOpacity 
         style={styles.yourStoryContainer}
@@ -833,7 +908,7 @@ const Stories = () => {
         ]}>
           {hasStories ? (
             <Image
-              source={{ uri: myStories[0]?.user_image || 'https://via.placeholder.com/150' }}
+              source={{ uri: currentUserProfileImage }}
               style={styles.storyImage}
             />
           ) : (
@@ -906,9 +981,16 @@ const Stories = () => {
         {/* Story Header */}
         <View style={styles.instagramPreviewHeader}>
           <View style={styles.instagramPreviewUserInfo}>
-            <View style={styles.instagramPreviewUserImage}>
-              <Text style={styles.instagramPreviewUserInitial}>You</Text>
-            </View>
+            {currentUser?.profilePicture ? (
+              <Image
+                source={{ uri: currentUser.profilePicture }}
+                style={styles.instagramPreviewUserImage}
+              />
+            ) : (
+              <View style={styles.instagramPreviewUserImage}>
+                <Text style={styles.instagramPreviewUserInitial}>You</Text>
+              </View>
+            )}
             <Text style={styles.instagramPreviewUserName}>Your Story</Text>
           </View>
           <TouchableOpacity onPress={handleCancel} style={styles.instagramCloseButton}>
@@ -1014,39 +1096,52 @@ const Stories = () => {
           decelerationRate="fast"
           snapToInterval={83} // Width of story item (68) + margin (15)
           snapToAlignment="start"
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+            />
+          }
         >
           <View style={styles.storiesLeftSection}>
             {renderYourStory()}
           </View>
 
-          {stories.map((item, index) => (
-            <TouchableOpacity
-              key={index}
-              style={styles.storyItemContainer}
-              onPress={() => handleStoryPress(item)}
-              activeOpacity={0.7}
-            >
-              <View
-                style={[
-                  styles.storyCircle,
-                  !item.stories?.length && styles.disabledStoryCircle,
-                  item.stories?.length > 0 && !isStorySeen(item.user_id, item.stories[0].story_id) && styles.unseenStoryCircle,
-                  item.stories?.length > 0 && isStorySeen(item.user_id, item.stories[0].story_id) && styles.seenStoryCircle
-                ]}
+          {stories.length > 0 ? (
+            stories.map((item, index) => (
+              <TouchableOpacity
+                key={index}
+                style={styles.storyItemContainer}
+                onPress={() => handleStoryPress(item)}
+                activeOpacity={0.7}
               >
-                <Image source={{ uri: item.user_image }} style={styles.storyImage} />
-              </View>
-              <Text 
-                style={[
-                  styles.storyName,
-                  item.stories?.length > 0 && !isStorySeen(item.user_id, item.stories[0].story_id) && styles.unseenStoryName,
-                  item.stories?.length > 0 && isStorySeen(item.user_id, item.stories[0].story_id) && styles.seenStoryName
-                ]}
-              >
-                {item.user_name}
-              </Text>
-            </TouchableOpacity>
-          ))}
+                <View
+                  style={[
+                    styles.storyCircle,
+                    !item.stories?.length && styles.disabledStoryCircle,
+                    item.stories?.length > 0 && !isStorySeen(item.user_id, item.stories[0].story_id) && styles.unseenStoryCircle,
+                    item.stories?.length > 0 && isStorySeen(item.user_id, item.stories[0].story_id) && styles.seenStoryCircle
+                  ]}
+                >
+                  <Image source={{ uri: item.user_image }} style={styles.storyImage} />
+                </View>
+                <Text 
+                  style={[
+                    styles.storyName,
+                    item.stories?.length > 0 && !isStorySeen(item.user_id, item.stories[0].story_id) && styles.unseenStoryName,
+                    item.stories?.length > 0 && isStorySeen(item.user_id, item.stories[0].story_id) && styles.seenStoryName
+                  ]}
+                >
+                  {item.user_name}
+                </Text>
+              </TouchableOpacity>
+            ))
+          ) : (
+            <View style={styles.noStoriesContainer}>
+              <Text style={styles.noStoriesText}>No stories to show</Text>
+              <Text style={styles.noStoriesSubtext}>Follow users to see their stories</Text>
+            </View>
+          )}
         </ScrollView>
 
         <Modal
@@ -1065,12 +1160,21 @@ const Stories = () => {
     );
   };
 
+  // Cleanup effect to reset fetch flag on unmount
+  useEffect(() => {
+    return () => {
+      hasFetchedData.current = false;
+    };
+  }, []);
+
   return (
     <View style={styles.container}>
       {renderContent()}
     </View>
   );
-};
+});
+
+Stories.displayName = 'Stories';
 
 const styles = StyleSheet.create({
   container: {
@@ -1256,19 +1360,19 @@ const styles = StyleSheet.create({
     padding: 2,
   },
   emptyStoryCircle: {
-    backgroundColor: '#f0f0f0',
-    borderColor: '#ddd',
+    borderColor: '#ccc',
+    borderWidth: 2,
+    backgroundColor: '#f5f5f5',
   },
   emptyStoryContent: {
-    width: 62,
-    height: 62,
-    borderRadius: 31,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f0f0f0',
+    width: '100%',
+    height: '100%',
   },
   emptyStoryUsername: {
-    color: '#666',
+    color: '#9B9B9B',
+    fontWeight: '400',
   },
   modalStoryContainer: {
     flex: 1,
@@ -1483,6 +1587,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+  },
+  noStoriesContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    minWidth: 200,
+  },
+  noStoriesText: {
+    color: '#9B9B9B',
+    fontSize: 16,
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  noStoriesSubtext: {
+    color: '#9B9B9B',
+    fontSize: 12,
+    textAlign: 'center',
   },
 });
 

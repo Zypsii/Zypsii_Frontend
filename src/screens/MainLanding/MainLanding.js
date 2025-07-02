@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   View, 
   FlatList, 
@@ -233,14 +233,20 @@ function MainLanding(props) {
     }
   };
 
-  // Add useEffect to call updateLiveLocation when component mounts
+  // Single useEffect for initial data fetch and setup
   useEffect(() => {
-    updateLiveLocation();
-  }, []);
-
-  // Add useEffect for initial data fetch
-  useEffect(() => {
-    fetchAllData();
+    const initializeData = async () => {
+      // Update live location
+      await updateLiveLocation();
+      
+      // Fetch all data including schedule
+      await fetchAllData();
+      
+      // Fetch unread notifications
+      await fetchUnreadNotifications();
+    };
+    
+    initializeData();
   }, []);
 
   // Back handler
@@ -292,11 +298,7 @@ function MainLanding(props) {
     }
   };
 
-  useEffect(() => {
-    fetchUnreadNotifications();
-  }, []);
-
-  // Refresh unread notification count when coming back from Notification page
+  // Refresh unread notification count when coming back from Notification page only
   useFocusEffect(
     React.useCallback(() => {
       fetchUnreadNotifications();
@@ -357,13 +359,7 @@ function MainLanding(props) {
     }
   };
 
-  useEffect(() => {
-    fetchShorts();
-  }, []); // Empty dependency array means it runs once on mount
-
-  // Add a debug effect to monitor all_shorts state
-  useEffect(() => {
-  }, [all_shorts]);
+  // Removed separate fetchShorts useEffect since it's included in fetchAllData
 
   // Modify the fetchAllData function to use the centralized function
   const fetchAllData = async () => {
@@ -733,12 +729,44 @@ function MainLanding(props) {
           setIsNearestLoading(false);
         });
 
+      // Fetch Shorts
+      fetchShorts();
+
+      // Fetch Adventure Places (initial tag)
+      if (outdoorsAndAdventureTags[0]) {
+        const adventureResult = await fetchPlacesData(outdoorsAndAdventureTags[0], outdoorsAndAdventureTags[0]);
+        setAdventurePlaces(adventureResult.data);
+        setAdventurePagination({
+          nextPageToken: adventureResult.nextPageToken,
+          hasMore: adventureResult.hasMore
+        });
+        setIsAdventureLoading(false);
+      }
+
+      // Fetch Mountains and View Points data
+      const mountainsResult = await fetchPlacesData('mountains', 'Mountains');
+      setMountainPlaces(mountainsResult.data);
+      setMountainsPagination({
+        nextPageToken: mountainsResult.nextPageToken,
+        hasMore: mountainsResult.hasMore
+      });
+      setIsMountainsLoading(false);
+
+      const viewPointsResult = await fetchPlacesData('view points', 'View Points');
+      setViewPointsPlaces(viewPointsResult.data);
+      setViewPointsPagination({
+        nextPageToken: viewPointsResult.nextPageToken,
+        hasMore: viewPointsResult.hasMore
+      });
+      setIsViewPointsLoading(false);
+
     } catch (error) {
       console.error('Error in fetchAllData:', error);
       // Set empty arrays on error
       setDiscover_by_intrest([]);
       setMountainPlaces([]);
       setViewPointsPlaces([]);
+      setAdventurePlaces([]);
       setAll_schedule([]);
       setAllPosts([]);
       setDiscoverbyNearest([]);
@@ -751,6 +779,7 @@ function MainLanding(props) {
       setIsPostsLoading(false);
       setIsShortsLoading(false);
       setIsNearestLoading(false);
+      setIsAdventureLoading(false);
       
       // Log specific error details
       if (error.message === 'No access token found') {
@@ -761,148 +790,10 @@ function MainLanding(props) {
     }
   };
 
-  // Modify loadMoreDiscoverByInterest function to use centralized function
-  const loadMoreDiscoverByInterest = async () => {
-    if (!discoverByInterestPagination.hasMore || isDiscoverByInterestLoading) return;
+ 
+ 
 
-    try {
-      setIsDiscoverByInterestLoading(true);
-      const result = await fetchPlacesData('interest', null, discoverByInterestPagination.nextPageToken);
-      
-      if (result.data.length > 0) {
-        // Add new data at the beginning of the list
-        setDiscover_by_intrest(prev => [...result.data, ...prev]);
-        
-        // Update pagination state
-        setDiscoverByInterestPagination({
-          nextPageToken: result.nextPageToken,
-          hasMore: result.hasMore
-        });
-
-        // Scroll to the beginning of the list to show new data
-        if (this.interestListRef) {
-          this.interestListRef.scrollToOffset({ offset: 0, animated: true });
-        }
-      }
-    } catch (error) {
-      console.error('Error loading more discover by interest:', error);
-    } finally {
-      setIsDiscoverByInterestLoading(false);
-    }
-  };
-
-  // Modify loadMoreDiscoverByNearest function to use centralized function
-  const loadMoreDiscoverByNearest = async () => {
-    if (!discoverByNearestPagination.hasMore || isNearestLoading) return;
-
-    try {
-      setIsNearestLoading(true);
-      const result = await fetchPlacesData('nearest', null, discoverByNearestPagination.nextPageToken);
-      
-      if (result.data.length > 0) {
-        const formattedData = result.data.map(item => ({
-          id: item._id,
-          image: item.image,
-          title: item.name,
-          subtitle: item.address || 'No address',
-          rating: item.rating,
-          distance: item.distanceInKilometer ? parseFloat(item.distanceInKilometer).toFixed(1) : null,
-          location: {
-            latitude: item.location?.lat || 0,
-            longitude: item.location?.lng || 0
-          }
-        }));
-        
-        // Add new data at the beginning of the list
-        setDiscoverbyNearest(prev => [...formattedData, ...prev]);
-        
-        // Update pagination state
-        setDiscoverByNearestPagination({
-          nextPageToken: result.nextPageToken,
-          hasMore: result.hasMore
-        });
-
-        // Scroll to the beginning of the list to show new data
-        if (this.nearestListRef) {
-          this.nearestListRef.scrollToOffset({ offset: 0, animated: true });
-        }
-      }
-    } catch (error) {
-      console.error('Error loading more discover by nearest:', error);
-    } finally {
-      setIsNearestLoading(false);
-    }
-  };
-
-  // Modify loadMoreAllDestination function to use centralized function
-  const loadMoreAllDestination = async () => {
-    if (!allDestinationPagination.hasMore || isAllDestinationLoading) return;
-
-    try {
-      setIsAllDestinationLoading(true);
-      setLoadingNewItems(true);
-      const result = await fetchPlacesData('nearest', null, allDestinationPagination.nextPageToken);
-      
-      if (result.data.length > 0) {
-        // Add new data at the beginning of the list
-        setAll_destination(prev => [...result.data, ...prev]);
-        
-        // Update pagination state
-        setAllDestinationPagination({
-          nextPageToken: result.nextPageToken,
-          hasMore: result.hasMore
-        });
-
-        // Scroll to the beginning of the list to show new data
-        if (this.allDestinationListRef) {
-          this.allDestinationListRef.scrollToOffset({ offset: 0, animated: true });
-        }
-      }
-    } catch (error) {
-      console.error('Error loading more all destinations:', error);
-    } finally {
-      // Add a small delay before hiding the loader to ensure smooth transition
-      setTimeout(() => {
-        setIsAllDestinationLoading(false);
-        setLoadingNewItems(false);
-      }, 500);
-    }
-  };
-
-  // Modify loadMoreBestDestination function to use centralized function
-  const loadMoreBestDestination = async () => {
-    if (!bestDestinationPagination.hasMore || isBestDestinationLoading) return;
-
-    try {
-      setIsBestDestinationLoading(true);
-      setLoadingNewBestItems(true);
-      const result = await fetchPlacesData('nearest', null, bestDestinationPagination.nextPageToken);
-      
-      if (result.data.length > 0) {
-        // Add new data at the beginning of the list
-        setBest_destination(prev => [...result.data, ...prev]);
-        
-        // Update pagination state
-        setBestDestinationPagination({
-          nextPageToken: result.nextPageToken,
-          hasMore: result.hasMore
-        });
-
-        // Scroll to the beginning of the list to show new data
-        if (this.bestDestinationListRef) {
-          this.bestDestinationListRef.scrollToOffset({ offset: 0, animated: true });
-        }
-      }
-    } catch (error) {
-      console.error('Error loading more best destinations:', error);
-    } finally {
-      // Add a small delay before hiding the loader to ensure smooth transition
-      setTimeout(() => {
-        setIsBestDestinationLoading(false);
-        setLoadingNewBestItems(false);
-      }, 500);
-    }
-  };
+ 
 
   // --- HANDLER FOR TAG CLICK ---
   const handleAdventureTagClick = async (tag) => {
@@ -1840,7 +1731,8 @@ function MainLanding(props) {
     }
   };
 
-  const renderHeader = () => (
+  // Memoize the renderHeader function to prevent unnecessary re-renders
+  const renderHeader = useMemo(() => (
     <>
       <View style={styles.headerContainer}>
         <View style={styles.locationWrapper}>
@@ -1895,7 +1787,7 @@ function MainLanding(props) {
           </TouchableOpacity>
         </View>
       </View>
-      <Stories />
+      <Stories key="stories-component" />
 
       <View style={styles.buttonContainer}>
         {buttons.map(button => (
@@ -1927,7 +1819,7 @@ function MainLanding(props) {
 
       {renderContent()}
     </>
-  );
+  ), [selectedButton, unreadNotifications, isScheduleLoading, isNearestLoading, isMountainsLoading, isViewPointsLoading, isPostsLoading, isShortsLoading, all_schedule, discoverbynearest, mountainPlaces, viewPointsPlaces, all_posts, all_shorts, adventurePlaces, selectedAdventureTag]);
 
   useStatusBar(colors.btncolor, 'light-content');
 
@@ -1946,14 +1838,7 @@ function MainLanding(props) {
     }
   };
 
-  useEffect(() => {
-    if (outdoorsAndAdventureTags[0]) {
-      handleAdventureTagClick(outdoorsAndAdventureTags[0]);
-    }
-    handleMountainsTagClick();
-    handleViewPointsTagClick();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Removed unnecessary useEffect that was causing multiple refreshes
 
   return (
     <SafeAreaView style={[styles.flex, styles.safeAreaStyle]}>

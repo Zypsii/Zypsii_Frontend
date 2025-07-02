@@ -168,6 +168,30 @@ export const updateExpense = createAsyncThunk(
   }
 );
 
+// Update Payment Status
+export const updatePaymentStatus = createAsyncThunk(
+  'split/updatePaymentStatus',
+  async ({ splitId, expenseId, memberId, paid }) => {
+    const token = await AsyncStorage.getItem('accessToken');
+    const response = await axios.put(
+      `${base_url}/split/update-payment-status`,
+      {
+        splitId,
+        expenseId,
+        memberId,
+        paid
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    return response.data;
+  }
+);
+
 // Search Users
 export const searchUsers = createAsyncThunk(
   'split/searchUsers',
@@ -247,6 +271,10 @@ const initialState = {
   isInviteModalVisible: false,
   editingExpenseId: null,
   editedAmount: '',
+  
+  // Payment Status
+  paymentStatusLoading: false,
+  paymentStatusError: null,
 };
 
 const splitSlice = createSlice({
@@ -465,6 +493,20 @@ const splitSlice = createSlice({
         state.currentSplit = action.payload;
         state.editingExpenseId = null;
         state.editedAmount = '';
+      })
+      
+      // Update Payment Status
+      .addCase(updatePaymentStatus.pending, (state) => {
+        state.paymentStatusLoading = true;
+        state.paymentStatusError = null;
+      })
+      .addCase(updatePaymentStatus.fulfilled, (state, action) => {
+        state.paymentStatusLoading = false;
+        state.paymentStatusError = null;
+      })
+      .addCase(updatePaymentStatus.rejected, (state, action) => {
+        state.paymentStatusLoading = false;
+        state.paymentStatusError = action.error.message;
       })
       
       // Invite Friend
