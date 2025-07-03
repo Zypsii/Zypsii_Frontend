@@ -155,7 +155,7 @@ function MySchedule({ navigation }) {
         },
       }); 
       const data = await response.json();
-      if (data.status && data.data) {
+      if (data.success && data.data) {
         const formattedData = data.data
           .filter(item => !loadedIds.has(item._id)) // Filter out already loaded items
           .map((item) => {
@@ -203,9 +203,13 @@ function MySchedule({ navigation }) {
         }
 
         setHasMore(formattedData.length === currentLimit);
+      } else {
+        // If no data, clear the schedule
+        setAll_schedule([]);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
+      setAll_schedule([]); // Optionally clear on error
     } finally {
       setIsLoading(false);
       setIsLoadingMore(false);

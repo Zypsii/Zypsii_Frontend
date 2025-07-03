@@ -122,12 +122,10 @@ function MakeSchedule() {
     const { latitude, longitude, dayId } = route.params || {};
     
     if (latitude && longitude && dayId) {
-      console.log('Processing location update:', { dayId, latitude, longitude });
       
       // Update only the specific day's location
       const updatedDays = days.map(day => {
         if (day.id === dayId) {
-          console.log(`Updating location for day ${dayId}`);
           return {
             ...day,
             latitude: latitude.toString(),
@@ -157,7 +155,6 @@ function MakeSchedule() {
     const unsubscribe = navigation.addListener('focus', () => {
       const { latitude, longitude, dayId } = route.params || {};
       if (latitude && longitude && dayId) {
-        console.log('Screen focused with location data:', { dayId, latitude, longitude });
         handleLocationUpdate();
       }
     });

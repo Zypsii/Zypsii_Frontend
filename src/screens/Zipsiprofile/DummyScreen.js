@@ -14,6 +14,7 @@ import { ProfileSkeleton, StatsSkeleton, GridSkeleton, ScheduleSkeleton } from '
 import { TextDefault } from '../../components';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import BottomTab from '../../components/BottomTab/BottomTab';
+import { useToast } from '../../context/ToastContext';
 
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -21,6 +22,7 @@ const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 const DummyScreen = ({ navigation }) => {
   const [activeIcon, setActiveIcon] = useState('th-large'); // Default active icon
   const [userId, setUserId] = useState(null);
+  const { showToast } = useToast();
 
   // Function to handle settings press
   const handleSettingsPress = () => {
@@ -155,7 +157,8 @@ const DummyScreen = ({ navigation }) => {
           }));
         }
       } catch (error) {
-        console.error('Error fetching user ID:', error);
+        // console.error('Error fetching user ID:', error);
+        showToast('Failed to fetch user profile. Please try again.', 'error');
       } finally {
         setProfileLoading(false);
       }
@@ -341,7 +344,8 @@ const DummyScreen = ({ navigation }) => {
       const validData = processedData.filter(item => item !== null);
       setAll_schedule(validData);
     } catch (error) {
-      console.error('Error processing location data:', error);
+      // console.error('Error processing location data:', error);
+      showToast('Failed to process schedule location data.', 'error');
       setAll_schedule([]);
     }
   };
@@ -409,7 +413,8 @@ const DummyScreen = ({ navigation }) => {
               setAllPosts([]);
             }
           } catch (error) {
-            console.error('Error processing posts response:', error);
+            // console.error('Error processing posts response:', error);
+            showToast('Failed to process posts.', 'error');
             setAllPosts([]);
           }
         } else {
@@ -446,7 +451,8 @@ const DummyScreen = ({ navigation }) => {
           const user = userStr ? JSON.parse(userStr) : null;
           
           if (!user || !user._id) {
-            console.error('User data not found or invalid');
+            // console.error('User data not found or invalid');
+            showToast('User data not found or invalid.', 'error');
             setShortsLoading(false);
             return;
           }
@@ -491,14 +497,16 @@ const DummyScreen = ({ navigation }) => {
             setAllShorts([]);
           }
         } catch (error) {
-          console.error('Error fetching shorts:', error);
+          // console.error('Error fetching shorts:', error);
+          showToast('Failed to fetch shorts.', 'error');
           setAllShorts([]);
         } finally {
           setShortsLoading(false);
         }
 
       } catch (error) {
-        console.error('Error fetching data:', error);
+        // console.error('Error fetching data:', error);
+        showToast('Failed to fetch data. Please try again.', 'error');
       } finally {
         setLoading(false);
       }
@@ -552,7 +560,8 @@ const DummyScreen = ({ navigation }) => {
                 Alert.alert('Error', errorData.message || 'Failed to delete schedule.');
               }
             } catch (error) {
-              console.error('Delete error:', error);
+              // console.error('Delete error:', error);
+              showToast('Failed to delete schedule. Please try again.', 'error');
               Alert.alert('Error', 'Something went wrong. Please try again.');
             }
           },
@@ -593,7 +602,8 @@ const DummyScreen = ({ navigation }) => {
                 Alert.alert('Error', errorData.message || 'Failed to delete short.');
               }
             } catch (error) {
-              console.error('Delete error:', error);
+              // console.error('Delete error:', error);
+              showToast('Failed to delete short. Please try again.', 'error');
               Alert.alert('Error', 'Something went wrong. Please try again.');
             }
           },
@@ -924,7 +934,8 @@ const DummyScreen = ({ navigation }) => {
                 Alert.alert('Error', errorData.message || 'Failed to delete post.');
               }
             } catch (error) {
-              console.error('Delete error:', error);
+              // console.error('Delete error:', error);
+              showToast('Failed to delete post. Please try again.', 'error');
               Alert.alert('Error', 'Something went wrong. Please try again.');
             }
           },
