@@ -26,6 +26,7 @@ import * as FileSystem from 'expo-file-system';
 import { markStorySeen, setSeenStories } from '../../redux/reducers/storiesReducer';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../Auth/AuthContext';
+import { colors } from '../../utils/colors';
 
 const { width } = Dimensions.get('window');
 
@@ -994,7 +995,7 @@ const Stories = React.memo(() => {
             <Text style={styles.instagramPreviewUserName}>Your Story</Text>
           </View>
           <TouchableOpacity onPress={handleCancel} style={styles.instagramCloseButton}>
-            <Ionicons name="close" size={24} color="#fff" />
+            <Ionicons name="close" size={24} color={colors.Zypsii_color} />
           </TouchableOpacity>
         </View>
 
@@ -1267,7 +1268,7 @@ const styles = StyleSheet.create({
   },
   retryButton: {
     padding: 10,
-    backgroundColor: '#870E6B',
+    backgroundColor: colors.Zypsii_color,
     borderRadius: 5,
   },
   retryText: {
@@ -1295,7 +1296,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     right: 0,
-    backgroundColor: '#a60f93',
+    backgroundColor: colors.Zypsii_color,
     borderRadius: 100,
     padding: 0.1,
   },
@@ -1326,7 +1327,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   cancelButtonText: {
-    color: '#ff0000',
+    color: colors.Zypsii_color,
   },
   storiesContainer: {
     flexDirection: 'row',
@@ -1473,7 +1474,7 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   unseenStoryCircle: {
-    borderColor: '#870E6B',
+    borderColor: colors.Zypsii_color,
     borderWidth: 2.5,
   },
   seenStoryCircle: {
@@ -1482,7 +1483,7 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
   unseenStoryName: {
-    color: '#870E6B',
+    color: colors.Zypsii_color,
     fontWeight: '600',
   },
   seenStoryName: {
@@ -1530,7 +1531,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   instagramPreviewUserName: {
-    color: '#fff',
+    color: colors.Zypsii_color,
     fontSize: 16,
     fontWeight: 'bold',
     marginLeft: 10,
@@ -1568,16 +1569,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 12,
     borderRadius: 25,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: colors.Zypsii_color,
     minWidth: 120,
     justifyContent: 'center',
   },
   instagramPreviewActionDisabled: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: colors.lightpink,
     opacity: 0.6,
   },
   instagramPreviewActionText: {
-    color: '#fff',
+    color: colors.white,
     fontWeight: 'bold',
     fontSize: 14,
     marginLeft: 8,
