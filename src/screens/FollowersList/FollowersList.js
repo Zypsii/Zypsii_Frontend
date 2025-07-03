@@ -21,21 +21,32 @@ const FollowersList = ({ navigation, route }) => {
   const [followers, setFollowers] = useState([]);
   const [following, setFollowing] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // Get the target user ID from route params, fallback to current user if not provided
+  const targetUserId = route.params?.targetUserId;
 
   useEffect(() => {
     fetchFollowData();
-  }, [isFollowing]); // Refresh when follow status changes
+  }, [isFollowing, targetUserId]); // Refresh when follow status changes or target user changes
 
   const fetchFollowData = async () => {
     try {
-      const storedUserString = await AsyncStorage.getItem('user');
-      const storedUser = JSON.parse(storedUserString);
-      console.log('Stored user:', storedUser);
-
       const accessToken = await AsyncStorage.getItem('accessToken');
       
+      // Use targetUserId if provided, otherwise get current user
+      let userId;
+      if (targetUserId) {
+        userId = targetUserId;
+      } else {
+        const storedUserString = await AsyncStorage.getItem('user');
+        const storedUser = JSON.parse(storedUserString);
+        userId = storedUser._id;
+      }
+      
+      console.log('Fetching follow data for user ID:', userId);
+      
       // Fetch followers
-      const followersResponse = await fetch(`${base_url}/follow/getFollowers/${storedUser._id}`, {
+      const followersResponse = await fetch(`${base_url}/follow/getFollowers/${userId}`, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
         },
@@ -43,7 +54,7 @@ const FollowersList = ({ navigation, route }) => {
        console.log(followersResponse.error);
       
       // Fetch following
-      const followingResponse = await fetch(`${base_url}/follow/getFollowing/${storedUser._id}`, {
+      const followingResponse = await fetch(`${base_url}/follow/getFollowing/${userId}`, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
         },
@@ -76,17 +87,67 @@ const FollowersList = ({ navigation, route }) => {
   const renderUserItem = ({ item }) => (
     <TouchableOpacity 
       style={styles.userItem}
-      onPress={() => navigation.navigate('DummyScreen', { userId: item._id })}
+      onPress={() => {
+        navigation.navigate('UserProfile', { 
+          targetUserId: item._id,
+          userData: {
+            id: item._id,
+            fullName: item.fullName || 'Unknown User',
+            userName: item.userName || '',
+            email: item.email || '',
+            website: item.website || '',
+            bio: item.bio || '',
+            location: item.location || '',
+            placeDetails: item.placeDetails || {},
+            profilePicture: item.profileImage || 'https://via.placeholder.com/50'
+          }
+        });
+      }}
+      activeOpacity={0.7}
     >
-      <Image 
-        source={item.profileImage ? { uri: item.profileImage } : require('../../assets/profileimage.jpg')} 
-        style={styles.userImage} 
-      />
-      <View style={styles.userInfo}>
-        <Text style={styles.userName}>{item.fullName || 'User'}</Text>
-        <Text style={styles.userHandle}>{item.userName || '@user'}</Text>
+      <View style={styles.personContainer}>
+        <View style={styles.avatarContainer}>
+          <Image 
+            source={item.profileImage ? { uri: item.profileImage } : require('../../assets/profileimage.jpg')} 
+            style={styles.avatar} 
+          />
+          <View style={styles.onlineIndicator} />
+        </View>
+        
+        <View style={styles.personDetails}>
+          <View style={styles.nameRow}>
+            <View style={styles.nameContainer}>
+              <Text style={styles.personName} numberOfLines={1}>
+                {item.fullName || 'Unknown User'}
+              </Text>
+              {item.userName && (
+                <Text style={styles.personTagline} numberOfLines={1}>
+                  @{item.userName}
+                </Text>
+              )}
+            </View>
+            
+            <View style={styles.actionButtons}>
+              <TouchableOpacity 
+                style={styles.chatButton}
+                onPress={() => {
+                  if (!item._id || !item.fullName) {
+                    return;
+                  }
+                  
+                  navigation.navigate('ChatScreen', { 
+                    userId: item._id,
+                    userName: item.fullName
+                  });
+                }}
+              >
+                <Ionicons name="chatbubble-outline" size={18} color={colors.Zypsii_color} />
+              </TouchableOpacity>
+              <FollowButton userId={item._id} />
+            </View>
+          </View>
+        </View>
       </View>
-      <FollowButton userId={item._id} />
     </TouchableOpacity>
   );
 
@@ -139,11 +200,23 @@ const FollowersList = ({ navigation, route }) => {
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
-          <Text style={styles.emptyText}>
-            {activeTab === 'Followers' 
-              ? 'No followers yet' 
-              : 'Not following anyone yet'}
-          </Text>
+          <View style={styles.emptyStateContainer}>
+            <Ionicons 
+              name="people-outline" 
+              size={64} 
+              color="#E0E0E0" 
+            />
+            <Text style={styles.noResultsTitle}>
+              {activeTab === 'Followers' 
+                ? 'No followers yet' 
+                : 'Not following anyone yet'}
+            </Text>
+            <Text style={styles.noResultsSubtitle}>
+              {activeTab === 'Followers' 
+                ? 'When people follow you, they will appear here' 
+                : 'People you follow will appear here'}
+            </Text>
+          </View>
         }
       />
     </View>
@@ -202,32 +275,86 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   listContainer: {
-    paddingVertical: 10,
+    paddingTop: 8,
+    paddingBottom: 24,
   },
   userItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderRadius: 16,
+    backgroundColor: "#FFFFFF",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    marginHorizontal: 16,
+    marginVertical: 6,
   },
-  userImage: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+  personContainer: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    padding: 16,
   },
-  userInfo: {
+  avatarContainer: {
+    position: "relative",
+  },
+  avatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#F0F0F0",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+  },
+  onlineIndicator: {
+    position: "absolute",
+    bottom: 2,
+    right: 2,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: "#4CAF50",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+  },
+  personDetails: {
+    marginLeft: 16,
     flex: 1,
-    marginLeft: 15,
   },
-  userName: {
-    fontSize: 16,
-    fontWeight: '600',
+  nameRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 4,
   },
-  userHandle: {
+  nameContainer: {
+    flex: 1,
+    marginRight: 12,
+  },
+  personName: {
+    fontSize: 17,
+    fontWeight: "600",
+    color: "#1A1A1A",
+    marginBottom: 2,
+  },
+  personTagline: {
     fontSize: 14,
-    color: '#666',
-    marginTop: 2,
+    color: "#666",
+    fontWeight: "400",
+  },
+  actionButtons: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  chatButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#F8F9FA",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: colors.Zypsii_color + "20",
   },
   followButton: {
     paddingHorizontal: 20,
@@ -240,11 +367,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  emptyText: {
-    textAlign: 'center',
-    marginTop: 50,
-    color: '#666',
-    fontSize: 16,
+  emptyStateContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 80,
+    paddingHorizontal: 32,
+  },
+  noResultsTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#666",
+    marginTop: 16,
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  noResultsSubtitle: {
+    fontSize: 14,
+    color: "#999",
+    textAlign: "center",
+    lineHeight: 20,
   },
 });
 

@@ -1991,10 +1991,10 @@ function MainLanding(props) {
           <BottomTab screen="HOME" />
         </View>
       </View>
-      <FloatingSupportButton onPress={() => setIsChatVisible(true)} />
+      <FloatingSupportButton onPress={useCallback(() => setIsChatVisible(true), [])} />
       <ChatSupport
         visible={isChatVisible}
-        onClose={() => setIsChatVisible(false)}
+        onClose={useCallback(() => setIsChatVisible(false), [])}
       />
     </SafeAreaView>
   );

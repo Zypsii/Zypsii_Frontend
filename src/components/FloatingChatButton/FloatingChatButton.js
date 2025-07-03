@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
   View,
   TouchableOpacity,
@@ -12,14 +12,14 @@ import { colors, scale } from '../../utils';
 
 const { width, height } = Dimensions.get('window');
 
-const FloatingSupportButton = ({ onPress }) => {
-  // Position the button at bottom-right with proper spacing
-  const [pan] = useState(new Animated.ValueXY({ 
+const FloatingSupportButton = React.memo(({ onPress }) => {
+  // Use refs to prevent recreation of animated values
+  const pan = useRef(new Animated.ValueXY({ 
     x: width - 60, // 60px from right edge
     y: height - 120 // 120px from bottom (to avoid bottom tab)
-  }));
+  })).current;
 
-  const panResponder = PanResponder.create({
+  const panResponder = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onPanResponderMove: Animated.event(
       [
@@ -54,7 +54,13 @@ const FloatingSupportButton = ({ onPress }) => {
         tension: 40
       }).start();
     },
-  });
+  })).current;
+
+  const handlePress = useCallback(() => {
+    if (onPress) {
+      onPress();
+    }
+  }, [onPress]);
 
   return (
     <Animated.View
@@ -66,12 +72,12 @@ const FloatingSupportButton = ({ onPress }) => {
       ]}
       {...panResponder.panHandlers}
     >
-      <TouchableOpacity style={styles.button} onPress={onPress}>
+      <TouchableOpacity style={styles.button} onPress={handlePress}>
         <MaterialIcons name="support-agent" size={20} color={colors.white} />
       </TouchableOpacity>
     </Animated.View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -85,14 +91,15 @@ const styles = StyleSheet.create({
     backgroundColor: colors.btncolor,
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 5,
+    // Simplified shadows for better performance
+    elevation: 3,
     shadowColor: colors.black,
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 1,
     },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
   },
 });
 

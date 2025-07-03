@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -114,130 +114,108 @@ const faqCategories = [
   }
 ];
 
-const ChatSupport = ({ visible, onClose }) => {
+const ChatSupport = React.memo(({ visible, onClose }) => {
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedQuestion, setSelectedQuestion] = useState(null);
   const [customQuestion, setCustomQuestion] = useState('');
-  const [modalAnimation] = useState(new Animated.Value(0));
-  const [slideAnimation] = useState(new Animated.Value(height));
-
-  // Animation values for category items
-  const [categoryAnimations] = useState(
+  
+  // Use refs to prevent recreation of animated values
+  const modalAnimation = useRef(new Animated.Value(0)).current;
+  const slideAnimation = useRef(new Animated.Value(height)).current;
+  const categoryAnimations = useRef(
     faqCategories.map(() => new Animated.Value(1))
-  );
+  ).current;
 
+  // Memoize haptic feedback function to prevent recreation
+  const triggerHapticFeedback = useCallback((style = 'Light') => {
+    if (Platform.OS === 'ios') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle[style]);
+    } else {
+      Vibration.vibrate(style === 'Medium' ? 100 : 50);
+    }
+  }, []);
+
+  // Optimize animation effect
   useEffect(() => {
     if (visible) {
-      // Slide up animation
-      Animated.timing(slideAnimation, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
-
-      // Fade in animation
-      Animated.timing(modalAnimation, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
-
-      // Staggered category animations
-      const animations = categoryAnimations.map((anim, index) =>
-        Animated.timing(anim, {
+      // Use parallel animations instead of staggered for faster opening
+      Animated.parallel([
+        Animated.timing(slideAnimation, {
+          toValue: 0,
+          duration: 250, // Reduced duration
+          useNativeDriver: true,
+        }),
+        Animated.timing(modalAnimation, {
           toValue: 1,
+          duration: 250, // Reduced duration
+          useNativeDriver: true,
+        }),
+        // Simplified category animations - no staggering
+        ...categoryAnimations.map(anim =>
+          Animated.timing(anim, {
+            toValue: 1,
+            duration: 200,
+            useNativeDriver: true,
+          })
+        )
+      ]).start();
+    } else {
+      // Faster closing animation
+      Animated.parallel([
+        Animated.timing(slideAnimation, {
+          toValue: height,
           duration: 200,
-          delay: index * 100,
+          useNativeDriver: true,
+        }),
+        Animated.timing(modalAnimation, {
+          toValue: 0,
+          duration: 200,
           useNativeDriver: true,
         })
-      );
-      Animated.stagger(100, animations).start();
-    } else {
-      // Slide down animation
-      Animated.timing(slideAnimation, {
-        toValue: height,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
-
-      // Fade out animation
-      Animated.timing(modalAnimation, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
+      ]).start();
     }
-  }, [visible]);
+  }, [visible, slideAnimation, modalAnimation, categoryAnimations]);
 
-  const handleCategorySelect = (category, index) => {
-    // Haptic feedback
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } else {
-      Vibration.vibrate(50);
-    }
+  const handleCategorySelect = useCallback((category, index) => {
+    triggerHapticFeedback('Light');
 
-    // Animate the press
+    // Simplified press animation
     Animated.sequence([
       Animated.timing(categoryAnimations[index], {
         toValue: 0.95,
-        duration: 100,
+        duration: 50, // Faster animation
         useNativeDriver: true,
       }),
       Animated.timing(categoryAnimations[index], {
         toValue: 1,
-        duration: 100,
+        duration: 50, // Faster animation
         useNativeDriver: true,
       }),
     ]).start();
 
     setSelectedCategory(category);
     setSelectedQuestion(null);
-  };
+  }, [categoryAnimations, triggerHapticFeedback]);
 
-  const handleQuestionSelect = (question) => {
-    // Haptic feedback
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } else {
-      Vibration.vibrate(50);
-    }
-
+  const handleQuestionSelect = useCallback((question) => {
+    triggerHapticFeedback('Light');
     setSelectedQuestion(question);
-  };
+  }, [triggerHapticFeedback]);
 
-  const handleBackToCategories = () => {
-    // Haptic feedback
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } else {
-      Vibration.vibrate(50);
-    }
-
+  const handleBackToCategories = useCallback(() => {
+    triggerHapticFeedback('Light');
     setSelectedCategory(null);
     setSelectedQuestion(null);
-  };
+  }, [triggerHapticFeedback]);
 
-  const handleBackToQuestions = () => {
-    // Haptic feedback
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } else {
-      Vibration.vibrate(50);
-    }
-
+  const handleBackToQuestions = useCallback(() => {
+    triggerHapticFeedback('Light');
     setSelectedQuestion(null);
-  };
+  }, [triggerHapticFeedback]);
 
-  const handleSendCustomQuestion = () => {
+  const handleSendCustomQuestion = useCallback(() => {
     if (customQuestion.trim()) {
-      // Haptic feedback
-      if (Platform.OS === 'ios') {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      } else {
-        Vibration.vibrate(100);
-      }
-
+      triggerHapticFeedback('Medium');
       setSelectedQuestion({
         id: 'custom',
         question: customQuestion,
@@ -245,9 +223,10 @@ const ChatSupport = ({ visible, onClose }) => {
       });
       setCustomQuestion('');
     }
-  };
+  }, [customQuestion, triggerHapticFeedback]);
 
-  const renderContent = () => {
+  // Memoize content rendering
+  const renderContent = useMemo(() => {
     if (selectedQuestion) {
       return (
         <View style={styles.messageContainer}>
@@ -341,7 +320,7 @@ const ChatSupport = ({ visible, onClose }) => {
         ))}
       </>
     );
-  };
+  }, [selectedQuestion, selectedCategory, categoryAnimations, handleCategorySelect, handleQuestionSelect, handleBackToCategories, handleBackToQuestions]);
 
   return (
     <Modal
@@ -349,6 +328,7 @@ const ChatSupport = ({ visible, onClose }) => {
       transparent
       animationType="none"
       onRequestClose={onClose}
+      statusBarTranslucent={true}
     >
       <Animated.View 
         style={[
@@ -381,12 +361,18 @@ const ChatSupport = ({ visible, onClose }) => {
             style={styles.chatContainer}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
+            removeClippedSubviews={true}
+            maxToRenderPerBatch={10}
+            windowSize={10}
           >
-            {renderContent()}
+            {renderContent}
           </ScrollView>
 
           <KeyboardAvoidingView 
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
             style={styles.inputContainer}
           >
             <TextInput
@@ -397,6 +383,7 @@ const ChatSupport = ({ visible, onClose }) => {
               onChangeText={setCustomQuestion}
               multiline
               maxLength={500}
+              textAlignVertical="top"
             />
             <TouchableOpacity
               style={[
@@ -414,7 +401,7 @@ const ChatSupport = ({ visible, onClose }) => {
       </Animated.View>
     </Modal>
   );
-};
+});
 
 const styles = StyleSheet.create({
   modalContainer: {
@@ -434,14 +421,15 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 25,
     borderTopRightRadius: 25,
     height: '75%',
+    // Simplified shadows for better performance
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: -4,
+      height: -2,
     },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 10,
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 8,
   },
   header: {
     flexDirection: 'row',
@@ -524,11 +512,12 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
-    elevation: 2,
+    // Simplified shadows
+    elevation: 1,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
   },
   categoryContent: {
     flex: 1,
@@ -551,10 +540,11 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
+    // Simplified shadows
     elevation: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.05,
     shadowRadius: 2,
   },
   questionItemText: {
@@ -573,10 +563,11 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     alignSelf: 'flex-start',
     maxWidth: width * 0.8,
+    // Simplified shadows
     elevation: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.05,
     shadowRadius: 2,
   },
   answerBubble: {
@@ -586,11 +577,12 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     alignSelf: 'flex-end',
     maxWidth: width * 0.8,
+    // Simplified shadows
     elevation: 2,
     shadowColor: colors.greenColor,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
   },
   questionText: {
     color: colors.fontMainColor,
@@ -611,11 +603,12 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     alignSelf: 'center',
     marginTop: 16,
+    // Simplified shadows
     elevation: 2,
     shadowColor: colors.greenColor,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
   },
   backButtonText: {
     color: colors.white,
@@ -628,9 +621,11 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     paddingHorizontal: 20,
     paddingVertical: 16,
+    paddingBottom: 20,
     borderTopWidth: 1,
     borderTopColor: '#f0f0f0',
     backgroundColor: colors.white,
+    minHeight: 60,
   },
   input: {
     flex: 1,
@@ -640,7 +635,8 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     marginRight: 12,
     fontSize: 14,
-    maxHeight: 100,
+    maxHeight: 120,
+    minHeight: 24,
     textAlignVertical: 'top',
   },
   sendButton: {
@@ -649,11 +645,12 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
+    // Simplified shadows
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
   },
 });
 

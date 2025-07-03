@@ -97,9 +97,6 @@ const PostDetail = ({ route, navigation }) => {
             <Ionicons name="chevron-back" size={24} color={colors.white} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Post Details</Text>
-          <TouchableOpacity style={styles.moreButton}>
-            <Feather name="more-vertical" size={24} color={colors.white} />
-          </TouchableOpacity>
         </View>
       </ImageBackground>
 

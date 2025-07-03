@@ -15,7 +15,8 @@ import {
   Animated,
   Easing,
   Image,
-  Modal
+  Modal,
+  SafeAreaView
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -1270,7 +1271,7 @@ const ChatScreen = ({ route, navigation }) => {
   }
 
   return (
-    <>
+    <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" backgroundColor={colors.Zypsii_color || '#A60F93'} />
       <KeyboardAvoidingView
         style={styles.container}
@@ -1326,6 +1327,8 @@ const ChatScreen = ({ route, navigation }) => {
             autoscrollToTopThreshold: 10,
           }}
           removeClippedSubviews={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
         />
 
         {/* Message Input */}
@@ -1340,11 +1343,18 @@ const ChatScreen = ({ route, navigation }) => {
               multiline
               maxLength={1000}
               editable={!sending && isConnected}
+              textAlignVertical="top"
               onFocus={() => {
                 // Scroll to bottom when input is focused
                 setTimeout(() => {
                   scrollToBottom();
                 }, 300);
+              }}
+              onContentSizeChange={() => {
+                // Ensure proper scrolling when text input expands
+                setTimeout(() => {
+                  scrollToBottom();
+                }, 100);
               }}
             />
             <Animated.View style={{ transform: [{ scale: sendButtonScale }] }}>
@@ -1368,11 +1378,15 @@ const ChatScreen = ({ route, navigation }) => {
         </View>
         {renderPreviewModal()}
       </KeyboardAvoidingView>
-    </>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: colors.Zypsii_color || '#A60F93',
+  },
   container: {
     flex: 1,
     backgroundColor: '#f1f5f9',
@@ -1648,34 +1662,39 @@ const styles = StyleSheet.create({
     borderTopColor: '#e2e8f0',
     paddingHorizontal: 16,
     paddingVertical: 12,
+    paddingBottom: 40,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 4,
+    minHeight: 60,
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     backgroundColor: '#ffffff',
     borderRadius: 24,
-    paddingVertical: 6,
+    paddingVertical: 8,
     paddingHorizontal: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
+    minHeight: 44,
   },
   textInput: {
     flex: 1,
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 10,
     fontSize: 15,
-    maxHeight: 100,
+    maxHeight: 120,
+    minHeight: 24,
     marginRight: 8,
     color: '#1e293b',
     fontWeight: '400',
+    textAlignVertical: 'top',
   },
   sendButton: {
     width: 40,
