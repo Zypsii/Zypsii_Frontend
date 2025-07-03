@@ -25,7 +25,6 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import { useToast } from '../../context/ToastContext';
 import Moment from 'moment';
-import * as FileSystem from 'expo-file-system';
 
 const { width } = Dimensions.get('window');
 
@@ -40,7 +39,7 @@ function formatDateForBackend(dateString) {
 }
 
 const EditSchedule = ({ route, navigation }) => {
-  const { scheduleId, scheduleData } = route.params || {};
+  const { scheduleId, scheduleData, onScheduleUpdated } = route.params || {};
   const { showToast } = useToast();
   
   // Validate scheduleId
@@ -53,6 +52,7 @@ const EditSchedule = ({ route, navigation }) => {
   }, [scheduleId]);
 
   const [loading, setLoading] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
   const [bannerImage, setBannerImage] = useState(
     scheduleData?.bannerImage || scheduleData?.imageUrl || null
   );
@@ -69,27 +69,101 @@ const EditSchedule = ({ route, navigation }) => {
     description: scheduleData?.description || '',
     travelMode: scheduleData?.travelMode || '',
     visible: scheduleData?.visible || scheduleData?.privacy || 'Public',
-    fromPlace: scheduleData?.fromPlace || '',
-    toPlace: scheduleData?.toPlace || '',
-    fromLatitude: scheduleData?.rawLocation?.from?.latitude || '',
-    fromLongitude: scheduleData?.rawLocation?.from?.longitude || '',
-    toLatitude: scheduleData?.rawLocation?.to?.latitude || '',
-    toLongitude: scheduleData?.rawLocation?.to?.longitude || '',
-    fromDate: scheduleData?.date ? new Date(scheduleData.date).toISOString() : '',
-    toDate: scheduleData?.toDate ? new Date(scheduleData.toDate).toISOString() : '',
+    fromPlace: scheduleData?.fromPlace || 
+               scheduleData?.location?.from?.place || 
+               scheduleData?.rawLocation?.from?.place || 
+               '',
+    toPlace: scheduleData?.toPlace || 
+             scheduleData?.location?.to?.place || 
+             scheduleData?.rawLocation?.to?.place || 
+             '',
+    fromLatitude: scheduleData?.location?.from?.latitude || 
+                  scheduleData?.rawLocation?.from?.latitude || 
+                  scheduleData?.fromLatitude ||
+                  null,
+    fromLongitude: scheduleData?.location?.from?.longitude || 
+                   scheduleData?.rawLocation?.from?.longitude || 
+                   scheduleData?.fromLongitude ||
+                   null,
+    toLatitude: scheduleData?.location?.to?.latitude || 
+                scheduleData?.rawLocation?.to?.latitude || 
+                scheduleData?.toLatitude ||
+                null,
+    toLongitude: scheduleData?.location?.to?.longitude || 
+                 scheduleData?.rawLocation?.to?.longitude || 
+                 scheduleData?.toLongitude ||
+                 null,
+    fromDate: scheduleData?.Dates?.from ? new Date(scheduleData.Dates.from).toISOString() : scheduleData?.date ? new Date(scheduleData.date).toISOString() : '',
+    toDate: scheduleData?.Dates?.end ? new Date(scheduleData.Dates.end).toISOString() : scheduleData?.toDate ? new Date(scheduleData.toDate).toISOString() : '',
     fromTime: scheduleData?.fromTime || '09:00',
     toTime: scheduleData?.toTime || '17:00',
-    numberOfDays: scheduleData?.riders || '',
+    numberOfDays: scheduleData?.numberOfDays || scheduleData?.riders || '',
     budget: scheduleData?.budget || '',
     maxRiders: scheduleData?.maxRiders || '',
     bannerImage: scheduleData?.bannerImage || scheduleData?.imageUrl || '',
   });
 
-  // Add useEffect to log the initial data
+  // Add useEffect to log the initial data and handle missing location data
   useEffect(() => {
     console.log('Initial Schedule Data:', scheduleData);
     console.log('Initial Form Data:', formData);
-  }, []);
+    console.log('Location data from schedule:', {
+      location: scheduleData?.location,
+      rawLocation: scheduleData?.rawLocation,
+      fromPlace: scheduleData?.fromPlace,
+      toPlace: scheduleData?.toPlace
+    });
+
+    // Only check for missing location data if scheduleData is actually loaded and we're not loading
+    if (scheduleData && Object.keys(scheduleData).length > 0 && !dataLoading) {
+      // Check if location coordinates are missing and provide guidance
+      const hasLocationData = scheduleData?.location?.from?.latitude && 
+                             scheduleData?.location?.from?.longitude && 
+                             scheduleData?.location?.to?.latitude && 
+                             scheduleData?.location?.to?.longitude;
+      
+      if (!hasLocationData) {
+        console.warn('Missing location coordinates in schedule data');
+        console.log('Available location data:', {
+          location: scheduleData?.location,
+          rawLocation: scheduleData?.rawLocation,
+          fromPlace: scheduleData?.fromPlace,
+          toPlace: scheduleData?.toPlace
+        });
+        showToast('Location data is missing. Please select locations on the map before updating.', 'warning');
+      } else {
+        console.log('Location data found:', hasLocationData);
+      }
+    } else {
+      console.log('Schedule data not yet loaded or still loading');
+    }
+  }, [scheduleData, dataLoading]);
+
+  // Monitor form data changes for debugging
+  useEffect(() => {
+    console.log('Form data updated:', {
+      fromLatitude: formData.fromLatitude,
+      fromLongitude: formData.fromLongitude,
+      toLatitude: formData.toLatitude,
+      toLongitude: formData.toLongitude,
+      fromPlace: formData.fromPlace,
+      toPlace: formData.toPlace
+    });
+
+    // Check if we have valid location data in form data
+    const hasValidLocationData = formData.fromLatitude && 
+                                 formData.fromLongitude && 
+                                 formData.toLatitude && 
+                                 formData.toLongitude &&
+                                 formData.fromLatitude !== null && 
+                                 formData.fromLongitude !== null && 
+                                 formData.toLatitude !== null && 
+                                 formData.toLongitude !== null;
+
+    if (hasValidLocationData && !dataLoading) {
+      console.log('Valid location data found in form data');
+    }
+  }, [formData.fromLatitude, formData.fromLongitude, formData.toLatitude, formData.toLongitude, formData.fromPlace, formData.toPlace, dataLoading]);
 
   // Add function to handle input changes
   const handleInputChange = (field, value) => {
@@ -98,6 +172,75 @@ const EditSchedule = ({ route, navigation }) => {
       ...prev,
       [field]: value
     }));
+  };
+
+  // Function to refresh schedule listing data
+  const refreshScheduleListing = async () => {
+    try {
+      console.log('Refreshing schedule listing data...');
+      const accessToken = await AsyncStorage.getItem('accessToken');
+      const user = await AsyncStorage.getItem('user');
+      const currentUserId = user ? JSON.parse(user)._id : null;
+
+      if (!accessToken || !currentUserId) {
+        console.error('Missing token or userId for refresh');
+        return;
+      }
+
+      // Determine which APIs to call based on context
+      const refreshApis = [];
+      
+      // Always refresh my schedules
+      refreshApis.push({
+        name: 'My Schedules',
+        url: `${base_url}/schedule/listing/filter?filter=my&userId=${currentUserId}&limit=20`
+      });
+
+      // Add other APIs based on context or always include them
+      refreshApis.push({
+        name: 'Public Schedules',
+        url: `${base_url}/schedule/listing/filter?filter=Public`
+      });
+
+      refreshApis.push({
+        name: 'Joined Schedules',
+        url: `${base_url}/schedule/listing/joined-schedules?limit=20&offset=0`
+      });
+
+      // Call all the APIs
+      const refreshPromises = refreshApis.map(api => 
+        fetch(api.url, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          }
+        })
+      );
+
+      const responses = await Promise.allSettled(refreshPromises);
+      
+      let successCount = 0;
+      responses.forEach((result, index) => {
+        if (result.status === 'fulfilled' && result.value.ok) {
+          successCount++;
+          console.log(`${refreshApis[index].name} refreshed successfully`);
+        } else {
+          console.error(`Failed to refresh ${refreshApis[index].name}:`, result.reason || result.value?.status);
+        }
+      });
+
+      if (successCount > 0) {
+        console.log(`Successfully refreshed ${successCount}/${refreshApis.length} schedule listings`);
+        showToast('Schedule data refreshed successfully', 'success');
+      } else {
+        console.error('Failed to refresh any schedule listings');
+        showToast('Failed to refresh schedule data', 'error');
+      }
+    } catch (error) {
+      console.error('Error refreshing schedule listing:', error);
+      showToast('Error refreshing schedule data', 'error');
+    }
   };
 
   // Add state for day schedules with location data
@@ -113,6 +256,92 @@ const EditSchedule = ({ route, navigation }) => {
       longitude: ''
     }
   ]);
+
+  // Fetch schedule data if not provided
+  useEffect(() => {
+    const fetchScheduleData = async () => {
+      // If we already have scheduleData, don't fetch again
+      if (scheduleData && Object.keys(scheduleData).length > 0) {
+        console.log('Schedule data already available');
+        setDataLoading(false);
+        return;
+      }
+
+      setDataLoading(true);
+      try {
+        const accessToken = await AsyncStorage.getItem('accessToken');
+        const user = await AsyncStorage.getItem('user');
+        const currentUserId = user ? JSON.parse(user)._id : null;
+
+        if (!accessToken || !currentUserId || !scheduleId) {
+          console.error('Missing token, userId, or scheduleId');
+          return;
+        }
+
+        console.log('Fetching schedule data for ID:', scheduleId);
+        
+        const response = await fetch(
+          `${base_url}/schedule/listing/schedule/${scheduleId}/${currentUserId}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`
+            }
+          }
+        );
+
+        const data = await response.json();
+        console.log('Fetched Schedule Data:', data);
+        
+        if (data.success && data.data) {
+          // Update the form data with the fetched schedule data
+          setFormData(prev => ({
+            ...prev,
+            tripName: data.data.title || data.data.tripName || prev.tripName,
+            description: data.data.description || prev.description,
+            travelMode: data.data.travelMode || prev.travelMode,
+            visible: data.data.visible || data.data.privacy || prev.visible,
+            fromPlace: data.data.fromPlace || 
+                       data.data.location?.from?.place || 
+                       data.data.rawLocation?.from?.place || 
+                       prev.fromPlace,
+            toPlace: data.data.toPlace || 
+                     data.data.location?.to?.place || 
+                     data.data.rawLocation?.to?.place || 
+                     prev.toPlace,
+            fromLatitude: data.data.location?.from?.latitude || 
+                          data.data.rawLocation?.from?.latitude || 
+                          data.data.fromLatitude ||
+                          prev.fromLatitude,
+            fromLongitude: data.data.location?.from?.longitude || 
+                           data.data.rawLocation?.from?.longitude || 
+                           data.data.fromLongitude ||
+                           prev.fromLongitude,
+            toLatitude: data.data.location?.to?.latitude || 
+                        data.data.rawLocation?.to?.latitude || 
+                        data.data.toLatitude ||
+                        prev.toLatitude,
+            toLongitude: data.data.location?.to?.longitude || 
+                         data.data.rawLocation?.to?.longitude || 
+                         data.data.toLongitude ||
+                         prev.toLongitude,
+            fromDate: data.data.Dates?.from ? new Date(data.data.Dates.from).toISOString() : 
+                     data.data.date ? new Date(data.data.date).toISOString() : prev.fromDate,
+            toDate: data.data.Dates?.end ? new Date(data.data.Dates.end).toISOString() : 
+                   data.data.toDate ? new Date(data.data.toDate).toISOString() : prev.toDate,
+            numberOfDays: data.data.numberOfDays || data.data.riders || prev.numberOfDays,
+            bannerImage: data.data.bannerImage || data.data.imageUrl || prev.bannerImage,
+          }));
+        }
+      } catch (error) {
+        console.error('Error fetching schedule data:', error);
+        showToast('Failed to load schedule data', 'error');
+      } finally {
+        setDataLoading(false);
+      }
+    };
+
+    fetchScheduleData();
+  }, [scheduleId, scheduleData]);
 
   // Fetch schedule description data
   useEffect(() => {
@@ -172,25 +401,48 @@ const EditSchedule = ({ route, navigation }) => {
     if (type === 'day') {
       // For day-specific locations, use the day's current location
       const daySchedule = daySchedules[dayIndex];
-      initialLocation = {
-        latitude: parseFloat(daySchedule?.latitude || 0),
-        longitude: parseFloat(daySchedule?.longitude || 0),
-        place: daySchedule?.location || ''
-      };
+      const lat = parseFloat(daySchedule?.latitude);
+      const lng = parseFloat(daySchedule?.longitude);
+      
+      if (lat && lng && !isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
+        initialLocation = {
+          latitude: lat,
+          longitude: lng,
+          place: daySchedule?.location || ''
+        };
+      } else {
+        initialLocation = null;
+      }
     } else if (type === 'from') {
-      initialLocation = {
-        latitude: parseFloat(formData.fromLatitude || 0),
-        longitude: parseFloat(formData.fromLongitude || 0),
-        place: formData.fromPlace
-      };
+      const lat = parseFloat(formData.fromLatitude);
+      const lng = parseFloat(formData.fromLongitude);
+      
+      if (lat && lng && !isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
+        initialLocation = {
+          latitude: lat,
+          longitude: lng,
+          place: formData.fromPlace
+        };
+      } else {
+        initialLocation = null;
+      }
     } else if (type === 'to') {
-      initialLocation = {
-        latitude: parseFloat(formData.toLatitude || 0),
-        longitude: parseFloat(formData.toLongitude || 0),
-        place: formData.toPlace
-      };
+      const lat = parseFloat(formData.toLatitude);
+      const lng = parseFloat(formData.toLongitude);
+      
+      if (lat && lng && !isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
+        initialLocation = {
+          latitude: lat,
+          longitude: lng,
+          place: formData.toPlace
+        };
+      } else {
+        initialLocation = null;
+      }
     }
 
+    console.log('Opening map for location:', { type, initialLocation });
+    
     navigation.navigate('EditMapScreen', { 
       type,
       scheduleId,
@@ -227,6 +479,8 @@ const EditSchedule = ({ route, navigation }) => {
         fromLatitude: latitude.toString(),
         fromLongitude: longitude.toString()
       }));
+      console.log('Updated from location:', { place, latitude, longitude });
+      showToast(`From location set to: ${place}`, 'success');
     } else if (type === 'to') {
       setFormData(prev => ({
         ...prev,
@@ -234,6 +488,8 @@ const EditSchedule = ({ route, navigation }) => {
         toLatitude: latitude.toString(),
         toLongitude: longitude.toString()
       }));
+      console.log('Updated to location:', { place, latitude, longitude });
+      showToast(`To location set to: ${place}`, 'success');
     }
   };
 
@@ -433,87 +689,6 @@ const EditSchedule = ({ route, navigation }) => {
     </View>
   );
 
-  // Update the updateAllDayDescriptions function
-  // const updateAllDayDescriptions = async (accessToken) => {
-  //   try {
-  //     for (let i = 0; i < daySchedules.length; i++) {
-  //       const daySchedule = daySchedules[i];
-        
-  //       if (!daySchedule._id) {
-  //         console.error(`No description ID found for Day ${i + 1}`);
-  //         continue;
-  //       }
-
-  //       // Format date as DD-MM-YYYY for Moment.js parsing
-  //       const currentDate = new Date(formData.fromDate);
-  //       currentDate.setDate(currentDate.getDate() + i);
-        
-  //       // Format date with leading zeros for consistent parsing
-  //       const dayNum = String(currentDate.getDate()).padStart(2, '0');
-  //       const month = String(currentDate.getMonth() + 1).padStart(2, '0');
-  //       const year = currentDate.getFullYear();
-  //       const formattedDate = `${dayNum}-${month}-${year}`;
-
-  //       // Validate the date format
-  //       if (!dayNum || !month || !year) {
-  //         throw new Error(`Invalid date format for Day ${i + 1}`);
-  //       }
-
-  //       // Set the from location as current day's location
-  //       if (!daySchedule.latitude || !daySchedule.longitude) {
-  //         throw new Error(`Missing location for Day ${i + 1}`);
-  //       }
-
-  //       // Match the backend's expected structure exactly
-  //       const descriptionData = {
-  //         Description: daySchedule.description.trim(),
-  //         date: formattedDate,
-  //         fromLatitude: daySchedule.latitude.toString(),
-  //         fromLongitude: daySchedule.longitude.toString(),
-  //         toLatitude: daySchedule.latitude.toString(),
-  //         toLongitude: daySchedule.longitude.toString()
-  //       };
-
-  //       console.log('formattedDate', formattedDate);
-  //       console.log(`Updating Day ${i + 1} (ID: ${daySchedule._id}) with data:`, JSON.stringify(descriptionData, null, 2));
-
-  //       try {
-  //         const response = await fetch(
-  //           `${base_url}/schedule/edit/descriptions/${scheduleId}/${daySchedule._id}`,
-  //           {
-  //             method: 'PUT',
-  //             headers: {
-  //               'Authorization': `Bearer ${accessToken}`,
-  //               'Content-Type': 'application/json',
-  //             },
-  //             body: JSON.stringify(descriptionData)
-  //           }
-  //         );
-
-  //         const responseData = await response.json();
-          
-  //         if (!response.ok) {
-  //           console.error(`Error updating description for Day ${i + 1}:`, {
-  //             status: response.status,
-  //             statusText: response.statusText,
-  //             responseData: responseData,
-  //             sentData: descriptionData
-  //           });
-  //           throw new Error(`Failed to update description for day ${i + 1}: ${responseData.message || 'Unknown error'}`);
-  //         }
-
-  //         console.log(`Successfully updated description for Day ${i + 1}:`, responseData);
-  //       } catch (error) {
-  //         console.error(`Error updating Day ${i + 1}:`, error);
-  //         throw error;
-  //       }
-  //     }
-  //   } catch (error) {
-  //     console.error('Error in updateAllDayDescriptions:', error);
-  //     throw error;
-  //   }
-  // };
-
   // Update handleUpdate function
   const handleUpdate = async () => {
     try {
@@ -556,16 +731,36 @@ const EditSchedule = ({ route, navigation }) => {
         return;
       }
 
-      if (!formData.numberOfDays || parseInt(formData.numberOfDays) < 1) {
+      if (!formData.numberOfDays || isNaN(parseInt(formData.numberOfDays)) || parseInt(formData.numberOfDays) < 1) {
         console.error('Validation Error: Invalid number of days');
-        showToast('Number of days must be at least 1', 'error');
+        showToast('Number of days must be a valid number and at least 1', 'error');
         return;
       }
 
-      // Validate location coordinates
-      if (!formData.fromLatitude || !formData.fromLongitude || !formData.toLatitude || !formData.toLongitude) {
+      // Debug location coordinates
+      console.log('Location coordinates check:', {
+        fromLatitude: formData.fromLatitude,
+        fromLongitude: formData.fromLongitude,
+        toLatitude: formData.toLatitude,
+        toLongitude: formData.toLongitude,
+        fromPlace: formData.fromPlace,
+        toPlace: formData.toPlace
+      });
+
+      // Validate location coordinates - check for both coordinates and place names
+      if (!formData.fromLatitude || !formData.fromLongitude || !formData.toLatitude || !formData.toLongitude ||
+          formData.fromLatitude === '' || formData.fromLongitude === '' || formData.toLatitude === '' || formData.toLongitude === '' ||
+          formData.fromLatitude === null || formData.fromLongitude === null || formData.toLatitude === null || formData.toLongitude === null) {
         console.error('Validation Error: Location coordinates required');
-        showToast('Location coordinates are required', 'error');
+        showToast('Location coordinates are required. Please tap on "From Place" and "To Place" to select locations on the map.', 'error');
+        return;
+      }
+
+      // Validate that coordinates are valid numbers
+      if (isNaN(parseFloat(formData.fromLatitude)) || isNaN(parseFloat(formData.fromLongitude)) || 
+          isNaN(parseFloat(formData.toLatitude)) || isNaN(parseFloat(formData.toLongitude))) {
+        console.error('Validation Error: Invalid coordinate values');
+        showToast('Invalid location coordinates. Please reselect locations.', 'error');
         return;
       }
 
@@ -583,6 +778,20 @@ const EditSchedule = ({ route, navigation }) => {
         toLongitude: formData.toLongitude ? parseFloat(formData.toLongitude) : undefined,
         numberOfDays: formData.numberOfDays ? parseInt(formData.numberOfDays) : undefined,
       };
+
+      // Only include non-empty string values
+      Object.keys(updateData).forEach(key => {
+        if (typeof updateData[key] === 'string' && updateData[key].trim() === '') {
+          delete updateData[key];
+        }
+      });
+
+      // Remove undefined values to avoid sending them to backend
+      Object.keys(updateData).forEach(key => {
+        if (updateData[key] === undefined || updateData[key] === null || updateData[key] === '') {
+          delete updateData[key];
+        }
+      });
       // Only add fromDate and toDate if valid
       const formattedFromDate = formatDateForBackend(formData.fromDate);
       if (formattedFromDate) {
@@ -596,13 +805,26 @@ const EditSchedule = ({ route, navigation }) => {
       // Check bannerImage type
       const bannerImage = formData.bannerImage;
       let useFormData = false;
-      if (bannerImage) {
+      if (bannerImage && bannerImage.trim() !== '') {
         if (/^https?:\/\//.test(bannerImage)) {
           // Remote URL, send as string
           updateData.bannerImage = bannerImage;
         } else if (bannerImage.startsWith('file://')) {
           useFormData = true;
+        } else {
+          // If it's not empty but not a URL or file, don't send it
+          console.warn('Invalid banner image format:', bannerImage);
         }
+      }
+
+      console.log('Sending update data:', updateData);
+      console.log('Using FormData:', useFormData);
+
+      // Ensure we have at least one field to update
+      if (Object.keys(updateData).length === 0) {
+        console.error('No data to update');
+        showToast('No changes detected. Please modify at least one field.', 'error');
+        return;
       }
 
       let response, responseData;
@@ -644,6 +866,7 @@ const EditSchedule = ({ route, navigation }) => {
       }
 
       console.log('Update response:', responseData);
+      console.log('Response status:', response.status);
 
       if (!response.ok) {
         if (responseData.errors) {
@@ -653,14 +876,21 @@ const EditSchedule = ({ route, navigation }) => {
           return;
         }
         console.error('Update failed:', responseData.message);
-        throw new Error(responseData.message || 'Failed to update schedule');
+        console.error('Response data:', responseData);
+        throw new Error(responseData.message || `Failed to update schedule (Status: ${response.status})`);
       }
-
-      // Update all day descriptions
-      // await updateAllDayDescriptions(accessToken);
 
       console.log('Schedule updated successfully');
       showToast('Schedule updated successfully', 'success');
+      
+      // Call the listing API to refresh data
+      await refreshScheduleListing();
+      
+      // Notify parent component that schedule was updated
+      if (onScheduleUpdated && typeof onScheduleUpdated === 'function') {
+        onScheduleUpdated();
+      }
+      
       navigation.goBack();
     } catch (error) {
       console.error('Update error:', error);
@@ -893,24 +1123,6 @@ const EditSchedule = ({ route, navigation }) => {
       )}
     </View>
   );
-
-  // Utility function to save schedule data as JSON with a custom filename
-  const saveScheduleToFile = async (data, filename = 'scheduleData.json') => {
-    try {
-      const folderUri = FileSystem.documentDirectory + 'schedules/';
-      // Ensure the folder exists
-      await FileSystem.makeDirectoryAsync(folderUri, { intermediates: true });
-      const safeFilename = filename.replace(/[^a-zA-Z0-9-_\.]/g, '_');
-      const fileUri = folderUri + safeFilename;
-      await FileSystem.writeAsStringAsync(fileUri, JSON.stringify(data, null, 2));
-      console.log('Schedule data saved to:', fileUri);
-      Alert.alert('Success', `Schedule data saved to file: ${safeFilename}`);
-      return fileUri;
-    } catch (error) {
-      console.error('Error saving schedule data:', error);
-      Alert.alert('Error', 'Failed to save schedule data.');
-    }
-  };
 
   return (
     <KeyboardAvoidingView 
@@ -1188,19 +1400,6 @@ const EditSchedule = ({ route, navigation }) => {
           ) : (
             <Text style={styles.updateButtonText}>Update Schedule</Text>
           )}
-        </TouchableOpacity>
-        {/* Button to save schedule data as JSON file */}
-        <TouchableOpacity
-          style={[styles.updateButton, { backgroundColor: '#4CAF50', marginTop: 10 }]}
-          onPress={() => {
-            // Use trip name and current date for filename
-            const dateStr = new Date().toISOString().replace(/[:.]/g, '-');
-            const tripName = formData.tripName ? formData.tripName.replace(/\s+/g, '_') : 'schedule';
-            const filename = `${tripName}_${dateStr}.json`;
-            saveScheduleToFile({ ...formData, daySchedules }, filename);
-          }}
-        >
-          <Text style={styles.updateButtonText}>Save to JSON</Text>
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
