@@ -1,5 +1,5 @@
-import React, { useContext } from 'react';
-import { TouchableOpacity, View, Image, ScrollView, Share } from 'react-native';
+import React, { useContext, useState } from 'react';
+import { TouchableOpacity, View, Image, ScrollView, Share, Modal, Text } from 'react-native';
 import styles from './styles';
 import { Feather, MaterialIcons, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -10,21 +10,24 @@ import { colors } from '../../../utils';
 function ProfileContainer({profileInfo}) {
   const navigation = useNavigation();
   const { user } = useAuth();
+  const [showShareModal, setShowShareModal] = useState(false);
 
   const handleShare = async () => {
     try {
-      const userName = user?.fullName || profileInfo?.name;
-      const userId = profileInfo?.id;
+      const userName = user?.userName || profileInfo?.userName || 'User';
+      const fullName = user?.fullName || profileInfo?.fullName || userName;
+      const userId = user?._id || profileInfo?.id || '';
+      const profileImage = user?.profilePicture || profileInfo?.image || '';
       const deepLink = `https://zypsii.app/profile/${userId}`;
-      
+      let message = `${fullName} (@${userName}) on Zypsii!\n`;
+      if (profileImage) message += `Profile Image: ${profileImage}\n`;
+      message += `Check out my profile: ${deepLink}`;
       const shareOptions = {
-        message: `${userName}'s profile on Zypsii!`,
+        message,
         url: deepLink,
-        title: `Share ${userName}'s Profile`
+        title: `Share ${fullName}'s Profile`
       };
-
       const result = await Share.share(shareOptions);
-      
       if (result.action === Share.sharedAction) {
         if (result.activityType) {
           console.log('Shared with activity type:', result.activityType);
@@ -37,6 +40,19 @@ function ProfileContainer({profileInfo}) {
     } catch (error) {
       console.error('Error sharing profile:', error);
     }
+  };
+
+  const openShareModal = () => {
+    setShowShareModal(true);
+  };
+
+  const closeShareModal = () => {
+    setShowShareModal(false);
+  };
+
+  const handleShareFromModal = async () => {
+    closeShareModal();
+    await handleShare();
   };
 
   return (
@@ -53,7 +69,7 @@ function ProfileContainer({profileInfo}) {
             </TouchableOpacity>
           </View>
           <View style={styles.circle}>
-            <TouchableOpacity onPress={handleShare}>
+            <TouchableOpacity onPress={openShareModal}>
               <MaterialCommunityIcons name="share-all-outline" size={24} color={colors.white} />
             </TouchableOpacity>
           </View>
@@ -100,20 +116,15 @@ function ProfileContainer({profileInfo}) {
         {/* Settings Options */}
         <View style={styles.settingsSection} H5>
           {[
-            // { label: 'Your Profile', icon: 'person-outline', route: 'DummyScreen' },
-            // { label: 'Expense Calculator', icon: 'calculate', route: 'ExpenseCalculator' },
-            // { label: 'Delete', icon: 'delete', route: 'DeleteButton' },
+            { label: 'Share Profile', icon: 'share', onPress: openShareModal },
             { label: 'Logout', icon: 'logout', route: 'Logout' },
-            // { label: 'Favourites', icon: 'star-outline', route: 'Favourite' },
             { label: 'FAQ', icon: 'help-outline', route: 'FAQ' },
             { label: 'My Schedule', icon: 'list', route: 'MySchedule' },
-            // { label: 'Help Center', icon: 'help', route: 'HelpCenter' },
-            // { label: 'Privacy Policy', icon: 'lock', route: 'PrivacyPolicy' },
           ].map((item, index) => (
             <TouchableOpacity
               key={index}
               style={styles.settingsItem}
-              onPress={() => navigation.navigate(item.route)}>
+              onPress={item.onPress ? item.onPress : () => navigation.navigate(item.route)}>
               <View style={styles.settingsItemContent}>
                 <MaterialIcons name={item.icon} size={24} color={colors.darkGrayText} />
                 <TextDefault style={styles.settingsItemText} H5>
@@ -129,6 +140,51 @@ function ProfileContainer({profileInfo}) {
           ))}
         </View>
       </View>
+
+      {/* Share Profile Modal */}
+      <Modal
+        visible={showShareModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={closeShareModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.shareModalContainer}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.shareModalTitle}>Share Your Profile</Text>
+            
+            <View style={styles.sharePreviewContainer}>
+              <Image 
+                source={{uri: user?.profilePicture || profileInfo?.image}} 
+                style={styles.sharePreviewImage} 
+              />
+              <Text style={styles.sharePreviewName}>
+                {user?.fullName || profileInfo?.name || 'User Name'}
+              </Text>
+              <Text style={styles.sharePreviewUsername}>
+                @{user?.userName || profileInfo?.userName || 'username'}
+              </Text>
+            </View>
+
+            <View style={styles.shareModalButtons}>
+              <TouchableOpacity 
+                style={styles.shareModalButton} 
+                onPress={handleShareFromModal}
+              >
+                <MaterialCommunityIcons name="share-variant" size={24} color={colors.white} />
+                <Text style={styles.shareModalButtonText}>Share Profile</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.cancelModalButton} 
+                onPress={closeShareModal}
+              >
+                <Text style={styles.cancelModalButtonText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }

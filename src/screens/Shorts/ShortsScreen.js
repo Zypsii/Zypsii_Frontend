@@ -670,6 +670,14 @@ function ShortsScreen({ route, navigation }) {
             </Text>
           </View>
         </View>
+        {comment.commentedBy?._id === currentUserId && (
+          <TouchableOpacity
+            onPress={() => handleDeleteComment(comment._id)}
+            style={styles.deleteCommentButton}
+          >
+            <Feather name="trash-2" size={16} color="#FF3B30" />
+          </TouchableOpacity>
+        )}
       </View>
       <Text style={styles.commentText}>{comment.commentData}</Text>
     </View>
@@ -1069,37 +1077,7 @@ function ShortsScreen({ route, navigation }) {
               <FlatList
                 data={comments}
                 keyExtractor={(comment) => comment._id}
-                renderItem={({ item: comment }) => (
-                  <View style={styles.commentItem}>
-                    <View style={styles.commentHeader}>
-                      <View style={styles.commentUserInfo}>
-                        <Image
-                          source={{
-                            uri: comment.commentedBy?.profilePicture || 'https://via.placeholder.com/40'
-                          }}
-                          style={styles.commentUserImage}
-                        />
-                        <View style={styles.commentUserDetails}>
-                          <Text style={styles.commentUser}>
-                            {comment.commentedBy?.fullName || comment.commentedBy?.username}
-                          </Text>
-                          <Text style={styles.commentDate}>
-                            {new Date(comment.createdAt).toLocaleDateString()}
-                          </Text>
-                        </View>
-                      </View>
-                      {comment.commentedBy?._id === currentUserId && (
-                        <TouchableOpacity
-                          onPress={() => handleDeleteComment(comment._id)}
-                          style={styles.deleteCommentButton}
-                        >
-                          <Feather name="trash-2" size={16} color="#FF3B30" />
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                    <Text style={styles.commentText}>{comment.commentData}</Text>
-                  </View>
-                )}
+                renderItem={renderCommentItem}
                 style={styles.commentsList}
                 showsVerticalScrollIndicator={false}
               />
