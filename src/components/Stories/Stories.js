@@ -784,7 +784,29 @@ const Stories = React.memo(() => {
               source={{ uri: selectedUser.user_image }}
               style={styles.storyUserImage}
             />
-            <Text style={styles.storyUserName}>{selectedUser.user_name}</Text>
+            <TouchableOpacity 
+              onPress={() => {
+                // Close the story view first
+                if (storyTimer) {
+                  clearInterval(storyTimer);
+                }
+                setShowStories(false);
+                setSelectedUser(null);
+                setCurrentStoryIndex(0);
+                
+                // Navigate to user profile
+                navigation.navigate('UserProfile', {
+                  targetUserId: selectedUser.user_id,
+                  userData: {
+                    id: selectedUser.user_id,
+                    fullName: selectedUser.user_name,
+                    profilePicture: selectedUser.user_image
+                  }
+                });
+              }}
+            >
+              <Text style={styles.storyUserName}>{selectedUser.user_name}</Text>
+            </TouchableOpacity>
           </View>
           <View style={styles.storyHeaderButtons}>
             {isMyStory && (
@@ -892,48 +914,56 @@ const Stories = React.memo(() => {
     const currentUserProfileImage = currentUser?.profilePicture || fallbackProfileImage;
     
     return (
-      <TouchableOpacity 
-        style={styles.yourStoryContainer}
-        onPress={() => {
-          if (hasStories) {
-            setSelectedUser(myStories[0]);
-            setShowStories(true);
-          } else {
-            setShowImagePickerModal(true);
-          }
-        }}
-      >
-        <View style={[
-          styles.storyCircle,
-          !hasStories && styles.emptyStoryCircle
-        ]}>
-          {hasStories ? (
-            <Image
-              source={{ uri: currentUserProfileImage }}
-              style={styles.storyImage}
-            />
-          ) : (
-            <View style={styles.emptyStoryContent}>
-              <Ionicons name="add" size={24} color="#666" />
-            </View>
-          )}
-          {hasStories && (
-            <TouchableOpacity 
-              style={styles.addIconContainer}
-              onPress={(e) => {
-                e.stopPropagation();
-                setShowImagePickerModal(true);
-              }}
-            >
-              <Ionicons name="add-circle" size={24} color="#fff" />
-            </TouchableOpacity>
-          )}
-        </View>
-        <Text style={[
-          styles.storyUsername,
-          !hasStories && styles.emptyStoryUsername
-        ]}>Your Story</Text>
-      </TouchableOpacity>
+      <View style={styles.yourStoryContainer}>
+        <TouchableOpacity 
+          style={styles.storyCircleContainer}
+          onPress={() => {
+            if (hasStories) {
+              setSelectedUser(myStories[0]);
+              setShowStories(true);
+            } else {
+              setShowImagePickerModal(true);
+            }
+          }}
+        >
+          <View style={[
+            styles.storyCircle,
+            !hasStories && styles.emptyStoryCircle
+          ]}>
+            {hasStories ? (
+              <Image
+                source={{ uri: currentUserProfileImage }}
+                style={styles.storyImage}
+              />
+            ) : (
+              <View style={styles.emptyStoryContent}>
+                <Ionicons name="add" size={24} color="#666" />
+              </View>
+            )}
+            {hasStories && (
+              <TouchableOpacity 
+                style={styles.addIconContainer}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  setShowImagePickerModal(true);
+                }}
+              >
+                <Ionicons name="add-circle" size={24} color="#fff" />
+              </TouchableOpacity>
+            )}
+          </View>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => {
+            navigation.navigate('ProfileDashboard');
+          }}
+        >
+          <Text style={[
+            styles.storyUsername,
+            !hasStories && styles.emptyStoryUsername
+          ]}>Your Story</Text>
+        </TouchableOpacity>
+      </View>
     );
   };
 
@@ -1110,32 +1140,46 @@ const Stories = React.memo(() => {
 
           {stories.length > 0 ? (
             stories.map((item, index) => (
-              <TouchableOpacity
-                key={index}
-                style={styles.storyItemContainer}
-                onPress={() => handleStoryPress(item)}
-                activeOpacity={0.7}
-              >
-                <View
-                  style={[
-                    styles.storyCircle,
-                    !item.stories?.length && styles.disabledStoryCircle,
-                    item.stories?.length > 0 && !isStorySeen(item.user_id, item.stories[0].story_id) && styles.unseenStoryCircle,
-                    item.stories?.length > 0 && isStorySeen(item.user_id, item.stories[0].story_id) && styles.seenStoryCircle
-                  ]}
+              <View key={index} style={styles.storyItemContainer}>
+                <TouchableOpacity
+                  style={styles.storyCircleContainer}
+                  onPress={() => handleStoryPress(item)}
+                  activeOpacity={0.7}
                 >
-                  <Image source={{ uri: item.user_image }} style={styles.storyImage} />
-                </View>
-                <Text 
-                  style={[
-                    styles.storyName,
-                    item.stories?.length > 0 && !isStorySeen(item.user_id, item.stories[0].story_id) && styles.unseenStoryName,
-                    item.stories?.length > 0 && isStorySeen(item.user_id, item.stories[0].story_id) && styles.seenStoryName
-                  ]}
+                  <View
+                    style={[
+                      styles.storyCircle,
+                      !item.stories?.length && styles.disabledStoryCircle,
+                      item.stories?.length > 0 && !isStorySeen(item.user_id, item.stories[0].story_id) && styles.unseenStoryCircle,
+                      item.stories?.length > 0 && isStorySeen(item.user_id, item.stories[0].story_id) && styles.seenStoryCircle
+                    ]}
+                  >
+                    <Image source={{ uri: item.user_image }} style={styles.storyImage} />
+                  </View>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => {
+                    navigation.navigate('UserProfile', {
+                      targetUserId: item.user_id,
+                      userData: {
+                        id: item.user_id,
+                        fullName: item.user_name,
+                        profilePicture: item.user_image
+                      }
+                    });
+                  }}
                 >
-                  {item.user_name}
-                </Text>
-              </TouchableOpacity>
+                  <Text 
+                    style={[
+                      styles.storyName,
+                      item.stories?.length > 0 && !isStorySeen(item.user_id, item.stories[0].story_id) && styles.unseenStoryName,
+                      item.stories?.length > 0 && isStorySeen(item.user_id, item.stories[0].story_id) && styles.seenStoryName
+                    ]}
+                  >
+                    {item.user_name}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             ))
           ) : (
             <View style={styles.noStoriesContainer}>
@@ -1192,6 +1236,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 15,
     width: 68, // Fixed width for consistent snapping
+  },
+  storyCircleContainer: {
+    alignItems: 'center',
+    marginBottom: 5,
   },
   storyCircle: {
     width: 68,
