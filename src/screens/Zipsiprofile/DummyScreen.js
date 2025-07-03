@@ -12,6 +12,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { ProfileSkeleton, StatsSkeleton, GridSkeleton, ScheduleSkeleton } from '../../components/SkeletonLoader';
 import { TextDefault } from '../../components';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import BottomTab from '../../components/BottomTab/BottomTab';
 
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -932,121 +934,126 @@ const DummyScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
-      <StatusBar backgroundColor={colors.white} barStyle="dark-content" />
-      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <View style={styles.topIconsRow}>
-            <TouchableOpacity 
-              onPress={handleBackPress}
-              style={styles.circle}
-            >
-              <Ionicons name="chevron-back" size={24} color={colors.white} />
-            </TouchableOpacity>
-            <View style={styles.settingsContainer}>
-              <TouchableOpacity
-                style={styles.settingsButton}
-                onPress={handleSettingsPress}
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.white }}>
+      <View style={styles.container}>
+        <StatusBar backgroundColor={colors.white} barStyle="dark-content" />
+        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+          <View style={styles.header}>
+            <View style={styles.topIconsRow}>
+              <TouchableOpacity 
+                onPress={handleBackPress}
+                style={styles.circle}
               >
-                <Ionicons name="settings-outline" size={24} color={colors.white} />
+                <Ionicons name="chevron-back" size={24} color={colors.white} />
               </TouchableOpacity>
+              <View style={styles.settingsContainer}>
+                <TouchableOpacity
+                  style={styles.settingsButton}
+                  onPress={handleSettingsPress}
+                >
+                  <Ionicons name="settings-outline" size={24} color={colors.white} />
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
-        <View style={styles.protractorShape} />
-        <View style={styles.backgroundCurvedContainer} />
+          <View style={styles.protractorShape} />
+          <View style={styles.backgroundCurvedContainer} />
 
-        {/* Profile Section */}
-        {profileLoading ? (
-          <ProfileSkeleton />
-        ) : (
-          <View style={styles.profileContainer}>
-            <TouchableOpacity>
-              {profileInfo.image ? (
-                <Image
-                  source={{ uri: profileInfo.image }}
-                  style={styles.profileImage}
-                />
-              ) : (
-                <View style={[styles.profileImage, styles.defaultProfileImage]}>
-                  <Ionicons name="person" size={50} color={colors.white} />
-                </View>
-              )}
+          {/* Profile Section */}
+          {profileLoading ? (
+            <ProfileSkeleton />
+          ) : (
+            <View style={styles.profileContainer}>
+              <TouchableOpacity>
+                {profileInfo.image ? (
+                  <Image
+                    source={{ uri: profileInfo.image }}
+                    style={styles.profileImage}
+                  />
+                ) : (
+                  <View style={[styles.profileImage, styles.defaultProfileImage]}>
+                    <Ionicons name="person" size={50} color={colors.white} />
+                  </View>
+                )}
+              </TouchableOpacity>
+              <Text style={styles.name}>{profileInfo.name || '-----'}</Text>
+              <Text style={styles.description}>{profileInfo.notes}</Text>
+            </View>
+          )}
+
+          {/* Stats Section */}
+          {profileLoading ? (
+            <StatsSkeleton />
+          ) : (
+             <View style={styles.statsContainer}>
+            <View style={styles.stat}>
+              <TextDefault style={styles.statLabel}>Posts</TextDefault>
+              <TextDefault style={styles.statNumber}>{profileInfo.Posts}</TextDefault>
+            </View>
+            <TouchableOpacity 
+              style={styles.stat}
+              onPress={() => navigation.navigate('FollowersList', { initialTab: 'Followers' })}
+            >
+              <TextDefault style={styles.statLabel}>Followers</TextDefault>
+              <TextDefault style={styles.statNumber}>{profileInfo.Followers}</TextDefault>
             </TouchableOpacity>
-            <Text style={styles.name}>{profileInfo.name || '-----'}</Text>
-            <Text style={styles.description}>{profileInfo.notes}</Text>
+            <TouchableOpacity 
+              style={styles.statLast}
+              onPress={() => navigation.navigate('FollowersList', { 
+                initialTab: 'Following',
+                followingData: followingData 
+              })}
+            >
+              <TextDefault style={styles.statLabel}>Following</TextDefault>
+              <TextDefault style={styles.statNumber}>{profileInfo.Following}</TextDefault>
+            </TouchableOpacity>
           </View>
-        )}
+          )}
 
-        {/* Stats Section */}
-        {profileLoading ? (
-          <StatsSkeleton />
-        ) : (
-           <View style={styles.statsContainer}>
-          <View style={styles.stat}>
-            <TextDefault style={styles.statLabel}>Posts</TextDefault>
-            <TextDefault style={styles.statNumber}>{profileInfo.Posts}</TextDefault>
+          {/* Gray Line */}
+          <View style={styles.separatorLine} />
+
+          {/* Icons Section */}
+          <View style={styles.iconsContainer}>
+            <TouchableOpacity
+              style={[
+                styles.iconBox,
+                activeIcon === 'th-large' && styles.activeIconBox,
+              ]}
+              onPress={() => setActiveIcon('th-large')}
+            >
+              <Icon name="th-large" size={30} color="#870E6B" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.iconBox,
+                activeIcon === 'briefcase' && styles.activeIconBox,
+              ]}
+              onPress={() => setActiveIcon('briefcase')}
+            >
+              <Icon name="briefcase" size={30} color="#870E6B" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.iconBox,
+                activeIcon === 'play-circle' && styles.activeIconBox,
+              ]}
+              onPress={() => setActiveIcon('play-circle')}
+            >
+              <Icon name="play-circle" size={30} color="#870E6B" />
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity 
-            style={styles.stat}
-            onPress={() => navigation.navigate('FollowersList', { initialTab: 'Followers' })}
-          >
-            <TextDefault style={styles.statLabel}>Followers</TextDefault>
-            <TextDefault style={styles.statNumber}>{profileInfo.Followers}</TextDefault>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.statLast}
-            onPress={() => navigation.navigate('FollowersList', { 
-              initialTab: 'Following',
-              followingData: followingData 
-            })}
-          >
-            <TextDefault style={styles.statLabel}>Following</TextDefault>
-            <TextDefault style={styles.statNumber}>{profileInfo.Following}</TextDefault>
-          </TouchableOpacity>
-        </View>
-        )}
 
-        {/* Gray Line */}
-        <View style={styles.separatorLine} />
-
-        {/* Icons Section */}
-        <View style={styles.iconsContainer}>
-          <TouchableOpacity
-            style={[
-              styles.iconBox,
-              activeIcon === 'th-large' && styles.activeIconBox,
-            ]}
-            onPress={() => setActiveIcon('th-large')}
-          >
-            <Icon name="th-large" size={30} color="#870E6B" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.iconBox,
-              activeIcon === 'briefcase' && styles.activeIconBox,
-            ]}
-            onPress={() => setActiveIcon('briefcase')}
-          >
-            <Icon name="briefcase" size={30} color="#870E6B" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.iconBox,
-              activeIcon === 'play-circle' && styles.activeIconBox,
-            ]}
-            onPress={() => setActiveIcon('play-circle')}
-          >
-            <Icon name="play-circle" size={30} color="#870E6B" />
-          </TouchableOpacity>
+          {/* Content Section based on active icon */}
+          <View style={contentStyles.contentContainer}>
+            {renderContent()}
+          </View>
+        </ScrollView>
+        <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }}>
+          <BottomTab screen="PROFILE" />
         </View>
-
-        {/* Content Section based on active icon */}
-        <View style={contentStyles.contentContainer}>
-          {renderContent()}
-        </View>
-      </ScrollView>
-    </View>
+      </View>
+    </SafeAreaView>
   );
 };
 
