@@ -78,6 +78,23 @@ export const styles = StyleSheet.create({
     color: colors.text,
     marginBottom: 16,
   },
+  defaultDateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.lightGray,
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  defaultDateButtonText: {
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: '500',
+    marginLeft: 8,
+  },
   formGroup: {
     marginBottom: 16,
   },
