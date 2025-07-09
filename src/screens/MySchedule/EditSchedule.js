@@ -32,11 +32,52 @@ function formatDateForBackend(dateString) {
   if (!dateString) return undefined;
   const date = new Date(dateString);
   if (isNaN(date.getTime())) return undefined; // Invalid date
-  const day = date.getDate();
-  const month = date.getMonth() + 1;
-  const year = date.getFullYear();
-  return `${day}-${month}-${year}`;
+  return date.toISOString(); // Return ISO string for backend
 }
+
+// Function to get place name from coordinates using BigDataCloud API (free, no API key required)
+const getPlaceNameFromCoordinates = async (lat, lng) => {
+  try {
+    console.log('Making geocoding request for:', lat, lng);
+    
+    const response = await fetch(
+      `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`,
+      {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        },
+      }
+    );
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log('Geocoding API response:', data);
+    
+    if (data.locality && data.city) {
+      const address = `${data.locality}, ${data.city}, ${data.countryName}`;
+      console.log('Successfully got address:', address);
+      return address;
+    } else if (data.city) {
+      const address = `${data.city}, ${data.countryName}`;
+      console.log('Successfully got address:', address);
+      return address;
+    } else if (data.countryName) {
+      const address = data.countryName;
+      console.log('Successfully got address:', address);
+      return address;
+    } else {
+      console.log('No results found for coordinates:', lat, lng);
+      return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+    }
+  } catch (error) {
+    console.error('Error getting place name:', error);
+    return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+  }
+};
 
 const EditSchedule = ({ route, navigation }) => {
   const { scheduleId, scheduleData, onScheduleUpdated } = route.params || {};
@@ -103,6 +144,42 @@ const EditSchedule = ({ route, navigation }) => {
     bannerImage: scheduleData?.bannerImage || scheduleData?.imageUrl || '',
   });
 
+  // Function to update place names from coordinates when they are empty
+  const updatePlaceNamesFromCoordinates = async (formDataToUpdate) => {
+    const updatedFormData = { ...formDataToUpdate };
+    
+    try {
+      // Update fromPlace if it's empty or 'Unknown location' but coordinates exist
+      if (
+        (!updatedFormData.fromPlace || updatedFormData.fromPlace.trim() === '' || updatedFormData.fromPlace === 'Unknown location') &&
+        updatedFormData.fromLatitude && updatedFormData.fromLongitude
+      ) {
+        const fromPlaceName = await getPlaceNameFromCoordinates(
+          parseFloat(updatedFormData.fromLatitude), 
+          parseFloat(updatedFormData.fromLongitude)
+        );
+        updatedFormData.fromPlace = fromPlaceName;
+      }
+      
+      // Update toPlace if it's empty or 'Unknown location' but coordinates exist
+      if (
+        (!updatedFormData.toPlace || updatedFormData.toPlace.trim() === '' || updatedFormData.toPlace === 'Unknown location') &&
+        updatedFormData.toLatitude && updatedFormData.toLongitude
+      ) {
+        const toPlaceName = await getPlaceNameFromCoordinates(
+          parseFloat(updatedFormData.toLatitude), 
+          parseFloat(updatedFormData.toLongitude)
+        );
+        updatedFormData.toPlace = toPlaceName;
+      }
+      
+      return updatedFormData;
+    } catch (error) {
+      console.error('Error updating place names from coordinates:', error);
+      return formDataToUpdate;
+    }
+  };
+
   // Add useEffect to log the initial data and handle missing location data
   useEffect(() => {
     console.log('Initial Schedule Data:', scheduleData);
@@ -116,11 +193,14 @@ const EditSchedule = ({ route, navigation }) => {
 
     // Only check for missing location data if scheduleData is actually loaded and we're not loading
     if (scheduleData && Object.keys(scheduleData).length > 0 && !dataLoading) {
-      // Check if location coordinates are missing and provide guidance
-      const hasLocationData = scheduleData?.location?.from?.latitude && 
-                             scheduleData?.location?.from?.longitude && 
-                             scheduleData?.location?.to?.latitude && 
-                             scheduleData?.location?.to?.longitude;
+      // Check all possible sources for location coordinates
+      const hasLocationData =
+        (scheduleData?.location?.from?.latitude && scheduleData?.location?.from?.longitude &&
+         scheduleData?.location?.to?.latitude && scheduleData?.location?.to?.longitude) ||
+        (scheduleData?.rawLocation?.from?.latitude && scheduleData?.rawLocation?.from?.longitude &&
+         scheduleData?.rawLocation?.to?.latitude && scheduleData?.rawLocation?.to?.longitude) ||
+        (scheduleData?.fromLatitude && scheduleData?.fromLongitude &&
+         scheduleData?.toLatitude && scheduleData?.toLongitude);
       
       if (!hasLocationData) {
         console.warn('Missing location coordinates in schedule data');
@@ -134,6 +214,17 @@ const EditSchedule = ({ route, navigation }) => {
       } else {
         console.log('Location data found:', hasLocationData);
       }
+
+      // Update place names from coordinates if they are empty
+      const updatePlaceNames = async () => {
+        const updatedFormData = await updatePlaceNamesFromCoordinates(formData);
+        if (updatedFormData.fromPlace !== formData.fromPlace || updatedFormData.toPlace !== formData.toPlace) {
+          setFormData(updatedFormData);
+          console.log('Updated form data with place names from coordinates');
+        }
+      };
+      
+      updatePlaceNames();
     } else {
       console.log('Schedule data not yet loaded or still loading');
     }
@@ -147,7 +238,10 @@ const EditSchedule = ({ route, navigation }) => {
       toLatitude: formData.toLatitude,
       toLongitude: formData.toLongitude,
       fromPlace: formData.fromPlace,
-      toPlace: formData.toPlace
+      toPlace: formData.toPlace,
+      fromDate: formData.fromDate,
+      toDate: formData.toDate,
+      numberOfDays: formData.numberOfDays
     });
 
     // Check if we have valid location data in form data
@@ -163,16 +257,91 @@ const EditSchedule = ({ route, navigation }) => {
     if (hasValidLocationData && !dataLoading) {
       console.log('Valid location data found in form data');
     }
-  }, [formData.fromLatitude, formData.fromLongitude, formData.toLatitude, formData.toLongitude, formData.fromPlace, formData.toPlace, dataLoading]);
+  }, [formData.fromLatitude, formData.fromLongitude, formData.toLatitude, formData.toLongitude, formData.fromPlace, formData.toPlace, formData.fromDate, formData.toDate, formData.numberOfDays, dataLoading]);
+
+  // Add function to calculate end date based on start date and number of days
+  const calculateEndDate = (startDate, numberOfDays) => {
+    if (!startDate || !numberOfDays) return null;
+    const endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + parseInt(numberOfDays) - 1);
+    return endDate.toISOString();
+  };
+
+  // Add function to calculate number of days between two dates
+  const calculateNumberOfDays = (startDate, endDate) => {
+    if (!startDate || !endDate) return null;
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const timeDiff = end.getTime() - start.getTime();
+    const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1; // +1 because we count both start and end day
+    return daysDiff > 0 ? daysDiff : 1;
+  };
 
   // Add function to handle input changes
   const handleInputChange = (field, value) => {
     console.log(`Updating ${field} to:`, value);
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
+    setFormData(prev => {
+      const updated = {
+        ...prev,
+        [field]: value
+      };
+
+      // If numberOfDays changed and we have a start date, recalculate end date
+      if (field === 'numberOfDays' && value && prev.fromDate) {
+        const endDate = calculateEndDate(prev.fromDate, value);
+        if (endDate) {
+          updated.toDate = endDate;
+          updated.toTime = '17:00';
+        }
+      }
+
+      return updated;
+    });
   };
+
+  // Add useEffect to set default dates when form loads
+  useEffect(() => {
+    // Set default start date to today if not already set
+    if (!formData.fromDate) {
+      const today = new Date();
+      today.setHours(9, 0, 0, 0); // Set to 9:00 AM
+      setFormData(prev => ({
+        ...prev,
+        fromDate: today.toISOString(),
+        fromTime: '09:00'
+      }));
+    }
+  }, []); // Run only once when component mounts
+
+  // Consolidated useEffect to calculate end date whenever start date, end date, or number of days changes
+  useEffect(() => {
+    // If fromDate is set but toDate is missing, set toDate based on fromDate and numberOfDays (default 1)
+    if (formData.fromDate && (!formData.toDate || formData.toDate === '')) {
+      const days = parseInt(formData.numberOfDays) || 1;
+      const endDate = calculateEndDate(formData.fromDate, days);
+      if (endDate) {
+        setFormData(prev => ({
+          ...prev,
+          toDate: endDate,
+          toTime: prev.toTime || '17:00',
+          numberOfDays: days.toString(), // ensure numberOfDays is set
+        }));
+      }
+    } else if (formData.fromDate && formData.numberOfDays) {
+      // If both fromDate and numberOfDays are set, always keep toDate in sync
+      const days = parseInt(formData.numberOfDays);
+      if (!isNaN(days) && days > 0) {
+        const endDate = calculateEndDate(formData.fromDate, days);
+        if (endDate && formData.toDate !== endDate) {
+          setFormData(prev => ({
+            ...prev,
+            toDate: endDate,
+            toTime: prev.toTime || '17:00',
+          }));
+        }
+      }
+    }
+  }, [formData.fromDate, formData.toDate, formData.numberOfDays]);
 
   // Function to refresh schedule listing data
   const refreshScheduleListing = async () => {
@@ -293,44 +462,51 @@ const EditSchedule = ({ route, navigation }) => {
         console.log('Fetched Schedule Data:', data);
         
         if (data.success && data.data) {
-          // Update the form data with the fetched schedule data
-          setFormData(prev => ({
-            ...prev,
-            tripName: data.data.title || data.data.tripName || prev.tripName,
-            description: data.data.description || prev.description,
-            travelMode: data.data.travelMode || prev.travelMode,
-            visible: data.data.visible || data.data.privacy || prev.visible,
+          // Create initial form data with fetched schedule data
+          const initialFormData = {
+            ...formData,
+            tripName: data.data.title || data.data.tripName || formData.tripName,
+            description: data.data.description || formData.description,
+            travelMode: data.data.travelMode || formData.travelMode,
+            visible: data.data.visible || data.data.privacy || formData.visible,
             fromPlace: data.data.fromPlace || 
                        data.data.location?.from?.place || 
                        data.data.rawLocation?.from?.place || 
-                       prev.fromPlace,
+                       formData.fromPlace,
             toPlace: data.data.toPlace || 
                      data.data.location?.to?.place || 
                      data.data.rawLocation?.to?.place || 
-                     prev.toPlace,
+                     formData.toPlace,
             fromLatitude: data.data.location?.from?.latitude || 
                           data.data.rawLocation?.from?.latitude || 
                           data.data.fromLatitude ||
-                          prev.fromLatitude,
+                          formData.fromLatitude,
             fromLongitude: data.data.location?.from?.longitude || 
                            data.data.rawLocation?.from?.longitude || 
                            data.data.fromLongitude ||
-                           prev.fromLongitude,
+                           formData.fromLongitude,
             toLatitude: data.data.location?.to?.latitude || 
                         data.data.rawLocation?.to?.latitude || 
                         data.data.toLatitude ||
-                        prev.toLatitude,
+                        formData.toLatitude,
             toLongitude: data.data.location?.to?.longitude || 
                          data.data.rawLocation?.to?.longitude || 
                          data.data.toLongitude ||
-                         prev.toLongitude,
+                         formData.toLongitude,
             fromDate: data.data.Dates?.from ? new Date(data.data.Dates.from).toISOString() : 
-                     data.data.date ? new Date(data.data.date).toISOString() : prev.fromDate,
+                     data.data.date ? new Date(data.data.date).toISOString() : formData.fromDate,
             toDate: data.data.Dates?.end ? new Date(data.data.Dates.end).toISOString() : 
-                   data.data.toDate ? new Date(data.data.toDate).toISOString() : prev.toDate,
-            numberOfDays: data.data.numberOfDays || data.data.riders || prev.numberOfDays,
-            bannerImage: data.data.bannerImage || data.data.imageUrl || prev.bannerImage,
-          }));
+                   data.data.toDate ? new Date(data.data.toDate).toISOString() : formData.toDate,
+            numberOfDays: data.data.numberOfDays || data.data.riders || formData.numberOfDays,
+            bannerImage: data.data.bannerImage || data.data.imageUrl || formData.bannerImage,
+          };
+
+          // Update place names from coordinates if they are empty
+          const updatedFormData = await updatePlaceNamesFromCoordinates(initialFormData);
+          
+          // Set the form data with updated place names
+          setFormData(updatedFormData);
+          console.log('Updated form data with fetched schedule data and place names from coordinates');
         }
       } catch (error) {
         console.error('Error fetching schedule data:', error);
@@ -452,7 +628,7 @@ const EditSchedule = ({ route, navigation }) => {
   };
 
   // Update handleLocationSelect function
-  const handleLocationSelect = (type, place, latitude, longitude, dayIndex) => {
+  const handleLocationSelect = async (type, place, latitude, longitude, dayIndex) => {
     console.log('Location selected:', { type, place, latitude, longitude, dayIndex });
     
     if (type === 'day' && dayIndex !== undefined) {
@@ -473,23 +649,47 @@ const EditSchedule = ({ route, navigation }) => {
       };
       setDaySchedules(updatedSchedules);
     } else if (type === 'from') {
+      // If place is empty or just coordinates, get the place name
+      let placeName = place;
+      if (!place || place.trim() === '' || /^-?\d+\.?\d*,\s*-?\d+\.?\d*$/.test(place)) {
+        try {
+          placeName = await getPlaceNameFromCoordinates(latitude, longitude);
+          console.log('Got place name for from location:', placeName);
+        } catch (error) {
+          console.error('Error getting place name for from location:', error);
+          placeName = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+        }
+      }
+      
       setFormData(prev => ({
         ...prev,
-        fromPlace: place,
+        fromPlace: placeName,
         fromLatitude: latitude.toString(),
         fromLongitude: longitude.toString()
       }));
-      console.log('Updated from location:', { place, latitude, longitude });
-      showToast(`From location set to: ${place}`, 'success');
+      console.log('Updated from location:', { placeName, latitude, longitude });
+      showToast(`From location set to: ${placeName}`, 'success');
     } else if (type === 'to') {
+      // If place is empty or just coordinates, get the place name
+      let placeName = place;
+      if (!place || place.trim() === '' || /^-?\d+\.?\d*,\s*-?\d+\.?\d*$/.test(place)) {
+        try {
+          placeName = await getPlaceNameFromCoordinates(latitude, longitude);
+          console.log('Got place name for to location:', placeName);
+        } catch (error) {
+          console.error('Error getting place name for to location:', error);
+          placeName = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+        }
+      }
+      
       setFormData(prev => ({
         ...prev,
-        toPlace: place,
+        toPlace: placeName,
         toLatitude: latitude.toString(),
         toLongitude: longitude.toString()
       }));
-      console.log('Updated to location:', { place, latitude, longitude });
-      showToast(`To location set to: ${place}`, 'success');
+      console.log('Updated to location:', { placeName, latitude, longitude });
+      showToast(`To location set to: ${placeName}`, 'success');
     }
   };
 
@@ -793,13 +993,24 @@ const EditSchedule = ({ route, navigation }) => {
         }
       });
       // Only add fromDate and toDate if valid
-      const formattedFromDate = formatDateForBackend(formData.fromDate);
-      if (formattedFromDate) {
-        updateData.fromDate = formattedFromDate;
+      if (formData.fromDate) {
+        const fromDate = new Date(formData.fromDate);
+        if (!isNaN(fromDate.getTime())) {
+          // Set the time from fromTime
+          const [hours, minutes] = formData.fromTime.split(':');
+          fromDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+          updateData.fromDate = fromDate.toISOString();
+        }
       }
-      const formattedToDate = formatDateForBackend(formData.toDate);
-      if (formattedToDate) {
-        updateData.toDate = formattedToDate;
+      
+      if (formData.toDate) {
+        const toDate = new Date(formData.toDate);
+        if (!isNaN(toDate.getTime())) {
+          // Set the time from toTime
+          const [hours, minutes] = formData.toTime.split(':');
+          toDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+          updateData.toDate = toDate.toISOString();
+        }
       }
 
       // Check bannerImage type
@@ -960,10 +1171,34 @@ const EditSchedule = ({ route, navigation }) => {
         }
         const time = new Date(`2000-01-01T${formData.fromTime}`);
         date.setHours(time.getHours(), time.getMinutes());
-        setFormData(prev => ({
-          ...prev,
-          fromDate: date.toISOString()
-        }));
+        
+        setFormData(prev => {
+          const updated = {
+            ...prev,
+            fromDate: date.toISOString()
+          };
+
+          // Recalculate end date if numberOfDays is set
+          if (prev.numberOfDays) {
+            const days = parseInt(prev.numberOfDays);
+            if (!isNaN(days) && days > 0) {
+              const endDate = calculateEndDate(date.toISOString(), days);
+              if (endDate) {
+                updated.toDate = endDate;
+                updated.toTime = '17:00';
+              }
+            }
+          } else {
+            // If no numberOfDays set, default to 1 day
+            const endDate = calculateEndDate(date.toISOString(), 1);
+            if (endDate) {
+              updated.toDate = endDate;
+              updated.toTime = '17:00';
+            }
+          }
+
+          return updated;
+        });
       } catch (error) {
         console.error('Error setting from date:', error);
         showToast('Invalid date selected', 'error');
@@ -981,10 +1216,23 @@ const EditSchedule = ({ route, navigation }) => {
         }
         const time = new Date(`2000-01-01T${formData.toTime}`);
         date.setHours(time.getHours(), time.getMinutes());
-        setFormData(prev => ({
-          ...prev,
-          toDate: date.toISOString()
-        }));
+        
+        setFormData(prev => {
+          const updated = {
+            ...prev,
+            toDate: date.toISOString()
+          };
+
+          // Calculate and update numberOfDays based on the selected end date
+          if (prev.fromDate) {
+            const daysDiff = calculateNumberOfDays(prev.fromDate, date.toISOString());
+            if (daysDiff) {
+              updated.numberOfDays = daysDiff.toString();
+            }
+          }
+
+          return updated;
+        });
       } catch (error) {
         console.error('Error setting to date:', error);
         showToast('Invalid date selected', 'error');
@@ -1242,7 +1490,13 @@ const EditSchedule = ({ route, navigation }) => {
               style={styles.input}
               onPress={() => openMapForLocation('from')}
             >
-              <Text style={styles.locationText}>{formData.fromPlace || 'Select starting location'}</Text>
+              <Text style={styles.locationText}>
+                {formData.fromPlace && formData.fromPlace !== '' 
+                  ? formData.fromPlace 
+                  : (formData.fromLatitude && formData.fromLongitude 
+                      ? `${parseFloat(formData.fromLatitude).toFixed(5)}, ${parseFloat(formData.fromLongitude).toFixed(5)}`
+                      : 'Select starting location')}
+              </Text>
             </TouchableOpacity>
             {formData.fromLatitude && formData.fromLongitude && (
               <View style={styles.mapContainer}>
@@ -1272,7 +1526,13 @@ const EditSchedule = ({ route, navigation }) => {
               style={styles.input}
               onPress={() => openMapForLocation('to')}
             >
-              <Text style={styles.locationText}>{formData.toPlace || 'Select destination'}</Text>
+              <Text style={styles.locationText}>
+                {formData.toPlace && formData.toPlace !== '' 
+                  ? formData.toPlace 
+                  : (formData.toLatitude && formData.toLongitude 
+                      ? `${parseFloat(formData.toLatitude).toFixed(5)}, ${parseFloat(formData.toLongitude).toFixed(5)}`
+                      : 'Select destination')}
+              </Text>
             </TouchableOpacity>
             {formData.toLatitude && formData.toLongitude && (
               <View style={styles.mapContainer}>
@@ -1299,6 +1559,47 @@ const EditSchedule = ({ route, navigation }) => {
 
         <View style={styles.sectionContainer}>
           <Text style={styles.sectionTitle}>DATES</Text>
+          
+          {/* Default Date Button */}
+          <TouchableOpacity 
+            style={styles.defaultDateButton}
+            onPress={() => {
+              console.log('Set Default Dates button clicked');
+              
+              // Create today's date at 9:00 AM
+              const today = new Date();
+              today.setHours(9, 0, 0, 0);
+              
+              // Get current number of days or default to 1
+              const currentDays = parseInt(formData.numberOfDays) || 1;
+              
+              // Calculate end date manually to ensure it works
+              const endDate = new Date(today);
+              endDate.setDate(endDate.getDate() + currentDays - 1);
+              endDate.setHours(17, 0, 0, 0); // Set to 5:00 PM
+              
+              console.log('Setting default dates:', {
+                today: today.toISOString(),
+                endDate: endDate.toISOString(),
+                days: currentDays
+              });
+              
+              setFormData(prev => ({
+                ...prev,
+                fromDate: today.toISOString(),
+                fromTime: '09:00',
+                toDate: endDate.toISOString(),
+                toTime: '17:00',
+                numberOfDays: currentDays.toString()
+              }));
+              
+              showToast(`Default dates set (Today + ${currentDays} days)`, 'success');
+            }}
+          >
+            <Ionicons name="calendar-outline" size={20} color={colors.primary} />
+            <Text style={styles.defaultDateButtonText}>Set Default Dates</Text>
+          </TouchableOpacity>
+
           <View style={styles.row}>
             <View style={[styles.formGroup, { flex: 1, marginRight: 10 }]}>
               <Text style={styles.label}>Start Date & Time</Text>
