@@ -282,7 +282,7 @@ function SearchPage() {
       
       {activeTab === "Places" && item.suggestions && (
         <View style={styles.recommendCardWrapper}>
-          <RecommendCard 
+          {/* <RecommendCard 
             title={<Text>Suggested Itineraries</Text>}
             suggestions={item.suggestions}
             onSchedulePress={() => {
@@ -293,7 +293,7 @@ function SearchPage() {
               setSelectedPlace(item);
               setShowViewMoreModal(true);
             }}
-          />
+          /> */}
         </View>
       )}
     </Animated.View>
@@ -439,7 +439,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 16,
     paddingTop: 50,
-    paddingBottom: 16,
+    paddingBottom: 5,
     backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
     borderBottomColor: "#F0F0F0",
@@ -493,7 +493,7 @@ const styles = StyleSheet.create({
   tabContainer: {
     flexDirection: "row",
     backgroundColor: "#FFFFFF",
-    paddingHorizontal: 32,
+    paddingHorizontal: 12,
     justifyContent: "center",
     alignItems: "center",
     borderBottomWidth: 1,
@@ -501,7 +501,7 @@ const styles = StyleSheet.create({
   },
   tabButton: {
     paddingVertical: 16,
-    paddingHorizontal: 32,
+    paddingHorizontal: 42,
     position: "relative",
     alignItems: "center",
   },
@@ -549,11 +549,11 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 24,
+    paddingTop: 0,
+    paddingBottom: 5,
   },
   itemWrapper: {
-    marginVertical: 6,
+    marginVertical: 0,
   },
   itemTouchable: {
     borderRadius: 16,
@@ -567,32 +567,32 @@ const styles = StyleSheet.create({
   personContainer: {
     flexDirection: "row",
     alignItems: "flex-start",
-    padding: 16,
+    padding: 12,
   },
   avatarContainer: {
     position: "relative",
   },
   avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: "#F0F0F0",
     borderWidth: 2,
     borderColor: "#FFFFFF",
   },
   onlineIndicator: {
     position: "absolute",
-    bottom: 2,
-    right: 2,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
+    bottom: 1,
+    right: 1,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
     backgroundColor: "#4CAF50",
     borderWidth: 2,
     borderColor: "#FFFFFF",
   },
   personDetails: {
-    marginLeft: 16,
+    marginLeft: 12,
     flex: 1,
   },
   nameRow: {
@@ -606,18 +606,18 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   personName: {
-    fontSize: 17,
+    fontSize: 15,
     fontWeight: "600",
     color: "#1A1A1A",
     marginBottom: 2,
   },
   personTagline: {
-    fontSize: 14,
+    fontSize: 13,
     color: "#666",
     fontWeight: "400",
   },
   placeInfo: {
-    marginTop: 4,
+    marginTop: 0,
   },
   ratingContainer: {
     flexDirection: "row",
@@ -632,7 +632,7 @@ const styles = StyleSheet.create({
   },
   separator: {
     width: 1,
-    height: 12,
+    height: 0,
     backgroundColor: "#E0E0E0",
     marginHorizontal: 8,
   },
@@ -669,12 +669,12 @@ const styles = StyleSheet.create({
   actionButtons: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 8,
   },
   chatButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: "#F8F9FA",
     justifyContent: "center",
     alignItems: "center",
@@ -690,7 +690,7 @@ const styles = StyleSheet.create({
   emptyStateContainer: {
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 80,
+    paddingVertical: 10,
     paddingHorizontal: 32,
   },
   noResultsTitle: {
