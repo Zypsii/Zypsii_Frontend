@@ -670,7 +670,7 @@ const AllSchedule = ({item, isFromProfile}) => {
             <Text style={styles.shareModalTitle}>Share with Followers</Text>
             {isLoadingFollowers ? (
               <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#A60F93" />
+                <ActivityIndicator size="large" color="#ff3873" />
               </View>
             ) : followers.length === 0 ? (
               <View style={styles.loadingContainer}>

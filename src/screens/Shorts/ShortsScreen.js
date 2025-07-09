@@ -1062,7 +1062,7 @@ function ShortsScreen({ route, navigation }) {
                     styles.commentSubmitButton,
                     { 
                       opacity: commentText.trim() && !isCommenting ? 1 : 0.5,
-                      backgroundColor: isCommenting ? '#ccc' : '#A60F93'
+                      backgroundColor: isCommenting ? '#ccc' : '#ff3873'
                     }
                   ]}
                   onPress={handleCommentSubmit}
@@ -1110,7 +1110,7 @@ function ShortsScreen({ route, navigation }) {
             <Text style={styles.shareModalTitle}>Share with followers</Text>
             {isLoadingFollowers ? (
               <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#A60F93" />
+                <ActivityIndicator size="large" color="#ff3873" />
               </View>
             ) : (
               <FlatList

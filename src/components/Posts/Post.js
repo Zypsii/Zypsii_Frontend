@@ -800,7 +800,7 @@ const Post = ({ item, isFromProfile, onDelete, isVisible }) => {
         {/* <TouchableOpacity onPress={handleSavePost}>
           <Feather 
             name="bookmark"
-            style={[styles.bookmarkIcon, { color: isSaved ? '#A60F93' : '#000' }]} 
+            style={[styles.bookmarkIcon, { color: isSaved ? '#ff3873' : '#000' }]} 
           />
         </TouchableOpacity> */}
       </View>
@@ -940,7 +940,7 @@ const Post = ({ item, isFromProfile, onDelete, isVisible }) => {
             <Text style={styles.shareModalTitle}>Share with followers</Text>
             {isLoadingFollowers ? (
               <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#A60F93" />
+                <ActivityIndicator size="large" color="#ff3873" />
               </View>
             ) : (
               <FlatList
@@ -1149,7 +1149,7 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   commentSubmitButton: {
-    backgroundColor: '#A60F93',
+    backgroundColor: '#ff3873',
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 20,

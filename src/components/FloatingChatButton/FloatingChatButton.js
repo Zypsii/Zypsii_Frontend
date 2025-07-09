@@ -88,7 +88,7 @@ const styles = StyleSheet.create({
     width: scale(40),
     height: scale(40),
     borderRadius: 20,
-    backgroundColor: colors.btncolor,
+    backgroundColor: colors.Zypsii_color,
     justifyContent: 'center',
     alignItems: 'center',
     // Simplified shadows for better performance

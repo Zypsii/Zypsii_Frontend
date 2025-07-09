@@ -305,7 +305,7 @@ export const styles = StyleSheet.create({
     marginTop: 10,
   },
   addLocationButtonText: {
-    color: '#A60F93',
+    color: '#ff3873',
     marginLeft: 5,
     fontSize: 14,
     fontWeight: '500',

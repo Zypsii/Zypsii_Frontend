@@ -65,7 +65,7 @@ const Toast = ({ message, type = 'success', visible, onHide, duration = 3000 }) 
     switch (type) {
       case 'success':
         return {
-          background: '#A60F93',
+          background: '#ff3873',
           iconBackground: '#8B0D7A',
           border: '#C412A6'
         };
@@ -83,7 +83,7 @@ const Toast = ({ message, type = 'success', visible, onHide, duration = 3000 }) 
         };
       default:
         return {
-          background: '#A60F93',
+          background: '#ff3873',
           iconBackground: '#8B0D7A',
           border: '#C412A6'
         };

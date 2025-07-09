@@ -145,7 +145,7 @@ const styles = StyleSheet.create({
     height: height,
   },
   doneButton: {
-    backgroundColor: '#A60F93',
+    backgroundColor: '#ff3873',
     padding: 15,
     borderRadius: 5,
     marginBottom: 10,
@@ -168,7 +168,7 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   searchButton: {
-    backgroundColor: '#A60F93',
+    backgroundColor: '#ff3873',
     padding: 10,
     borderRadius: 5,
     minWidth: 80,

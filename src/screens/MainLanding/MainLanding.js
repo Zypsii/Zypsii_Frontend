@@ -1065,7 +1065,7 @@ function MainLanding(props) {
               {'Shorts'}
             </TextDefault>
             <TouchableOpacity onPress={() => navigation.navigate('AllShorts')}>
-              <TextDefault textColor={colors.btncolor} H5>
+              <TextDefault textColor={colors.Zypsii_color} H5>
                 {'View All'}
               </TextDefault>
             </TouchableOpacity>
@@ -1385,7 +1385,7 @@ function MainLanding(props) {
               />
             </TouchableOpacity>
             <TouchableOpacity onPress={() => navigation.navigate('MySchedule')}>
-              <TextDefault textColor={colors.btncolor} H5>
+              <TextDefault textColor={colors.Zypsii_color} H5>
                 {'View All'}
               </TextDefault>
             </TouchableOpacity>
@@ -1417,7 +1417,7 @@ function MainLanding(props) {
               />
             </TouchableOpacity>
             <TouchableOpacity onPress={() => navigation.navigate('MySchedule')}>
-              <TextDefault textColor={colors.btncolor} H5>
+              <TextDefault textColor={colors.Zypsii_color} H5>
                 {'View All'}
               </TextDefault>
             </TouchableOpacity>
@@ -1448,7 +1448,7 @@ function MainLanding(props) {
               {'Schedule'}
             </TextDefault>
             <TouchableOpacity onPress={() => navigation.navigate('MySchedule')}>
-              <TextDefault textColor={colors.btncolor} H5>
+              <TextDefault textColor={colors.Zypsii_color} H5>
                 {'View All'}
               </TextDefault>
             </TouchableOpacity>
@@ -1479,7 +1479,7 @@ function MainLanding(props) {
               />
             </TouchableOpacity>
             <TouchableOpacity onPress={() => navigation.navigate('MySchedule')}>
-              <TextDefault textColor={colors.btncolor} H5>
+              <TextDefault textColor={colors.Zypsii_color} H5>
                 {'View All'}
               </TextDefault>
             </TouchableOpacity>
@@ -1508,7 +1508,7 @@ function MainLanding(props) {
           {'Outdoors and adventure'}
         </TextDefault>
         <TouchableOpacity onPress={() => navigation.navigate('CombinedDestinations', { outDoorTag: selectedAdventureTag})}>
-          <TextDefault textColor={colors.btncolor} H5>View All</TextDefault>
+          <TextDefault textColor={colors.Zypsii_color} H5>View All</TextDefault>
         </TouchableOpacity>
       </View>
       {/* TAGS ROW */}
@@ -1606,7 +1606,7 @@ function MainLanding(props) {
           {'Mountains'}
         </TextDefault>
         <TouchableOpacity onPress={() => navigation.navigate('CombinedDestinations', {outDoorTag: 'mountains'})}>
-          <TextDefault textColor={colors.btncolor} H5>View All</TextDefault>
+          <TextDefault textColor={colors.Zypsii_color} H5>View All</TextDefault>
         </TouchableOpacity>
       </View>
 
@@ -1704,7 +1704,7 @@ function MainLanding(props) {
           {'View Points'}
         </TextDefault>
         <TouchableOpacity onPress={() => navigation.navigate('CombinedDestinations', { outDoorTag: 'view points' })}>
-          <TextDefault textColor={colors.btncolor} H5>View All</TextDefault>
+          <TextDefault textColor={colors.Zypsii_color} H5>View All</TextDefault>
         </TouchableOpacity>
       </View>
 
@@ -1866,7 +1866,7 @@ function MainLanding(props) {
         <View style={styles.locationWrapper}>
           <View style={styles.locationContainer}>
             <Image
-              source={require('../../assets/zipsii.png')}
+              source={require('../../assets/logo.png')}
               style={styles.locationImage}
             />
             <TextDefault style={styles.locationText} H5 bold>Zypsii</TextDefault>
@@ -1949,7 +1949,7 @@ function MainLanding(props) {
     </>
   ), [selectedButton, unreadNotifications, isScheduleLoading, isNearestLoading, isMountainsLoading, isViewPointsLoading, isPostsLoading, isShortsLoading, all_schedule, discoverbynearest, mountainPlaces, viewPointsPlaces, all_posts, all_shorts, adventurePlaces, selectedAdventureTag]);
 
-  useStatusBar(colors.btncolor, 'light-content');
+  useStatusBar(colors.Zypsii_color, 'light-content');
 
   // Function to handle pull-to-refresh
   const onRefresh = useCallback(async () => {

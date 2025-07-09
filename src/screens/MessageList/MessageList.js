@@ -232,7 +232,7 @@ const MessageList = ({ navigation }) => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#A60F93" />
+        <ActivityIndicator size="large" color="#ff3873" />
         <Text style={styles.loadingText}>Loading conversations...</Text>
       </View>
     );
@@ -269,7 +269,7 @@ const MessageList = ({ navigation }) => {
         <Ionicons 
           name="search" 
           size={20} 
-          color={searchFocused ? "#A60F93" : "#8E8E93"} 
+          color={searchFocused ? "#ff3873" : "#8E8E93"} 
           style={styles.searchIcon} 
         />
         <TextInput
@@ -346,7 +346,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 16,
-    color: '#A60F93',
+    color: '#ff3873',
     fontSize: 16,
     fontWeight: '500',
   },
@@ -377,11 +377,11 @@ const styles = StyleSheet.create({
   retryButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#A60F93',
+    backgroundColor: '#ff3873',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 25,
-    shadowColor: '#A60F93',
+    shadowColor: '#ff3873',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -413,8 +413,8 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   searchContainerFocused: {
-    borderColor: '#A60F93',
-    shadowColor: '#A60F93',
+    borderColor: '#ff3873',
+    shadowColor: '#ff3873',
     shadowOpacity: 0.1,
   },
   searchIcon: {
@@ -499,7 +499,7 @@ const styles = StyleSheet.create({
   },
   userName: {
     fontSize: 15,
-    color: '#A60F93',
+    color: '#ff3873',
     marginBottom: 4,
     fontWeight: '500',
   },
@@ -514,7 +514,7 @@ const styles = StyleSheet.create({
     minHeight: 56,
   },
   unreadBadge: {
-    backgroundColor: '#A60F93',
+    backgroundColor: '#ff3873',
     borderRadius: 12,
     minWidth: 24,
     height: 24,

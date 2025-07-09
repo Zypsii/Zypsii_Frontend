@@ -1,6 +1,6 @@
 export const colors = {
-  primary: '#A60F93',
-  Zypsii_color:'#A60F93',
+  primary: '#ff3873',
+  Zypsii_color:'#ff3873',
   Zypsii_secondary: '#6366f1',
   btncolor: '#870E6B',
   lightpink: '#ffe3f0',
@@ -41,7 +41,7 @@ export const colors = {
   brownColor: '#D0AD8A',
   blueColor: '#ADD8E6',
   secondaryWhiteColor: '#fff',
-  greenColor: '#A60F93',
+  greenColor: '#ff3873',
   lightGreen: '#90EE90',
   lightBlueColor: '#6178DE',
   pinkColor: '#F48B98',

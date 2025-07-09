@@ -752,7 +752,7 @@ function MakeSchedule() {
       style={styles.mainContainer}
     >
       <LinearGradient
-        colors={['#A60F93', '#8B0B7D', '#6D0861']}
+        colors={['#ff3873', '#8B0B7D', '#6D0861']}
         style={styles.headerGradient}
       >
         <BackHeader 
@@ -923,7 +923,7 @@ function MakeSchedule() {
                   <Text style={[styles.dateText, !fromDate && styles.datePlaceholder]}>
                     {fromDate ? formatDate(fromDate) : 'Start date'}
                   </Text>
-                  <Icon name="calendar" size={20} color="#A60F93" />
+                  <Icon name="calendar" size={20} color="#ff3873" />
                 </TouchableOpacity>
                 {showFromDatePicker && (
                   <DateTimePicker
@@ -943,7 +943,7 @@ function MakeSchedule() {
                   <Text style={[styles.dateText, !toDate && styles.datePlaceholder]}>
                     {toDate ? formatDate(toDate) : 'End date'}
                   </Text>
-                  <Icon name="calendar" size={20} color="#A60F93" />
+                  <Icon name="calendar" size={20} color="#ff3873" />
                 </TouchableOpacity>
                 {showToDatePicker && (
                   <DateTimePicker
@@ -1035,7 +1035,7 @@ function MakeSchedule() {
             ))}
 
             <TouchableOpacity style={styles.addDayButton} onPress={addDay}>
-              <Icon name="add-circle" size={24} color="#A60F93" />
+              <Icon name="add-circle" size={24} color="#ff3873" />
               <Text style={styles.addDayButtonText}>Add Another Day</Text>
             </TouchableOpacity>
           </View>
@@ -1047,7 +1047,7 @@ function MakeSchedule() {
             disabled={isLoading}
           >
              <LinearGradient
-              colors={['#A60F93', '#8B0B7D', '#6D0861']}
+              colors={['#ff3873', '#8B0B7D', '#6D0861']}
               style={styles.submitButtonGradient}
             >
               <Text style={styles.submitButtonText}>

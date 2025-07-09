@@ -146,8 +146,8 @@ const ChatScreen = ({ route, navigation }) => {
     navigation.setOptions({
       title: userName,
       headerStyle: {
-        backgroundColor: colors.Zypsii_color || '#A60F93',
-        shadowColor: colors.Zypsii_color || '#A60F93',
+        backgroundColor: colors.Zypsii_color || '#6366f1',
+        shadowColor: colors.Zypsii_color || '#6366f1',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
         shadowRadius: 8,
@@ -633,7 +633,7 @@ const ChatScreen = ({ route, navigation }) => {
         activeOpacity={0.8}
       >
         <LinearGradient
-          colors={[colors.Zypsii_color || '#A60F93', colors.Zypsii_secondary || '#6366f1']}
+          colors={[colors.Zypsii_color || '#6366f1', colors.Zypsii_secondary || '#ff3873']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.scheduleGradient}
@@ -1210,7 +1210,7 @@ const ChatScreen = ({ route, navigation }) => {
           )}
           <LinearGradient
             colors={isMyMessage ? 
-              [colors.Zypsii_color || '#A60F93', '#6366f1'] : 
+              [colors.Zypsii_color || '#6366f1', '#ff3873'] : 
               ['#ffffff', '#f8fafc']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
@@ -1263,7 +1263,7 @@ const ChatScreen = ({ route, navigation }) => {
     return (
       <View style={styles.loadingContainer}>
         <View style={styles.loadingContent}>
-          <ActivityIndicator size="large" color={colors.Zypsii_color || '#A60F93'} />
+          <ActivityIndicator size="large" color={colors.Zypsii_color || '#6366f1'} />
           <Text style={styles.loadingText}>Loading chat...</Text>
         </View>
       </View>
@@ -1272,7 +1272,7 @@ const ChatScreen = ({ route, navigation }) => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.Zypsii_color || '#A60F93'} />
+              <StatusBar barStyle="light-content" backgroundColor={colors.Zypsii_color || '#6366f1'} />
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -1385,7 +1385,7 @@ const ChatScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: colors.Zypsii_color || '#A60F93',
+    backgroundColor: colors.Zypsii_color || '#ff3873',
   },
   container: {
     flex: 1,
@@ -1702,8 +1702,8 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.Zypsii_color || '#A60F93',
-    shadowColor: colors.Zypsii_color || '#A60F93',
+            backgroundColor: colors.Zypsii_color || '#6366f1',
+        shadowColor: colors.Zypsii_color || '#6366f1',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,

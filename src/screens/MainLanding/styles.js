@@ -69,7 +69,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 2,
     right: 2,
-    backgroundColor: colors.Zypsii_color || '#A60F93',
+    backgroundColor: colors.Zypsii_color || '#6366f1',
     borderRadius: scale(10),
     minWidth: scale(18),
     height: scale(18),

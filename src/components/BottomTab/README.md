@@ -95,7 +95,7 @@ The component uses a separate styles file (`styles.js`) for better maintainabili
 Update colors in `src/utils/colors.js`:
 ```jsx
 export const colors = {
-  greenColor: '#A60F93', // Active tab color
+  greenColor: '#ff3873', // Active tab color
   darkGrayText: '#9B9B9B', // Inactive tab color
   // ... other colors
 };

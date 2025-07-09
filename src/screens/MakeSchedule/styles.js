@@ -98,7 +98,7 @@ export default StyleSheet.create({
   },
   inputIcon: {
     marginRight: 12,
-    color: '#A60F93',
+    color: '#ff3873',
   },
   underlineInput: {
     flex: 1,
@@ -201,11 +201,11 @@ export default StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#A60F93',
+    backgroundColor: '#ff3873',
     padding: 15,
     borderRadius: 12,
     marginBottom: 15,
-    shadowColor: '#A60F93',
+    shadowColor: '#ff3873',
     shadowOffset: {
       width: 0,
       height: 4,
@@ -234,10 +234,10 @@ export default StyleSheet.create({
     borderRadius: 12,
     marginTop: 10,
     borderWidth: 2,
-    borderColor: '#A60F93',
+    borderColor: '#ff3873',
   },
   addDayButtonText: {
-    color: '#A60F93',
+    color: '#ff3873',
     fontSize: 16,
     fontWeight: '600',
     marginLeft: 8,
@@ -246,7 +246,7 @@ export default StyleSheet.create({
     marginTop: 30,
     borderRadius: 12,
     overflow: 'hidden',
-    shadowColor: '#A60F93',
+    shadowColor: '#ff3873',
     shadowOffset: {
       width: 0,
       height: 4,
@@ -285,8 +285,8 @@ export default StyleSheet.create({
     elevation: 2,
   },
   visibilityButtonActive: {
-    backgroundColor: '#A60F93',
-    borderColor: '#A60F93',
+    backgroundColor: '#ff3873',
+    borderColor: '#ff3873',
   },
   visibilityButtonText: {
     fontSize: 16,

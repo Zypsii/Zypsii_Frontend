@@ -126,7 +126,7 @@ export const styles = StyleSheet.create({
     fontWeight: '500',
   },
   joinedButton: {
-    backgroundColor: colors.btncolor,
+    backgroundColor: colors.greenColor,
     borderRadius: scale(30),
     paddingVertical: scale(5),
     paddingHorizontal: scale(15),

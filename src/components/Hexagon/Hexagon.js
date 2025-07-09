@@ -32,7 +32,7 @@ const styles = StyleSheet.create({
   hexagonInner: {
     width: 60,
     height: 33,
-    backgroundColor: '#A60F93',
+    backgroundColor: '#ff3873',
     justifyContent: 'center',
     alignItems: 'center',
     position: 'absolute',
@@ -51,7 +51,7 @@ const styles = StyleSheet.create({
     borderRightWidth: 30,
     borderRightColor: 'transparent',
     borderTopWidth: 16,
-    borderTopColor: '#A60F93',
+    borderTopColor: '#ff3873',
     zIndex: 0, // Keeps it below the inner hexagon
   },
   hexagonBefore: {
@@ -66,7 +66,7 @@ const styles = StyleSheet.create({
     borderRightWidth: 30,
     borderRightColor: 'transparent',
     borderBottomWidth: 16,
-    borderBottomColor: '#A60F93',
+    borderBottomColor: '#ff3873',
     zIndex: 0, // Keeps it below the inner hexagon
   },
   icon: {

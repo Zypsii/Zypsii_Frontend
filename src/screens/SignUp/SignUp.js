@@ -123,7 +123,7 @@ const SignUpScreen = () => {
 
   return (
     <>
-      <StatusBar barStyle="light-content" backgroundColor="#A60F93" />
+      <StatusBar barStyle="light-content" backgroundColor="#ff3873" />
       <KeyboardAvoidingView 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.container}
@@ -136,7 +136,7 @@ const SignUpScreen = () => {
           bounces={false}
         >
           <LinearGradient
-            colors={['#A60F93', '#FF69B4', '#9932CC']}
+            colors={['#ff3873', '#FF69B4', '#9932CC']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.topSection}
@@ -357,14 +357,14 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   signupButton: {
-    backgroundColor: '#A60F93',
+    backgroundColor: '#ff3873',
     paddingVertical: 18,
     borderRadius: 25,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 30,
-    shadowColor: '#A60F93',
+    shadowColor: '#ff3873',
     shadowOffset: {
       width: 0,
       height: 4,
@@ -395,7 +395,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   signupLink: {
-    color: '#A60F93',
+    color: '#ff3873',
     fontWeight: 'bold',
     fontSize: 14,
   },

@@ -1385,7 +1385,7 @@ const EditSchedule = ({ route, navigation }) => {
           {daySchedules.map((daySchedule, index) => renderDaySchedule(daySchedule, index))}
 
           <TouchableOpacity style={styles.addDayButton} onPress={addDaySchedule}>
-            <Ionicons name="add-circle" size={24} color="#A60F93" />
+            <Ionicons name="add-circle" size={24} color="#ff3873" />
             <Text style={styles.addDayButtonText}>Add Another Day</Text>
           </TouchableOpacity>
         </View>
