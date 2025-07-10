@@ -8,6 +8,7 @@ import {
   Alert,
   ScrollView,
   ActivityIndicator,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -19,18 +20,36 @@ import styles from "./Styles";
 import { base_url } from "../../utils/base_url";
 import { useToast } from '../../context/ToastContext';
 import { Picker } from '@react-native-picker/picker';
+import ImageFilterModal from '../../components/ImageFilterModal';
+import FilteredImageDisplay from '../../components/ImageFilterModal/FilteredImageDisplay';
 
 function PostUpload() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [image, setImage] = useState(null);
+  const [originalImage, setOriginalImage] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [postType, setPostType] = useState("Public");
+  const [showFilterModal, setShowFilterModal] = useState(false);
   const navigation = useNavigation();
   const { showToast } = useToast();
 
   const handleBackPress = () => {
     navigation.goBack();
+  };
+
+  const handleFilterApplied = (filteredImage) => {
+    // Store the filtered image data for upload
+    setImage(filteredImage);
+    setShowFilterModal(false);
+  };
+
+  const openFilterModal = () => {
+    if (image) {
+      setShowFilterModal(true);
+    } else {
+      showToast("Please select an image first", "error");
+    }
   };
 
   const pickImage = async () => {
@@ -67,6 +86,7 @@ function PostUpload() {
 
       if (!result.canceled) {
         setImage(result.assets[0]);
+        setOriginalImage(result.assets[0]);
       }
     } else {
       showToast("You need to allow camera access to take photos.", "error");
@@ -85,6 +105,7 @@ function PostUpload() {
 
       if (!result.canceled) {
         setImage(result.assets[0]);
+        setOriginalImage(result.assets[0]);
       }
     } else {
       showToast("You need to allow access to your media library.", "error");
@@ -113,26 +134,59 @@ function PostUpload() {
       }
 
       const uploadFormData = new FormData();
-      const fileUri = image.uri.replace('file://', '');
       
-      const fileExtension = fileUri.split('.').pop().toLowerCase();
+      // Handle both original and filtered images
+      let fileUri = image.uri;
+      let fileName = `image.jpg`;
       let mimeType = 'image/jpeg';
       
-      if (fileExtension === 'png') {
-        mimeType = 'image/png';
-      } else if (fileExtension === 'gif') {
-        mimeType = 'image/gif';
-      } else if (fileExtension === 'webp') {
-        mimeType = 'image/webp';
+      // If it's a filtered image, use the processed URI
+      if (image.isFiltered && image.uri) {
+        fileUri = image.uri;
+        // Extract file extension from the URI
+        const uriParts = fileUri.split('.');
+        const fileExtension = uriParts.length > 1 ? uriParts[uriParts.length - 1].toLowerCase() : 'jpg';
+        
+        // Set appropriate mime type
+        if (fileExtension === 'png') {
+          mimeType = 'image/png';
+        } else if (fileExtension === 'gif') {
+          mimeType = 'image/gif';
+        } else if (fileExtension === 'webp') {
+          mimeType = 'image/webp';
+        }
+        
+        // Create filename with filter information
+        fileName = `filtered_${image.appliedFilter || 'filter'}_${Date.now()}.${fileExtension}`;
+      } else {
+        // For original images, extract file extension
+        const uriParts = fileUri.split('.');
+        const fileExtension = uriParts.length > 1 ? uriParts[uriParts.length - 1].toLowerCase() : 'jpg';
+        
+        if (fileExtension === 'png') {
+          mimeType = 'image/png';
+        } else if (fileExtension === 'gif') {
+          mimeType = 'image/gif';
+        } else if (fileExtension === 'webp') {
+          mimeType = 'image/webp';
+        }
+        
+        fileName = `image.${fileExtension}`;
       }
 
+      // Use the same approach as ReelUpload for consistency
       uploadFormData.append('mediaFile', {
-        uri: image.uri,
+        uri: fileUri,
         type: mimeType,
-        name: `image.${fileExtension}`
+        name: fileName
       });
 
       try {
+        console.log('Uploading file:', fileName);
+        console.log('File URI:', fileUri);
+        console.log('File type:', mimeType);
+        console.log('Is filtered:', image.isFiltered);
+        
         const uploadResponse = await fetch(`${base_url}/uploadFile?mediaType=post`, {
           method: 'POST',
           headers: {
@@ -180,6 +234,19 @@ function PostUpload() {
         if (description.trim()) {
           postFormData.append('postDescription', description.trim());
         }
+        
+        // Note: Filter information is stored in the image filename and metadata
+        // Backend will receive the filtered image file but not the filter metadata
+        // This avoids potential backend compatibility issues
+
+        console.log('Creating post with data:', {
+          title: title.trim(),
+          postType,
+          mediaType: 'image',
+          mediaUrl: uploadResponseData.urls[0],
+          isFiltered: image.isFiltered,
+          appliedFilter: image.appliedFilter
+        });
 
         const response = await fetch(`${base_url}/post/create`, {
           method: 'POST',
@@ -190,7 +257,15 @@ function PostUpload() {
           body: postFormData,
         });
 
-        const responseData = await response.json();
+        let responseData;
+        try {
+          responseData = await response.json();
+        } catch (error) {
+          console.error('Error parsing response:', error);
+          const responseText = await response.text();
+          console.error('Response text:', responseText);
+          throw new Error('Invalid response from server');
+        }
 
         if (response.ok) {
           showToast(`Your ${postType.toLowerCase()} post was successfully created!`, "success");
@@ -202,10 +277,24 @@ function PostUpload() {
         }
       } catch (error) {
         console.error("Network error:", error);
-        showToast(
-          "Please check your internet connection and try again. If the problem persists, try uploading a smaller file.",
-          "error"
-        );
+        console.error("Error details:", {
+          message: error.message,
+          stack: error.stack,
+          imageData: {
+            uri: image?.uri,
+            isFiltered: image?.isFiltered,
+            appliedFilter: image?.appliedFilter
+          }
+        });
+        
+        let errorMessage = "Please check your internet connection and try again.";
+        if (error.message.includes('Network request failed')) {
+          errorMessage = "Network connection failed. Please check your internet connection and try again.";
+        } else if (error.message.includes('timeout')) {
+          errorMessage = "Upload timed out. Please try uploading a smaller file or check your connection.";
+        }
+        
+        showToast(errorMessage, "error");
       }
     } catch (error) {
       console.error("Error in creating post:", error);
@@ -233,10 +322,13 @@ function PostUpload() {
           onPress={pickImage}
         >
           {image ? (
-            <Image 
-              source={{ uri: image.uri }} 
-              style={styles.selectedImage} 
-            />
+            <View style={styles.imageContainer}>
+              <FilteredImageDisplay
+                image={image}
+                style={styles.selectedImage}
+                resizeMode="contain"
+              />
+            </View>
           ) : (
             <View style={styles.placeholderContainer}>
               <Ionicons 
@@ -251,10 +343,88 @@ function PostUpload() {
           )}
         </TouchableOpacity>
 
+        {/* Filter Controls */}
+        {image && (
+          <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 10, marginBottom: 10 }}>
+            <TouchableOpacity
+              style={{
+                backgroundColor: colors.btncolor,
+                paddingHorizontal: 24,
+                paddingVertical: 10,
+                borderRadius: 20,
+                flexDirection: 'row',
+                alignItems: 'center',
+                marginRight: 10,
+              }}
+              onPress={openFilterModal}
+            >
+              <Ionicons name="color-filter-outline" size={20} color={colors.white} style={{ marginRight: 8 }} />
+              <Text style={{ color: colors.white, fontWeight: '600', fontSize: 16 }}>
+                {image.isFiltered ? 'Change Filter' : 'Filter'}
+              </Text>
+            </TouchableOpacity>
+
+            {image.isFiltered && (
+              <TouchableOpacity
+                style={{
+                  backgroundColor: '#ff6b6b',
+                  paddingHorizontal: 20,
+                  paddingVertical: 10,
+                  borderRadius: 20,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                }}
+                onPress={() => {
+                  // Remove filter and restore original image
+                  setImage({
+                    ...originalImage,
+                    isFiltered: false,
+                    appliedFilter: null,
+                    filterConfig: null,
+                    filterStyle: null,
+                    originalUri: null,
+                    filterMetadata: null,
+                  });
+                }}
+              >
+                <Ionicons name="close-circle-outline" size={20} color={colors.white} style={{ marginRight: 8 }} />
+                <Text style={{ color: colors.white, fontWeight: '600', fontSize: 16 }}>Remove</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {/* Filter Applied Indicator */}
+        {image && image.isFiltered && (
+          <View style={{
+            alignSelf: 'center',
+            backgroundColor: '#4CAF50',
+            paddingHorizontal: 16,
+            paddingVertical: 6,
+            borderRadius: 15,
+            marginBottom: 10,
+            flexDirection: 'row',
+            alignItems: 'center',
+          }}>
+            <Ionicons name="checkmark-circle" size={16} color={colors.white} style={{ marginRight: 6 }} />
+            <Text style={{ color: colors.white, fontWeight: '600', fontSize: 14 }}>
+              {image.filterConfig?.name || image.appliedFilter || 'Filter'} Applied
+            </Text>
+          </View>
+        )}
+
+        {/* Image Filter Modal */}
+        <ImageFilterModal
+          visible={showFilterModal}
+          onClose={() => setShowFilterModal(false)}
+          originalImage={originalImage}
+          onFilterApplied={handleFilterApplied}
+        />
+
         <View style={styles.inputContainer}>
           <TextInput
             style={styles.titleInput}
-            placeholder="Add a title..."
+            placeholder="Add a titl..."
             placeholderTextColor="#999"
             value={title}
             onChangeText={setTitle}

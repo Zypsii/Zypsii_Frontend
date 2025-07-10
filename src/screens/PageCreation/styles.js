@@ -96,4 +96,65 @@ export const styles = StyleSheet.create({
     height: 100,
     textAlignVertical: 'top',
   },
+  description: {
+    fontSize: 14,
+    color: colors.graycolor,
+    marginBottom: 10,
+  },
+  radioContainer: {
+    gap: 15,
+  },
+  radioOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  radioButton: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: colors.graycolor,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  radioButtonSelected: {
+    borderColor: colors.btncolor,
+  },
+  radioButtonInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.btncolor,
+  },
+  radioTextContainer: {
+    flex: 1,
+    marginLeft: 10,
+  },
+  radioText: {
+    fontSize: 16,
+    color: colors.fontMainColor,
+    fontWeight: '500',
+  },
+  radioDescription: {
+    fontSize: 14,
+    color: colors.graycolor,
+    marginTop: 2,
+  },
+  privacyInfo: {
+    backgroundColor: colors.lightGray,
+    padding: 15,
+    borderRadius: 8,
+    marginTop: 10,
+  },
+  privacyInfoText: {
+    fontSize: 13,
+    color: colors.graycolor,
+    lineHeight: 18,
+    marginBottom: 5,
+  },
+  privacyInfoBold: {
+    fontWeight: '600',
+    color: colors.fontMainColor,
+  },
 }); 

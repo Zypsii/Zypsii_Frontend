@@ -22,6 +22,7 @@ const ContentTypeModal = ({ visible, onClose, onSelectType }) => {
       <View style={styles.modalContainer}>
         <View style={styles.modalContent}>
           <Text style={styles.modalTitle}>Choose Content Type</Text>
+          <Text style={styles.modalSubtitle}>Select how you want to create your content</Text>
           
           <TouchableOpacity 
             style={styles.optionButton}
@@ -36,11 +37,27 @@ const ContentTypeModal = ({ visible, onClose, onSelectType }) => {
 
           <TouchableOpacity 
             style={styles.optionButton}
-            onPress={() => onSelectType('post')}
-              
+            onPress={() => {
+              onSelectType('post');
+              navigation.navigate('PostUpload');
+            }}
           >
             <Ionicons name="image" size={24} color={colors.btncolor} />
             <Text style={styles.optionText}>Create Post</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[styles.optionButton, styles.filterOptionButton]}
+            onPress={() => {
+              onSelectType('post-with-filters');
+              navigation.navigate('PostUpload');
+            }}
+          >
+            <Ionicons name="color-filter" size={24} color={colors.btncolor} />
+            <Text style={styles.optionText}>Create Post with Filters</Text>
+            <View style={styles.newBadge}>
+              <Text style={styles.newBadgeText}>NEW</Text>
+            </View>
           </TouchableOpacity>
 
           <TouchableOpacity 
@@ -73,7 +90,13 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     color: colors.btncolor,
+    marginBottom: 8,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#666',
     marginBottom: 20,
+    textAlign: 'center',
   },
   optionButton: {
     flexDirection: 'row',
@@ -82,6 +105,12 @@ const styles = StyleSheet.create({
     width: '100%',
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
+    position: 'relative',
+  },
+  filterOptionButton: {
+    backgroundColor: '#f8f9ff',
+    borderLeftWidth: 3,
+    borderLeftColor: colors.btncolor,
   },
   optionText: {
     marginLeft: 10,
@@ -97,6 +126,19 @@ const styles = StyleSheet.create({
   cancelButtonText: {
     color: colors.btncolor,
     fontSize: 16,
+    fontWeight: 'bold',
+  },
+  newBadge: {
+    position: 'absolute',
+    right: 15,
+    backgroundColor: '#ff6b6b',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  newBadgeText: {
+    color: 'white',
+    fontSize: 10,
     fontWeight: 'bold',
   },
 });

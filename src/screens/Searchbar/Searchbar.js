@@ -120,7 +120,8 @@ function SearchPage() {
               website: user.website || '',
               bio: user.bio || '',
               location: user.location || '',
-              placeDetails: user.placeDetails || {}
+              placeDetails: user.placeDetails || {},
+              profileViews: user.profileViews || 'public'
             }));
           
           console.log('Formatted People Data:', formattedData);
@@ -202,7 +203,8 @@ function SearchPage() {
                 bio: item.bio,
                 location: item.location,
                 placeDetails: item.placeDetails,
-                profilePicture: item.image
+                profilePicture: item.image,
+                profileViews: item.profileViews
               }
             });
           }

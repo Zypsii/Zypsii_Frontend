@@ -30,6 +30,7 @@ const ProfilePage = () => {
   const [bio, setBio] = useState('')
   const [location, setLocation] = useState('')
   const [profileImage, setProfileImage] = useState(null)
+  const [profileViews, setProfileViews] = useState('public')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
@@ -60,11 +61,14 @@ const ProfilePage = () => {
 
       if (result.success && result.data && result.data.length > 0) {
         const userData = result.data[0];
+        console.log('Fetched profile data:', userData); // Debug log
         setFullName(userData.fullName || '');
         setUsername(userData.userName || '');
         setWebsite(userData.website || '');
         setBio(userData.bio || '');
         setLocation(userData.location || '');
+        setProfileViews(userData.profileViews || 'public');
+        console.log('Setting profileViews to:', userData.profileViews || 'public'); // Debug log
         if (userData.profilePicture) {
           setProfileImage(userData.profilePicture);
         }
@@ -109,6 +113,7 @@ const ProfilePage = () => {
       formData.append('fullName', fullName);
       formData.append('website', website);
       formData.append('bio', bio);
+      formData.append('profileViews', profileViews);
       
       if (profileImage) {
         const imageUri = profileImage;
@@ -153,6 +158,7 @@ const ProfilePage = () => {
           userName: username,
           website,
           bio,
+          profileViews,
           profilePicture: profileImage || user.profilePicture
         };
         
@@ -254,6 +260,49 @@ const ProfilePage = () => {
               multiline
               numberOfLines={4}
             />
+          </View>
+
+          {/* Profile Privacy Section */}
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Profile Visibility</Text>
+            <Text style={styles.description}>Control who can see your profile</Text>
+            
+            <View style={styles.radioContainer}>
+              <TouchableOpacity
+                style={styles.radioOption}
+                onPress={() => setProfileViews('public')}
+              >
+                <View style={[styles.radioButton, profileViews === 'public' && styles.radioButtonSelected]}>
+                  {profileViews === 'public' && <View style={styles.radioButtonInner} />}
+                </View>
+                <View style={styles.radioTextContainer}>
+                  <Text style={styles.radioText}>Public</Text>
+                  <Text style={styles.radioDescription}>Anyone can view your profile</Text>
+                </View>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.radioOption}
+                onPress={() => setProfileViews('private')}
+              >
+                <View style={[styles.radioButton, profileViews === 'private' && styles.radioButtonSelected]}>
+                  {profileViews === 'private' && <View style={styles.radioButtonInner} />}
+                </View>
+                <View style={styles.radioTextContainer}>
+                  <Text style={styles.radioText}>Private</Text>
+                  <Text style={styles.radioDescription}>Only you can view your profile</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.privacyInfo}>
+              <Text style={styles.privacyInfoText}>
+                💡 <Text style={styles.privacyInfoBold}>Public profiles</Text> can be discovered by other users and appear in search results.
+              </Text>
+              <Text style={styles.privacyInfoText}>
+                🔒 <Text style={styles.privacyInfoBold}>Private profiles</Text> are hidden from search and discovery features.
+              </Text>
+            </View>
           </View>
 
           {/* <View style={styles.inputContainer}>

@@ -13,6 +13,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { base_url } from '../../utils/base_url'
 import { TextDefault } from '../../components';
 import { useToast } from '../../context/ToastContext';
+import Video from 'react-native-video';
 
 
 function Destination({ route, navigation }) {
@@ -26,6 +27,11 @@ function Destination({ route, navigation }) {
   const [isSaved, setIsSaved] = useState(false);
   const [discoverbynearest, setDiscoverbyNearest] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [shortsLoading, setShortsLoading] = useState(true);
+  const [all_shorts, setAllShorts] = useState([]);
+  const [selectedVideo, setSelectedVideo] = useState(null);
+  const [isFullScreen, setIsFullScreen] = useState(false);
+  const [googlePlaceDetails, setGooglePlaceDetails] = useState(null);
 
   // Safe access to nested properties with optional chaining and nullish coalescing
   const item_id = params?.product?.id ?? params?.id ?? null;
@@ -121,6 +127,71 @@ function Destination({ route, navigation }) {
   useEffect(() => {
     fetchDiscoverbyNearest();
   }, []);
+
+  // Fetch shorts based on location
+  const fetchShortsByLocation = async () => {
+    try {
+      setShortsLoading(true);
+      
+      if (!tolatitude || !tolongitude) {
+        console.warn('No coordinates available for fetching location-based shorts');
+        setAllShorts([]);
+        return;
+      }
+
+      const accessToken = await AsyncStorage.getItem('accessToken');
+      const response = await fetch(`${base_url}/shorts/list-based-location?placeLatitude=${tolatitude}&placeLongitude=${tolongitude}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('Shorts by location response:', data);
+
+      if (data.status && Array.isArray(data.data)) {
+        const shortsData = data.data
+          .filter(item => item.videoUrl && item.videoUrl.toLowerCase().endsWith('.mp4'))
+          .map(item => ({
+            id: item._id || '',
+            video: item.videoUrl || '',
+            videoTitle: item.title || '',
+            videoImage: item.thumbnailUrl || '',
+            description: item.description || '',
+            likes: String(item.likesCount || 0),
+            views: String(item.viewsCount || 0),
+            comments: String(item.commentsCount || 0),
+            createdBy: item.createdBy || '',
+            createdAt: item.createdAt || '',
+            updatedAt: item.updatedAt || '',
+            tags: item.tags || []
+          }));
+        
+        setAllShorts(shortsData);
+      } else {
+        console.error('Invalid shorts response format:', data);
+        setAllShorts([]);
+      }
+    } catch (error) {
+      console.error('Error fetching shorts by location:', error);
+      setAllShorts([]);
+    } finally {
+      setShortsLoading(false);
+    }
+  };
+
+  // Fetch shorts when component mounts or coordinates change
+  useEffect(() => {
+    if (tolatitude && tolongitude) {
+      fetchShortsByLocation();
+    }
+  }, [tolatitude, tolongitude]);
 
   // Render footer loader
   const renderFooter = () => {
@@ -283,188 +354,65 @@ function Destination({ route, navigation }) {
     // More nearby places...
   ]
 
-  const [comment, setComment] = useState('') // Input field state
-  const [comments, setComments] = useState([]) // Stores all comments
+  // Comments functionality removed as it requires WebSocket implementation
+  // and is not essential for the shorts feature
 
-  // ✅ Fetch Comments from Backend
-  // const fetchComments = async() => {
-  //   try {
-  //     const response = await fetch('http://172.20.10.5:3030/comments')
-  //     const data = await response.json()
-  //     setComments(data) // Update state
-  //   } catch (error) {
-  //     console.error('❌ Error fetching comments:', error)
-  //   }
-  // }
+  // Removed duplicate fetchDiscoverbyNearest call as it's already handled above
 
-  // ✅ Send Comment to Backend
-  // const handleSendComment = async () => {
-  //   if (!comment.trim()) return; // Prevent empty comments
+  // Removed unused handleLikePress function
 
-  //   try {
-  //     console.log('Sending comment:', comment); // Log the comment before sending
-
-  //     const response = await fetch('http://172.20.10.5:3030/comments', {
-  //       method: 'POST',
-  //       headers: { 'Content-Type': 'application/json' },
-  //       body: JSON.stringify({ text: comment }) // Sending the comment as JSON
-  //     });
-
-  //     // Log the response status and message
-  //     if (!response.ok) {
-  //       console.error('Failed to send comment:', response.status, response.statusText);
-  //       return;
-  //     }
-
-  //     const data = await response.json();
-  //     console.log('Comment posted successfully:', data.message);
-
-  //     setComment(''); // Clear comment input field
-  //     fetchComments(); // Refresh the list of comments
-  //   } catch (error) {
-  //     console.error('❌ Error sending comment:', error);
-  //   }
-  // };
-  const handleSendComment = async () => {
-    if (!comment.trim()) return // Prevent empty comments
-
-    try {
-      const response = await fetch(`${base_url}/comments`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ text: comment })
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        console.log('Comment posted successfully:', data)
-        setComment('') // Clear the comment input
-        fetchComments() // Refresh the comments list
-      } else {
-        const errorData = await response.json()
-        console.error('Failed to send comment:', errorData)
-      }
-    } catch (error) {
-      console.error('Error sending comment:', error)
-    }
-  }
-
-  // const fetchComments = async() => {
-  //   try {
-  //     const response = await fetch('http://172.20.10.5:3030comments')
-  //     if (!response.ok) {
-  //       console.error('Failed to fetch comments:', response.status, response.statusText)
-  //       return
-  //     }
-  //     const data = await response.json()
-  //     console.log('Fetched comments:', data) // Log the fetched comments
-  //     setComments(data) // Update state
-  //   } catch (error) {
-  //     console.error('❌ Error fetching comments:', error)
-  //   }
-  // }
-  // Example function to fetch comments
-  const fetchComments = async () => {
-    try {
-      setLoading(true);
-      if (!item_id) {
-        console.warn('No item_id available for fetching comments');
-        return;
-      }
-
-      const accessToken = await AsyncStorage.getItem('accessToken');
-      const response = await fetch(`${base_url}/comments/${item_id}`, {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const data = await response.json();
-      setComments(data?.comments || []);
-    } catch (error) {
-      console.error('Error fetching comments:', error);
-      setComments([]);
-    } finally {
-      setLoading(false);
-    }
+  // Handle video press for full screen
+  const handleVideoPress = (item) => {
+    setSelectedVideo(item);
+    setIsFullScreen(true);
   };
 
-  // Call the fetch function when the component mounts or whenever needed
-  useEffect(() => {
-    fetchComments()
-  }, [])
+  const handleCloseFullScreen = () => {
+    setIsFullScreen(false);
+    setSelectedVideo(null);
+  };
+
+  // Render full screen video modal
+  const renderFullScreenVideo = () => {
+    if (!selectedVideo || !isFullScreen) return null;
+
+    return (
+      <View style={shortsStyles.fullScreenContainer}>
+        <TouchableOpacity
+          style={shortsStyles.closeButton}
+          onPress={handleCloseFullScreen}
+        >
+          <MaterialIcons name="close" size={24} color="white" />
+        </TouchableOpacity>
+        <Video
+          source={{ uri: selectedVideo.video }}
+          style={shortsStyles.fullScreenVideo}
+          useNativeControls
+          resizeMode="contain"
+          shouldPlay={true}
+          isLooping
+        />
+        <View style={shortsStyles.fullScreenInfo}>
+          <Text style={shortsStyles.fullScreenTitle}>{selectedVideo.videoTitle}</Text>
+          <Text style={shortsStyles.fullScreenDescription}>{selectedVideo.description}</Text>
+        </View>
+      </View>
+    );
+  };
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchGooglePlaceDetails = async () => {
+      if (!params?.place_id) return;
       try {
-        setLoading(true);
-        if (!item_id) {
-          console.warn('No item_id available for fetching data');
-          setLoading(false);
-          return;
-        }
-
-        const accessToken = await AsyncStorage.getItem('accessToken');
-        const response = await fetch(`${base_url}/discover_by_nearest`, {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`
-          }
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
+        const response = await fetch(`${base_url}/place/googlePlaceDetails?place_id=${params.place_id}`);
         const data = await response.json();
-        setDiscoverbyNearest(data.data || []);
-      } catch (error) {
-        console.error('Error fetching data:', error);
-      } finally {
-        setLoading(false);
+        if (data.status) setGooglePlaceDetails(data.data);
+      } catch (e) {
+        // handle error
       }
     };
-
-    fetchData();
-  }, [item_id]);
-
-  const handleLikePress = async () => {
-    try {
-      if (!item_id) {
-        console.warn('No item_id available for like/unlike action');
-        return;
-      }
-
-      setLikeLoading(true);
-      const endpoint = isLiked ? 'unlike' : 'like';
-      const response = await fetch(`${baseUrl}/${endpoint}/${item_id}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      if (data.success) {
-        setIsLiked(!isLiked);
-        setLikesCount(prevCount => isLiked ? prevCount - 1 : prevCount + 1);
-        showToast(isLiked ? 'Post unliked' : 'Post liked', 'success');
-      }
-    } catch (error) {
-      console.error('Error handling like/unlike:', error);
-      showToast('Failed to update like status. Please try again', 'error');
-    } finally {
-      setLikeLoading(false);
-    }
-  };
+    fetchGooglePlaceDetails();
+  }, [params?.place_id]);
 
   return (
     <View style={styles.container}>
@@ -570,16 +518,17 @@ function Destination({ route, navigation }) {
               </View> */}
 
               {/* About Destination */}
-              {/* <View style={styles.aboutContainer}>
-                <Text style={styles.aboutTitle}>{destinationData?.title}</Text>
-                <Text style={styles.aboutText}>
-                  {destinationData?.shortDescription}{' '}
-                  <TouchableOpacity onPress={() => setIsExpanded(!isExpanded)}>
-                    <Text style={styles.readMore}>{isExpanded ? 'Read Less' : 'Read More'}</Text>
-                  </TouchableOpacity>
-                </Text>
-                {isExpanded && <Text style={styles.expandedText}>{destinationData?.fullDescription}</Text>}
-              </View> */}
+              {googlePlaceDetails && (
+                <View>
+                  <Text>{googlePlaceDetails.name}</Text>
+                  <Text>{googlePlaceDetails.formatted_address}</Text>
+                  <Text>{googlePlaceDetails.rating}</Text>
+                  <Text>{googlePlaceDetails.opening_hours?.weekday_text?.join('\n')}</Text>
+                  <Text>{googlePlaceDetails.website}</Text>
+                  <Text>{googlePlaceDetails.url}</Text>
+                  {/* Render reviews, photos, etc. */}
+                </View>
+              )}
 
               {/* Horizontal Tab Menu */}
               <View style={tabStyles.tabSection}>
@@ -621,6 +570,83 @@ function Destination({ route, navigation }) {
                   </Text>
                 </View>
               </View>
+
+              {/* Shorts Section */}
+              <View style={styles.discoverRow}>
+                <TextDefault style={styles.discoverText}>Shorts from this location</TextDefault>
+                <TouchableOpacity onPress={() => navigation.navigate('Shorts', { 
+                  userShorts: all_shorts,
+                  initialIndex: 0
+                })}>
+                  <TextDefault style={styles.viewAllText}>View All</TextDefault>
+                </TouchableOpacity>
+              </View>
+
+              {/* Shorts Grid */}
+              {shortsLoading ? (
+                <View style={styles.loaderContainer}>
+                  <ActivityIndicator size="large" color={colors.Zypsii_color} />
+                </View>
+              ) : all_shorts.length > 0 ? (
+                <FlatList
+                  data={all_shorts}
+                  numColumns={3}
+                  key="shorts-grid"
+                  renderItem={({ item }) => {
+                    if (!item) return null;
+                    
+                    return (
+                      <TouchableOpacity 
+                        style={shortsStyles.gridItem}
+                        onPress={() => handleVideoPress(item)}
+                      >
+                        {item.videoImage ? (
+                          <Image
+                            source={{ uri: item.videoImage }}
+                            style={shortsStyles.gridImage}
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <View style={[shortsStyles.gridImage, shortsStyles.placeholderImage]}>
+                            <MaterialIcons name="play-circle" size={40} color="#ccc" />
+                          </View>
+                        )}
+                        
+                        <View style={shortsStyles.gridItemOverlay}>
+                          <Text style={shortsStyles.gridItemTitle} numberOfLines={1}>
+                            {item.videoTitle || 'Untitled'}
+                          </Text>
+                          <View style={shortsStyles.gridItemStats}>
+                            <View style={shortsStyles.statItem}>
+                              <MaterialIcons name="favorite" size={14} color="#870E6B" />
+                              <Text style={shortsStyles.statText}>{item.likes || '0'}</Text>
+                            </View>
+                            <View style={shortsStyles.statItem}>
+                              <MaterialIcons name="visibility" size={14} color="#870E6B" />
+                              <Text style={shortsStyles.statText}>{item.views || '0'}</Text>
+                            </View>
+                          </View>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  }}
+                  keyExtractor={(item) => item?.id?.toString() || Math.random().toString()}
+                  contentContainerStyle={shortsStyles.gridContainer}
+                  ListEmptyComponent={() => (
+                    <View style={styles.noDataContainer}>
+                      <MaterialIcons name="videocam-off" size={48} color={colors.fontSecondColor} />
+                      <Text style={styles.noDataText}>No shorts available for this location</Text>
+                    </View>
+                  )}
+                />
+              ) : (
+                <View style={styles.noDataContainer}>
+                  <MaterialIcons name="videocam-off" size={48} color={colors.fontSecondColor} />
+                  <Text style={styles.noDataText}>No shorts available for this location</Text>
+                </View>
+              )}
+
+              <View style={styles.sectionSpacer} />
 
               {/* Discover Row */}
               <View style={styles.discoverRow}>
@@ -672,17 +698,7 @@ function Destination({ route, navigation }) {
                 </View>
               </View> */}
 
-              <View style={stylescomment.commentSection}>
-                {comments.map((comment) => (
-                  <View key={comment._id} style={stylescomment.commentCard}>
-                    <View style={stylescomment.commentHeader}>
-                      <FontAwesome name="user-circle" size={20} color="#555" />
-                      <TextDefault style={stylescomment.commentUser}>{comment.username || "User"}</TextDefault>
-                    </View>
-                    <TextDefault style={stylescomment.commentText}>{comment.text}</TextDefault>
-                  </View>
-                ))}
-              </View>
+              {/* Comments section removed - requires WebSocket implementation */}
 
               <MainBtn 
                 text="Make a schedule" 
@@ -708,87 +724,12 @@ function Destination({ route, navigation }) {
       </View>
       {/* Bottom Navigation */}
       <BottomTab screen="WhereToGo" style={styles.bottomTab} />
+      {renderFullScreenVideo()}
     </View>
   )
 }
 
-const stylescomment = StyleSheet.create({
-
-  container: {
-    flex: 1,
-    backgroundColor: colors.white,
-  },
-  mainContent: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 20,
-  },
-  itemCardContainer: {
-    marginRight: 15,
-  },
-  discoverRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginVertical: 15,
-    paddingHorizontal: 15,
-  },
-  discoverText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-  },
-  viewAllText: {
-    fontSize: 14,
-    color: colors.Zypsii_color,
-    fontWeight: '600',
-  },
-  noDataContainer: {
-    padding: 20,
-    alignItems: 'center',
-  },
-  noDataText: {
-    fontSize: 16,
-    color: '#666',
-  },
-  commentSection: {
-    marginTop: 20,
-    paddingHorizontal: 15,
-  },
-  commentCard: {
-    backgroundColor: "#f8f9fa",
-    padding: 15,
-    borderRadius: 12,
-    marginBottom: 12,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-    elevation: 3,
-    borderLeftWidth: 3,
-    borderLeftColor: colors.Zypsii_color,
-  },
-  commentHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  commentUser: {
-    marginLeft: 10,
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#333",
-  },
-  commentText: {
-    fontSize: 14,
-    color: "#555",
-    lineHeight: 20,
-  },
-});
+// Comment styles removed as comments functionality is not implemented
 
 
 // Additional styles for tabs
@@ -796,62 +737,69 @@ const tabStyles = {
   tabSection: {
     marginTop: 25,
     backgroundColor: '#fff',
-    borderRadius: 15,
-    padding: 15,
+    borderRadius: 20,
+    padding: 20,
     shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 3,
-    elevation: 2,
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 6,
   },
   tabScrollContainer: {
-    paddingVertical: 10,
+    paddingVertical: 15,
   },
   tab: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    marginRight: 12,
-    borderRadius: 25,
-    backgroundColor: '#F5F5F5',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    marginRight: 15,
+    borderRadius: 30,
+    backgroundColor: '#f8f9fa',
     shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowOffset: { width: 0, height: 1 },
-    shadowRadius: 2,
-    elevation: 1,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
   },
   activeTab: {
     backgroundColor: colors.Zypsii_color,
     shadowColor: colors.Zypsii_color,
-    shadowOpacity: 0.2,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 8,
+    elevation: 6,
   },
   tabText: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '600',
     color: '#666',
   },
   activeTabText: {
     color: '#FFF',
+    fontWeight: '700',
   },
   tabContent: {
-    marginTop: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 15,
-    backgroundColor: '#F9F9F9',
-    borderRadius: 12,
+    marginTop: 25,
+    paddingHorizontal: 15,
+    paddingVertical: 20,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 16,
   },
   tabDescription: {
-    fontSize: 15,
-    lineHeight: 24,
+    fontSize: 16,
+    lineHeight: 26,
     color: '#444',
   },
   noTabsText: {
-    fontSize: 15,
+    fontSize: 16,
     color: '#666',
     textAlign: 'center',
-    padding: 15,
+    padding: 20,
   }
 }
 
@@ -861,29 +809,31 @@ const titleStyles = {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
-    paddingHorizontal: 15,
+    marginBottom: 12,
+    paddingHorizontal: 20,
   },
   followButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 25,
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 30,
     backgroundColor: colors.Zypsii_color,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: colors.Zypsii_color,
     shadowOpacity: 0.3,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 8,
+    elevation: 6,
   },
   followingButton: {
-    backgroundColor: '#E8E8E8',
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#e9ecef',
   },
   followButtonText: {
     color: '#FFFFFF',
-    fontWeight: '600',
-    fontSize: 14,
+    fontWeight: '700',
+    fontSize: 15,
   },
   followingButtonText: {
     color: '#666666',
@@ -892,27 +842,43 @@ const titleStyles = {
     flexDirection: 'row',
     alignItems: 'center',
     marginLeft: 'auto',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1.5,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 25,
+    borderWidth: 2,
     borderColor: colors.Zypsii_color,
-    backgroundColor: 'rgba(52, 152, 219, 0.1)',
+    backgroundColor: 'rgba(52, 152, 219, 0.08)',
+    shadowColor: colors.Zypsii_color,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
   mapButtonText: {
     color: colors.Zypsii_color,
-    fontSize: 14,
-    marginLeft: 6,
-    fontWeight: '600',
+    fontSize: 15,
+    marginLeft: 8,
+    fontWeight: '700',
   },
   saveButton: {
     position: 'absolute',
-    top: 50,
+    top: 60,
     right: 20,
     zIndex: 10,
-    padding: 10,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    borderRadius: 20,
+    padding: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    borderRadius: 25,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
   }
 }
 
@@ -1025,5 +991,125 @@ const videoStyles = {
     marginBottom: 5,
   }
 }
+
+const shortsStyles = StyleSheet.create({
+  fullScreenContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 60,
+    right: 20,
+    zIndex: 1001,
+    padding: 12,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: 25,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  fullScreenVideo: {
+    width: '100%',
+    aspectRatio: 16 / 9,
+    backgroundColor: '#000',
+    borderRadius: 8,
+  },
+  fullScreenInfo: {
+    position: 'absolute',
+    bottom: 30,
+    left: 20,
+    right: 20,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
+  },
+  fullScreenTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#fff',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  fullScreenDescription: {
+    fontSize: 16,
+    color: '#fff',
+    textAlign: 'center',
+    opacity: 0.9,
+  },
+  gridContainer: {
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+  },
+  gridItem: {
+    flex: 1,
+    margin: 3,
+    aspectRatio: 1,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: '#fff',
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  gridImage: {
+    width: '100%',
+    height: '100%',
+  },
+  placeholderImage: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f8f9fa',
+  },
+  gridItemOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    padding: 12,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+  },
+  gridItemTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: 6,
+    lineHeight: 16,
+  },
+  gridItemStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  statItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statText: {
+    fontSize: 12,
+    color: '#fff',
+    marginLeft: 4,
+    fontWeight: '500',
+  },
+});
 
 export default Destination

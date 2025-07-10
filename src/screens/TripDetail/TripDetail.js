@@ -26,6 +26,41 @@ const TripDetail = ({ route, navigation }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [processingRequest, setProcessingRequest] = useState(null); // Track which request is being processed
   
+  // Function to check if trip is expired
+  const isTripExpired = () => {
+    if (safeTripData.expired !== undefined) {
+      return safeTripData.expired;
+    }
+    
+    // Fallback: check if end date has passed
+    if (safeTripData.Dates?.end) {
+      const endDate = new Date(safeTripData.Dates.end);
+      const currentDate = new Date();
+      return endDate < currentDate;
+    }
+    
+    // If no end date, check if the trip date has passed
+    if (safeTripData.date) {
+      const tripDate = new Date(safeTripData.date);
+      const currentDate = new Date();
+      return tripDate < currentDate;
+    }
+    
+    return false;
+  };
+
+  // Get trip status text and color
+  const getTripStatus = () => {
+    const expired = isTripExpired();
+    return {
+      text: expired ? 'Completed' : 'Active',
+      color: expired ? enhancedColors.success : enhancedColors.primary,
+      backgroundColor: expired ? enhancedColors.success + '20' : enhancedColors.primary + '20',
+      icon: expired ? 'flag-checkered' : 'flag',
+      statusIcon: expired ? 'check-circle' : 'play-circle'
+    };
+  };
+
   // Default values if tripData is undefined
   const defaultTripData = {
     id: '',
@@ -70,7 +105,14 @@ const TripDetail = ({ route, navigation }) => {
     };
   };
 
-  console.log(safeTripData);
+  console.log('TripDetail Debug Info:', {
+    tripData: safeTripData,
+    expired: safeTripData.expired,
+    isTripExpired: isTripExpired(),
+    tripStatus: getTripStatus(),
+    endDate: safeTripData.Dates?.end,
+    tripDate: safeTripData.date
+  });
 
   useEffect(() => {
     getPlaceDescriptions();
@@ -523,6 +565,29 @@ const TripDetail = ({ route, navigation }) => {
       top: 0,
       zIndex: 0,
     },
+    statusBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 12,
+      paddingHorizontal: 20,
+      marginHorizontal: 20,
+      marginTop: 15,
+      borderRadius: 25,
+      gap: 8,
+      shadowColor: enhancedColors.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 3,
+      zIndex: 2,
+    },
+    statusBannerText: {
+      fontSize: 16,
+      fontWeight: '700',
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
     protractorShape: {
       backgroundColor: enhancedColors.background,
       height: 600,
@@ -550,6 +615,23 @@ const TripDetail = ({ route, navigation }) => {
       shadowRadius: 4,
       elevation: 3,
       zIndex: 2,
+    },
+    statusAndRidersContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    statusBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 15,
+      gap: 4,
+    },
+    statusText: {
+      fontSize: 12,
+      fontWeight: '600',
     },
     riders: { 
       fontSize: 15, 
@@ -935,6 +1017,18 @@ const TripDetail = ({ route, navigation }) => {
             <Image source={{ uri: safeTripData.imageUrl }} style={styles.image} />
           </View>
 
+          {/* Trip Status Banner */}
+          <View style={[styles.statusBanner, { backgroundColor: getTripStatus().backgroundColor }]}>
+            <Icon 
+              name={getTripStatus().icon} 
+              size={20} 
+              color={getTripStatus().color} 
+            />
+            <Text style={[styles.statusBannerText, { color: getTripStatus().color }]}>
+              {getTripStatus().text} Trip
+            </Text>
+          </View>
+
           <View style={styles.ridersDateContainer}>
             <Text style={styles.date}>
               <Icon name="calendar-outline" size={18} color={enhancedColors.primary} /> 
@@ -943,9 +1037,21 @@ const TripDetail = ({ route, navigation }) => {
                 ? new Date(scheduleData[activeDay - 1].date).toLocaleDateString() 
                 : safeTripData.date}
             </Text>
-            <Text style={styles.riders}>
-              🏍️ Riders: {safeTripData.riders}
-            </Text>
+            <View style={styles.statusAndRidersContainer}>
+              <View style={[styles.statusBadge, { backgroundColor: getTripStatus().backgroundColor }]}>
+                <Icon 
+                  name={getTripStatus().statusIcon} 
+                  size={14} 
+                  color={getTripStatus().color} 
+                />
+                <Text style={[styles.statusText, { color: getTripStatus().color }]}>
+                  {getTripStatus().text}
+                </Text>
+              </View>
+              <Text style={styles.riders}>
+                🏍️ Riders: {safeTripData.riders}
+              </Text>
+            </View>
           </View>
 
           {/* Members Management Section - Always show for testing */}

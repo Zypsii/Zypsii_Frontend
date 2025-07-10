@@ -32,7 +32,8 @@ const DummyScreen = ({ navigation, route }) => {
     Followers: '0',
     Following: '0',
     image: '',
-    notes: ''
+    notes: '',
+    profileViews: 'public'
   });
   const [followingData, setFollowingData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -73,7 +74,8 @@ const DummyScreen = ({ navigation, route }) => {
             Followers: '0', // Will be fetched separately
             Following: '0', // Will be fetched separately
             image: userData.profilePicture || '',
-            notes: userData.bio || ''
+            notes: userData.bio || '',
+            profileViews: userData.profileViews || 'public'
           });
 
           // Fetch additional data for this user
@@ -447,7 +449,37 @@ const DummyScreen = ({ navigation, route }) => {
 
 
   // Modify the renderContent function to use skeleton loaders
+  // Check if profile is private
+  const isProfilePrivate = profileInfo.profileViews === 'private';
+  
+  // Render locked content component
+  const renderLockedContent = (contentType) => (
+    <View style={lockedContentStyles.container}>
+      <View style={lockedContentStyles.iconContainer}>
+        <MaterialIcons name="lock" size={60} color="#ccc" />
+      </View>
+      <Text style={lockedContentStyles.title}>Content Locked</Text>
+      <Text style={lockedContentStyles.description}>
+        This user's {contentType} are private and not visible to others.
+      </Text>
+    </View>
+  );
+
   const renderContent = () => {
+    // If profile is private, show locked content for all tabs
+    if (isProfilePrivate) {
+      switch (activeIcon) {
+        case 'th-large':
+          return renderLockedContent('posts');
+        case 'briefcase':
+          return renderLockedContent('schedules');
+        case 'play-circle':
+          return renderLockedContent('shorts');
+        default:
+          return null;
+      }
+    }
+
     switch (activeIcon) {
       case 'th-large':
         return postsLoading ? (
@@ -1102,6 +1134,33 @@ const scheduleStyles = {
   },
   actionButton: {
     padding: 5,
+  },
+};
+
+// Add styles for locked content
+const lockedContentStyles = {
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+    backgroundColor: '#f8f9fa',
+  },
+  iconContainer: {
+    marginBottom: 20,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  description: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 24,
   },
 };
 

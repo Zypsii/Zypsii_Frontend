@@ -6,7 +6,7 @@ const { width } = Dimensions.get('window');
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.themeBackground,
+    backgroundColor: colors.white,
   },
   mainContent: {
     flex: 1,
@@ -15,216 +15,318 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: colors.white,
   },
   scrollContainer: {
     flexGrow: 1,
-    paddingBottom: scale(100), // Increased padding to ensure content is scrollable past the bottom tab
+    paddingBottom: scale(120), // Increased padding for bottom tab
   },
   imageContainer: {
     width: '100%',
-    height: Dimensions.get('window').height * 0.5, // Adjusts to 40% of screen height
-    overflow: 'hidden', // Ensures the image respects border radius
+    height: Dimensions.get('window').height * 0.45, // Slightly reduced height
+    position: 'relative',
+    overflow: 'hidden',
   },
-  
   detailImage: {
     width: '100%',
-    height: '100%', // Makes the image cover the full container
-    resizeMode: 'cover', // Ensures the image covers without distortion
+    height: '100%',
+    resizeMode: 'cover',
   },
-  
   detailContainer: {
-    backgroundColor: colors.grayBackground,
-    borderRadius: 10,
-    ...alignment.Pmedium,
-    alignSelf: 'flex-start', // Aligns container to the left
-    width: '100%',
+    backgroundColor: colors.white,
+    borderTopLeftRadius: 25,
+    borderTopRightRadius: 25,
+    marginTop: -25, // Creates overlap with image
+    paddingHorizontal: 20,
+    paddingTop: 25,
+    paddingBottom: 20,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: -3,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 8,
   },
   detailTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 24,
+    fontWeight: '700',
     color: colors.fontMainColor,
-    marginBottom: 8,
+    marginBottom: 12,
+    lineHeight: 32,
   },
   subtitleContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 20,
     flexWrap: 'wrap',
+    gap: 8,
   },
   detailSubtitle: {
     fontSize: 16,
     color: colors.fontThirdColor,
     flex: 1,
     marginRight: 10,
+    lineHeight: 22,
   },
   icon: {
-    marginRight: 5,
+    marginRight: 8,
   },
   bottomTab: {
     marginTop: 16,
   },
   aboutContainer: {
-    ...alignment.MTmedium
+    marginTop: 25,
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
   },
   aboutTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 22,
+    fontWeight: '700',
     color: colors.fontMainColor,
-    marginBottom: 8,
+    marginBottom: 12,
   },
   aboutText: {
-    fontSize: 14,
+    fontSize: 15,
     color: colors.fontSecondColor,
-    lineHeight: 20,
+    lineHeight: 24,
   },
   readMore: {
-    color: colors.Zypsii_color, // Set this to your desired link color (e.g., purple or blue)
-    fontWeight: 'bold',
+    color: colors.Zypsii_color,
+    fontWeight: '600',
+    fontSize: 15,
   },
-  commenttitle:{
-    fontSize: 16,
-    fontWeight: 'bold',
-    ...alignment.MTmedium
+  commenttitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginTop: 25,
+    marginBottom: 15,
   },
   commentContainer: {
-    marginTop: 16,
-    backgroundColor: colors.grayBackground,
-    borderRadius: 10,
-    // padding: 16,
-    
+    marginTop: 20,
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
   },
   commentTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 20,
+    fontWeight: '700',
     color: colors.fontMainColor,
-    marginBottom: 8,
+    marginBottom: 15,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    ...alignment.MTxSmall,
-    borderWidth: 2,
+    marginTop: 15,
+    borderWidth: 1.5,
     borderColor: colors.grayLinesColor,
-    borderRadius: 10,
+    borderRadius: 12,
     overflow: 'hidden',
+    backgroundColor: colors.white,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
   },
   commentInput: {
     flex: 1,
-    padding: 10,
-    fontSize: 14,
+    padding: 15,
+    fontSize: 15,
     color: colors.fontMainColor,
     backgroundColor: colors.white,
   },
   sendButton: {
-    backgroundColor: colors.btncolor,
-    paddingHorizontal: 16,
+    backgroundColor: colors.Zypsii_color,
+    paddingHorizontal: 20,
+    paddingVertical: 15,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 10
+    borderRadius: 12,
+    margin: 3,
   },
   sendButtonText: {
     color: colors.white,
-    fontWeight: 'bold',
-    ...alignment.Psmall
+    fontWeight: '600',
+    fontSize: 15,
   },
   ratingsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 10,
+    backgroundColor: 'rgba(255, 193, 7, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginRight: 8,
   },
   ratingText: {
     fontSize: 14,
     color: colors.fontMainColor,
     marginLeft: 4,
+    fontWeight: '600',
   },
   distanceContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 10,
+    backgroundColor: 'rgba(52, 152, 219, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginRight: 8,
   },
   distanceText: {
     fontSize: 14,
     color: colors.fontThirdColor,
     marginLeft: 4,
+    fontWeight: '500',
   },
   overlayHeader: {
     position: 'absolute',
-    top: 50, // Adjust this value to fine-tune the vertical alignment
+    top: 50,
     left: 20,
     right: 20,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    zIndex: 2, // Ensures the header is above the image
+    zIndex: 2,
   },
-  
   backButton: {
-    backgroundColor: 'rgba(0,0,0,0.5)', // Semi-transparent background
-    borderRadius: 50,
-    padding: 8,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    borderRadius: 25,
+    padding: 10,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
   },
-  
   headerTitle: {
     color: colors.white,
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: '700',
     marginLeft: 10,
     alignSelf: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   discoverRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 15,
-    marginVertical: 10,
-    ...alignment.MBmedium,
+    paddingVertical: 20,
+    marginVertical: 15,
+    marginBottom: 20,
   },
   discoverText: {
-    fontSize: 16,
-    fontWeight: "bold",
+    fontSize: 20,
+    fontWeight: "700",
     color: colors.fontMainColor,
   },
   viewAllText: {
-    fontSize: 14,
-    color: colors.btncolor,
-    fontWeight: "500",
+    fontSize: 15,
+    color: colors.Zypsii_color,
+    fontWeight: "600",
   },
   card: {
-    width: 150,
-    marginRight: 10,
+    width: 160,
+    marginRight: 15,
     backgroundColor: colors.white,
-    borderRadius: 10,
-    ...alignment.PxSmall,
+    borderRadius: 16,
+    padding: 12,
     borderWidth: 1,
     borderColor: colors.grayLinesColor,
-    borderRadius: 6,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
     elevation: 6,
   },
   cardImage: {
     width: "100%",
-    height: 110,
-    borderRadius: 10,
+    height: 120,
+    borderRadius: 12,
+    marginBottom: 8,
   },
   cardTitle: {
-    marginTop: 5,
-    fontSize: 14,
-    fontWeight: "bold",
+    fontSize: 15,
+    fontWeight: "700",
     color: colors.fontMainColor,
+    marginBottom: 4,
+    lineHeight: 20,
   },
   cardSubtitle: {
-    fontSize: 12,
+    fontSize: 13,
     color: colors.fontThirdColor,
+    lineHeight: 18,
   },
   explore: {
-    ...alignment.Psmall,
-    fontWeight: "bold",
+    padding: 15,
+    fontWeight: "700",
     alignSelf: "center",
-    fontSize: 16,
+    fontSize: 18,
+    color: colors.fontMainColor,
   },
-
-  
-  
+  // New styles for better spacing and layout
+  sectionSpacer: {
+    height: 20,
+  },
+  loaderContainer: {
+    paddingVertical: 20,
+    alignItems: 'center',
+  },
+  noDataContainer: {
+    padding: 30,
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    marginHorizontal: 20,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  noDataText: {
+    fontSize: 16,
+    color: colors.fontSecondColor,
+    textAlign: 'center',
+    marginTop: 10,
+  },
+  itemCardContainer: {
+    marginRight: 15,
+  },
 });
 
 export default styles;

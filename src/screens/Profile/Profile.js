@@ -3,6 +3,7 @@ import { View, Text, Image, TouchableOpacity, FlatList, ImageBackground, Dimensi
 import styles from './styles';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { BackHeader } from '../../components';
+import { colors } from '../../constants/Colors';
 
 const ProfileScreen = ({ navigation }) => {
   const [activeIcon, setActiveIcon] = useState('th-large'); // Default active icon
@@ -41,7 +42,14 @@ const ProfileScreen = ({ navigation }) => {
         <BackHeader 
           title="Profile"
           backPressed={backPressed}
-        />
+        >
+          <TouchableOpacity 
+            style={styles.editButton}
+            onPress={() => navigation.navigate('EditProfile')}
+          >
+            <Text style={styles.editButtonText}>Edit Profile</Text>
+          </TouchableOpacity>
+        </BackHeader>
 
         {/* Profile Section */}
         <View style={styles.profileContainer}>

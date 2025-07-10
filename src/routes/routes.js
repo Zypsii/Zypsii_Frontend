@@ -9,6 +9,7 @@ import PlaceDetailsScreen from '../screens/Searchbar/PlaceDetailsScreen';
 import PostDetail from '../screens/Zipsiprofile/PostDetail';
 import EditSchedule from '../screens/MySchedule/EditSchedule';
 import EditMapScreen from '../screens/MySchedule/EditMapScreen';
+import EditProfile from '../screens/Profile/EditProfile';
 import { useAuth } from '../components/Auth/AuthContext';
 import CombinedDestinations from '../screens/CombinedDestinations/CombinedDestinations';
 
@@ -33,6 +34,7 @@ function Drawer() {
       <NavigationStack.Screen name="MySchedule" component={Screen.MySchedule}/>
       <NavigationStack.Screen name="EditSchedule" component={EditSchedule}/>
       <NavigationStack.Screen name="EditMapScreen" component={EditMapScreen}/>
+      <NavigationStack.Screen name="EditProfile" component={EditProfile}/>
       <NavigationStack.Screen name="Destination" component={Screen.Destination}/>
       <NavigationStack.Screen name="MakeSchedule" component={Screen.MakeSchedule}/>
       <NavigationStack.Screen name="TripDetail" component={Screen.TripDetail}/>

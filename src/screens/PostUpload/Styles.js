@@ -59,6 +59,12 @@ const styles = StyleSheet.create({
     resizeMode: 'cover',
     borderRadius: 16,
   },
+  filteredImageContainer: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
   placeholderContainer: {
     flex: 1,
     justifyContent: 'center',
