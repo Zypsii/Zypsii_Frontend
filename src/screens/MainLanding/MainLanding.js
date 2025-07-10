@@ -214,7 +214,7 @@ function MainLanding(props) {
       // Use the location from user data if available, otherwise use default
       const latitude = user?.location?.latitude || userLocation.latitude;
       const longitude = user?.location?.longitude || userLocation.longitude;
-     //console.log(accessToken)
+
       const response = await fetch(`${base_url}/user/update-live-location`, {
         method: 'POST',
         headers: {

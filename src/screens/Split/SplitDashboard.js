@@ -49,20 +49,17 @@ function SplitDashboard() {
             color={colors.btncolor} 
           />
         </View>
-        
+
         <View style={styles.splitInfo}>
+          {/* Title of the split */}
           <Text style={styles.splitTitle} numberOfLines={1}>
             {item.title}
           </Text>
+          {/* Amount of the split */}
           <View style={styles.splitMeta}>
             <Text style={styles.splitAmount}>
                               ₹{Math.round(item.totalSplitAmount || 0)}
             </Text>
-            {/* <View style={styles.splitBadge}>
-              <Text style={styles.splitBadgeText}>
-                {item.participants?.length || 0} members
-              </Text>
-            </View> */}
           </View>
         </View>
         

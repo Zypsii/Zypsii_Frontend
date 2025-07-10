@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, memo, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Modal,
   TextInput,
   ActivityIndicator,
+  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,6 +25,17 @@ const AddParticipantModal = ({ visible, onClose, splitId, existingParticipants }
   const [searchResults, setSearchResults] = useState([]);
   const dispatch = useDispatch();
   const [loading, setLoading] = useState(false);
+  const [selectedUserIds, setSelectedUserIds] = useState([]);
+
+  // Use Set for O(1) lookup
+  const selectedUserIdSet = useMemo(() => new Set(selectedUserIds), [selectedUserIds]);
+
+  // Memoize handleSelect
+  const handleSelect = useCallback((userId) => {
+    setSelectedUserIds((prev) =>
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
+    );
+  }, []);
 
   const searchUsers = async (query) => {
     if (!query.trim()) {
@@ -80,36 +92,66 @@ const AddParticipantModal = ({ visible, onClose, splitId, existingParticipants }
     return () => clearTimeout(delayDebounceFn);
   }, [searchQuery]);
 
-  const renderUserItem = ({ item }) => (
-    <TouchableOpacity
-      style={styles.userItemContainer}
-      onPress={async () => {
-        try {
-          await dispatch(addParticipant({ splitId, memberIds: [item._id] })).unwrap();
-          await dispatch(fetchSplitMembers(splitId));
-          showToast(`${item.name} has been added as a participant`, 'success');
-          onClose();
-        } catch (error) {
-          console.error('Error adding participant:', error);
-          showToast(error.message || 'Failed to add participant', 'error');
-        }
-      }}
-    >
-      <View style={styles.userInfoWrapper}>
-        <View style={styles.userAvatarContainer}>
-          <Text style={styles.userAvatarText}>
-            {item.name ? item.name.charAt(0).toUpperCase() : '?'}
-          </Text>
-        </View>
-        <View style={styles.userDetailsContainer}>
-          <Text style={styles.userNameText}>{item.name || 'Unknown User'}</Text>
-          <Text style={styles.userEmailText}>{item.email}</Text>
-        </View>
+  useEffect(() => {
+    setSelectedUserIds([]); // Clear selection when search changes
+  }, [searchQuery, visible]);
+
+  const handleAddSelected = async () => {
+    if (selectedUserIds.length === 0) return;
+    try {
+      await dispatch(addParticipant({ splitId, memberIds: selectedUserIds })).unwrap();
+      await dispatch(fetchSplitMembers(splitId));
+      showToast('Selected participants have been added', 'success');
+      onClose();
+    } catch (error) {
+      console.error('Error adding participants:', error);
+      showToast(error.message || 'Failed to add participants', 'error');
+    }
+  };
+
+  const UserCard = memo(({ item, isSelected, onPress }) => {
+    return (
+      <View
+        style={[
+          styles.userCard,
+          isSelected && styles.userCardSelected,
+        ]}
+      >
+        <TouchableOpacity
+          style={{ flex: 1 }}
+          onPress={onPress}
+          activeOpacity={0.6}
+        >
+          <View style={styles.userInfoWrapper}>
+            <View style={styles.userAvatarContainerSmall}>
+              <Text style={styles.userAvatarTextSmall}>
+                {item.name ? item.name.charAt(0).toUpperCase() : '?'}
+              </Text>
+            </View>
+            <View style={styles.userDetailsContainer}>
+              <Text style={styles.userNameText}>{item.name || 'Unknown User'}</Text>
+              <Text style={styles.userEmailText}>{item.email}</Text>
+            </View>
+            {isSelected && (
+              <View style={styles.checkmarkContainer}>
+                <Ionicons name="checkmark-circle" size={22} color={colors.Zypsii_color} />
+              </View>
+            )}
+          </View>
+        </TouchableOpacity>
       </View>
-      <View style={styles.addIconContainer}>
-        <Ionicons name="add-circle-outline" size={24} color={colors.Zypsii_color} />
-      </View>
-    </TouchableOpacity>
+    );
+  });
+
+  const renderUserItem = useCallback(
+    ({ item }) => (
+      <UserCard
+        item={item}
+        isSelected={selectedUserIdSet.has(item._id)}
+        onPress={() => handleSelect(item._id)}
+      />
+    ),
+    [selectedUserIdSet, handleSelect]
   );
 
   return (
@@ -129,7 +171,6 @@ const AddParticipantModal = ({ visible, onClose, splitId, existingParticipants }
                   <Ionicons name="close" size={24} color={colors.fontMainColor} />
                 </TouchableOpacity>
               </View>
-
               <View style={styles.searchWrapper}>
                 <View style={styles.searchInputContainer}>
                   <Ionicons name="search" size={20} color={colors.fontSecondColor} style={styles.searchIcon} />
@@ -172,6 +213,17 @@ const AddParticipantModal = ({ visible, onClose, splitId, existingParticipants }
                 }
               />
             )}
+            <View style={styles.addSelectedButtonWrapper}>
+              <TouchableOpacity
+                style={[styles.addSelectedButton, selectedUserIds.length === 0 && styles.addSelectedButtonDisabled]}
+                onPress={handleAddSelected}
+                disabled={selectedUserIds.length === 0}
+              >
+                <Text style={styles.addSelectedButtonText}>
+                  Add Selected{selectedUserIds.length > 0 ? ` (${selectedUserIds.length})` : ''}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </SafeAreaView>
@@ -198,8 +250,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.grayBackground,
     paddingBottom: 16,
   },
   modalHeaderTop: {
@@ -257,15 +307,29 @@ const styles = StyleSheet.create({
   searchResultsContainer: {
     flexGrow: 1,
     paddingTop: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
   },
-  userItemContainer: {
+  userCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.grayBackground,
+    justifyContent: 'flex-start',
     backgroundColor: colors.white,
+    borderRadius: 14,
+    padding: 10,
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
+    borderWidth: 0,
+    position: 'relative',
+  },
+  userCardSelected: {
+    backgroundColor: '#e6f0ff',
+    borderColor: colors.Zypsii_color,
+    borderWidth: 1.2,
   },
   userInfoWrapper: {
     flexDirection: 'row',
@@ -305,10 +369,37 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.fontSecondColor,
   },
-  addIconContainer: {
-    padding: 10,
-    backgroundColor: colors.grayBackground,
+  radioButtonOuter: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: colors.Zypsii_color,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    marginLeft: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  radioButtonSelected: {
+    width: 24,
+    height: 24,
     borderRadius: 12,
+    backgroundColor: colors.Zypsii_color,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  radioButtonUnselected: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    borderColor: colors.grayLinesColor,
+    backgroundColor: '#fff',
   },
   emptyResultsContainer: {
     flex: 1,
@@ -321,6 +412,58 @@ const styles = StyleSheet.create({
     color: colors.fontSecondColor,
     textAlign: 'center',
     lineHeight: 24,
+  },
+  addSelectedButtonWrapper: {
+    padding: 20,
+    backgroundColor: colors.white,
+    borderTopWidth: 1,
+    borderTopColor: colors.grayBackground,
+  },
+  addSelectedButton: {
+    backgroundColor: colors.Zypsii_color,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  addSelectedButtonDisabled: {
+    backgroundColor: colors.grayLinesColor,
+  },
+  addSelectedButtonText: {
+    color: colors.white,
+    fontSize: 17,
+    fontWeight: 'bold',
+    letterSpacing: 0.5,
+  },
+  userAvatarContainerSmall: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.Zypsii_color,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+  },
+  userAvatarTextSmall: {
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  checkmarkContainer: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    backgroundColor: 'transparent',
+    zIndex: 2,
   },
 });
 

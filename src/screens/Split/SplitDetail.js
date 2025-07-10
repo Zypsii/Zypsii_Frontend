@@ -1,34 +1,20 @@
 import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  Modal,
-  TextInput,
-  ActivityIndicator,
-  ScrollView,
-  Dimensions,
-  StatusBar,
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, Dimensions, StatusBar, } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../utils';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useToast } from '../../context/ToastContext';
-import { base_url } from '../../utils/base_url';
 import {
   addExpense,
+  setUserInfo,
   updateExpense,
   updatePaymentStatus,
   fetchSplitMembers,
   fetchSplitBalance,
-  addParticipant,
   fetchExpenses
 } from '../../redux/slices/splitSlice';
-import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Import components
@@ -62,13 +48,20 @@ function SplitDetail() {
     balanceError,
     expenses,
     expensesLoading,
-    expensesError
+    expensesError,
+    userInfo
   } = useSelector((state) => state.split);
+
+  useEffect(() => {
+    (async () => {
+      const user = JSON.parse(await AsyncStorage.getItem('user'));
+      dispatch(setUserInfo(user));
+    })();
+  }, []);
 
   useEffect(() => {
     const loadData = async () => {
       try {
-        console.log('Loading data for split:', split._id);
         await Promise.all([
           dispatch(fetchSplitMembers(split._id)),
           dispatch(fetchSplitBalance(split._id)),
@@ -85,20 +78,19 @@ function SplitDetail() {
 
   // Add console log to check expenses data
   useEffect(() => {
-    console.log('Current expenses data:', expenses);
   }, [expenses]);
 
   const handleAddExpense = async (expenseData) => {
     try {
       await dispatch(addExpense({ splitId: split._id, expenseData })).unwrap();
       setShowAddExpenseModal(false);
-      
+
       // Refresh both expenses and balance data
       await Promise.all([
         dispatch(fetchExpenses(split._id)),
         dispatch(fetchSplitBalance(split._id))
       ]);
-      
+
       showToast('Expense added successfully', 'success');
     } catch (error) {
       console.error('Error adding expense:', error);
@@ -109,13 +101,13 @@ function SplitDetail() {
   const handleUpdateExpense = async (expenseId, expenseData) => {
     try {
       await dispatch(updateExpense({ splitId: split._id, expenseId, newAmount: expenseData.amount })).unwrap();
-      
+
       // Refresh both expenses and balance data
       await Promise.all([
         dispatch(fetchExpenses(split._id)),
         dispatch(fetchSplitBalance(split._id))
       ]);
-      
+
       showToast('Expense updated successfully', 'success');
     } catch (error) {
       console.error('Error updating expense:', error);
@@ -125,11 +117,11 @@ function SplitDetail() {
 
   const handleMarkAsPaid = async (expenseId, memberId) => {
     try {
-      await dispatch(updatePaymentStatus({ 
-        expenseId, 
+      await dispatch(updatePaymentStatus({
+        expenseId,
         memberId
       })).unwrap();
-      
+
       // Refresh both balance and expenses data to reflect the changes
       await Promise.all([
         dispatch(fetchSplitBalance(split._id)),
@@ -158,7 +150,7 @@ function SplitDetail() {
   const renderBalanceTab = () => {
     // Calculate total dues per member
     const memberDues = {};
-    
+
     // Add null checks to prevent forEach errors
     if (balance?.data && Array.isArray(balance.data)) {
       balance.data.forEach(expense => {
@@ -173,7 +165,7 @@ function SplitDetail() {
                   totalToReceive: 0
                 };
               }
-              
+
               // Handle different balance scenarios
               if (member.status === 'owes') {
                 memberDues[member.memberId].totalDue += member.amountToPay || 0;
@@ -188,56 +180,6 @@ function SplitDetail() {
 
     return (
       <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
-        {/* Total Balance Card */}
-        {/* <View style={styles.balanceCard}>
-          <View style={styles.balanceHeader}>
-            <Ionicons name="wallet" size={24} color={colors.btncolor} />
-            <Text style={styles.balanceLabel}>Total Split Amount</Text>
-          </View>
-                      <Text style={styles.balanceAmount}>
-              ₹{Math.round(split.totalSplitAmount || 0)}
-            </Text>
-          <View style={styles.balanceFooter}>
-            <Text style={styles.balanceSubtext}>
-              Split between {members.length || 0} members
-            </Text>
-          </View>
-        </View> */}
-
-        {/* Balance Due Card */}
-        {/* <View style={styles.balanceCard}>
-          <View style={styles.balanceHeader}>
-            <Ionicons name="alert-circle" size={24} color={colors.error} />
-            <Text style={styles.balanceLabel}>Total Balance Due</Text>
-          </View>
-          <Text style={[styles.balanceAmount, { color: colors.error }]}>
-            ₹{(() => {
-              if (balance?.totalBalanceDueAcrossSplit !== undefined) {
-                return Math.round(balance.totalBalanceDueAcrossSplit);
-              }
-              // Calculate from member details if not provided
-              let totalDue = 0;
-              if (balance?.data && Array.isArray(balance.data)) {
-                balance.data.forEach(expense => {
-                  if (expense && expense.memberDetails && Array.isArray(expense.memberDetails)) {
-                    expense.memberDetails.forEach(member => {
-                      if (member && member.status === 'owes') {
-                        totalDue += member.amountToPay || 0;
-                      }
-                    });
-                  }
-                });
-              }
-              return Math.round(totalDue);
-            })()}
-          </Text>
-          <View style={styles.balanceFooter}>
-            <Text style={styles.balanceSubtext}>
-              Across {balance?.data?.length || 0} expenses
-            </Text>
-          </View>
-        </View> */}
-
         {/* Total Balance Summary */}
         <View style={styles.summaryCard}>
           <View style={styles.summaryHeader}>
@@ -274,105 +216,8 @@ function SplitDetail() {
                 })()}
               </Text>
             </View>
-            {/* <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Settled:</Text>
-              <Text style={[styles.summaryValue, { color: colors.success }]}>
-                ₹{(() => {
-                  const totalAmount = split.totalSplitAmount || 0;
-                  const totalDue = (() => {
-                    if (balance?.totalBalanceDueAcrossSplit !== undefined) {
-                      return balance.totalBalanceDueAcrossSplit;
-                    }
-                    let due = 0;
-                    if (balance?.data && Array.isArray(balance.data)) {
-                      balance.data.forEach(expense => {
-                        if (expense && expense.memberDetails && Array.isArray(expense.memberDetails)) {
-                          expense.memberDetails.forEach(member => {
-                            if (member && member.status === 'owes') {
-                              due += member.amountToPay || 0;
-                            }
-                          });
-                        }
-                      });
-                    }
-                    return due;
-                  })();
-                  return Math.round(totalAmount - totalDue);
-                })()}
-              </Text>
-            </View> */}
           </View>
         </View>
-
-        {/* Individual Balances - Commented Out */}
-        {/* <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Individual Balances</Text>
-          {Object.values(memberDues).length > 0 ? (
-            Object.values(memberDues).map((member) => {
-              const hasDebt = member.totalDue > 0;
-              const hasCredit = member.totalToReceive > 0;
-              
-              return (
-                <View key={member.email} style={styles.balanceItem}>
-                  <View style={styles.balanceItemLeft}>
-                    <View style={[
-                      styles.balanceAvatar,
-                      { backgroundColor: hasDebt ? '#ffe8e8' : '#e8f5e8' }
-                    ]}>
-                      <Text style={[
-                        styles.balanceAvatarText,
-                        { color: hasDebt ? colors.error : colors.success }
-                      ]}>
-                        {member.fullName?.charAt(0)?.toUpperCase() || 'U'}
-                      </Text>
-                    </View>
-                    <View>
-                      <Text style={styles.balanceName}>{member.fullName}</Text>
-                      <Text style={[
-                        styles.balanceStatus,
-                        { color: hasDebt ? colors.error : colors.success }
-                      ]}>
-                        {hasDebt ? 'Owes' : hasCredit ? 'Owed' : 'Settled'}
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={styles.balanceAmounts}>
-                    {hasDebt && (
-                      <Text style={[
-                        styles.balanceAmountText,
-                        { color: colors.error }
-                      ]}>
-                        -₹{Math.round(member.totalDue)}
-                      </Text>
-                    )}
-                    {hasCredit && (
-                      <Text style={[
-                        styles.balanceAmountText,
-                        { color: colors.success }
-                      ]}>
-                        +₹{Math.round(member.totalToReceive)}
-                      </Text>
-                    )}
-                    {!hasDebt && !hasCredit && (
-                      <Text style={[
-                        styles.balanceAmountText,
-                        { color: colors.grayLinesColor }
-                      ]}>
-                        ₹0.00
-                      </Text>
-                    )}
-                  </View>
-                </View>
-              );
-            })
-          ) : (
-            <View style={styles.emptyStateCard}>
-              <Ionicons name="checkmark-circle-outline" size={48} color={colors.grayLinesColor} />
-              <Text style={styles.emptyStateTitle}>No balances found</Text>
-              <Text style={styles.emptyStateText}>All expenses have been settled</Text>
-            </View>
-          )}
-        </View> */}
 
         {/* Balance Due Details */}
         <View style={styles.section}>
@@ -380,6 +225,7 @@ function SplitDetail() {
           {balance?.data && balance.data.length > 0 ? (
             balance.data.map((expense) => (
               <View key={expense.expenseId} style={styles.expenseCard}>
+                {/* Header Section of balance due details*/}
                 <View style={styles.expenseHeader}>
                   <View style={styles.expenseIconContainer}>
                     <Ionicons name="receipt" size={20} color={colors.error} />
@@ -399,7 +245,7 @@ function SplitDetail() {
                     </Text>
                   </View>
                 </View>
-                
+
                 <View style={styles.expenseFooter}>
                   <View style={styles.membersContainer}>
                     <Text style={styles.membersLabel}>Member Balances</Text>
@@ -415,23 +261,25 @@ function SplitDetail() {
                             <View style={styles.memberDetails}>
                               <Text style={styles.memberName}>{member.fullName}</Text>
                               <Text style={styles.memberAmount}>
-                                {member.status === 'owes' ? '-' : member.status === 'owed' ? '+' : ''}₹{Math.round(Math.abs(member.balanceAmount || 0))}
+                                {/* {member.status === 'owes' ? '-' : member.status === 'owed' ? '+' : ''} */}
+                                {/* ₹{Math.round(Math.abs(member?.paidAmount || member?.amountNeedToPay || member?.balanceAmountNeedToPay || 0))} */}
+                                {formatPaymentMessage(member, userInfo, balance?.data)}
                               </Text>
                             </View>
                           </View>
                           <View style={styles.memberActions}>
                             <View style={[
-                              styles.paymentStatus, 
-                              { 
-                                backgroundColor: member.status === 'owes' ? colors.error : 
-                                                member.status === 'owed' ? colors.success : 
-                                                colors.grayLinesColor 
+                              styles.paymentStatus,
+                              {
+                                backgroundColor: member.status === 'owes' ? colors.error :
+                                  member.status === 'owed' ? colors.success :
+                                    colors.grayLinesColor
                               }
                             ]}>
                               <Text style={styles.paymentStatusText}>
-                                {member.status === 'owes' ? 'Owes' : 
-                                 member.status === 'owed' ? 'Owed' : 
-                                 'Settled'}
+                                {member.status === 'owes' ? 'Owes' :
+                                  member.status === 'owed' ? 'Owed' :
+                                    'Settled'}
                               </Text>
                             </View>
                             {member.status === 'owes' && (
@@ -447,7 +295,7 @@ function SplitDetail() {
                       ))}
                     </View>
                   </View>
-                  
+
                   {/* Settlement Suggestions */}
                   {expense.settlementSuggestions && expense.settlementSuggestions.length > 0 && (
                     <View style={styles.settlementContainer}>
@@ -490,7 +338,7 @@ function SplitDetail() {
             <Ionicons name="add" size={20} color={colors.white} />
           </TouchableOpacity>
         </View>
-        
+
         {expensesLoading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={colors.btncolor} />
@@ -532,7 +380,7 @@ function SplitDetail() {
                   </Text>
                 </View>
               </View>
-              
+
               <View style={styles.expenseFooter}>
                 <Text style={styles.paidByText}>
                   Paid by <Text style={styles.paidByName}>{expense.createdBy.fullName}</Text>
@@ -602,7 +450,7 @@ function SplitDetail() {
             <Ionicons name="person-add" size={20} color={colors.white} />
           </TouchableOpacity>
         </View>
-        
+
         {members?.data && members.data.length > 0 ? (
           members.data.map((member, index) => (
             <View key={member._id} style={styles.memberCard}>
@@ -616,7 +464,7 @@ function SplitDetail() {
                   <Text style={styles.memberName}>{member.memberId?.fullName || 'Unknown User'}</Text>
                 </View>
                 <View style={styles.memberStatus}>
-                  
+
                   <Text style={styles.statusText}>
                     Joined {new Date(member.createdAt).toLocaleDateString('en-US', {
                       day: 'numeric',
@@ -626,8 +474,6 @@ function SplitDetail() {
                   </Text>
                 </View>
               </View>
-              
-              
             </View>
           ))
         ) : (
@@ -691,7 +537,7 @@ function SplitDetail() {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar backgroundColor={colors.btncolor} barStyle="light-content" />
-      
+
       {/* Enhanced Header */}
       <View style={styles.header}>
         <TouchableOpacity
@@ -773,7 +619,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8f9fa',
   },
-  
+
   // Header Styles
   header: {
     flexDirection: 'row',
@@ -1363,5 +1209,36 @@ const styles = StyleSheet.create({
     color: colors.fontMainColor,
   },
 });
+
+function formatPaymentMessage(member, userInfo, Split) {
+
+  const amount = Math.round(Math.abs(
+    member?.balanceAmountNeedToPay ??
+    member?.amountNeedToPay ??
+    member?.paidAmount ??
+    0
+  ));
+
+  if (member?.balanceAmountReceiver?.memberId === userInfo?._id) {
+    return `₹${amount} Need to pay for you`;
+  }
+
+  if (member?.balanceAmountReceiver?.memberId !== undefined) {
+    if (member?.balanceAmountReceiver?.memberId !== userInfo?._id) {
+      return `₹${amount} reciver ${userInfo?.fullName}`;
+    }
+  }
+
+  if (member?.amountNeedToPay) {
+    return `₹${amount} Need to pay for ${Split[0]?.splitCreated?.fullName}`;
+  }
+
+  if (member?.paidAmount && member?.balanceAmountReceiver === undefined) {
+    return `₹${amount} paid`;
+  }
+
+  return '₹0 No balance';
+}
+
 
 export default SplitDetail;
