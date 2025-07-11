@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../utils';
 import SelectPayerModal from './SelectPayerModal';
 import { useToast } from '../../context/ToastContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const AddExpenseModal = ({ visible, onClose, onAddExpense, participants, splitId }) => {
   const { showToast } = useToast();
@@ -182,7 +183,16 @@ const AddExpenseModal = ({ visible, onClose, onAddExpense, participants, splitId
 
   const handleSubmit = async () => {
     try {
-      if (!paidBy) {
+      let payerId = paidBy;
+      let loginUserId = null;
+      // Get the logged-in user from AsyncStorage
+      const userStr = await AsyncStorage.getItem('user');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        if (!payerId) payerId = user?._id;
+        loginUserId = user?._id;
+      }
+      if (!payerId) {
         setErrors(prev => ({ ...prev, paidBy: 'Please select who paid' }));
         return;
       }
@@ -200,7 +210,8 @@ const AddExpenseModal = ({ visible, onClose, onAddExpense, participants, splitId
         .map(([memberId]) => ({
           memberId,
           amountNeedToPay: parseFloat(splitAmounts[memberId]?.value || '0'),
-          paid: false
+          paid: memberId === payerId || memberId === loginUserId,
+          paidAt: memberId === payerId || memberId === loginUserId ? Date.now() : null
         }));
 
       const expenseData = {
@@ -211,6 +222,7 @@ const AddExpenseModal = ({ visible, onClose, onAddExpense, participants, splitId
         membersInExpenseAndAmount
       };
 
+      console.log('\n\nwhat is the expenseData:',expenseData)
       await onAddExpense(expenseData);
       handleClose();
     } catch (error) {

@@ -63,7 +63,7 @@ const AddParticipantModal = ({ visible, onClose, splitId, existingParticipants }
             _id: user._id,
             name: user.fullName || 'Unknown User',
             email: user.email || '',
-            profileImage: user.profileImage || 'https://via.placeholder.com/50',
+            profileImage: user.profilePicture || 'https://via.placeholder.com/50',
             userName: user.userName || ''
           }));
 
@@ -132,11 +132,6 @@ const AddParticipantModal = ({ visible, onClose, splitId, existingParticipants }
               <Text style={styles.userNameText}>{item.name || 'Unknown User'}</Text>
               <Text style={styles.userEmailText}>{item.email}</Text>
             </View>
-            {isSelected && (
-              <View style={styles.checkmarkContainer}>
-                <Ionicons name="checkmark-circle" size={22} color={colors.Zypsii_color} />
-              </View>
-            )}
           </View>
         </TouchableOpacity>
       </View>
@@ -329,7 +324,7 @@ const styles = StyleSheet.create({
   userCardSelected: {
     backgroundColor: '#e6f0ff',
     borderColor: colors.Zypsii_color,
-    borderWidth: 1.2,
+    borderWidth: 0.5,
   },
   userInfoWrapper: {
     flexDirection: 'row',
@@ -368,38 +363,6 @@ const styles = StyleSheet.create({
   userEmailText: {
     fontSize: 14,
     color: colors.fontSecondColor,
-  },
-  radioButtonOuter: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: colors.Zypsii_color,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    marginLeft: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  radioButtonSelected: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: colors.Zypsii_color,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  radioButtonUnselected: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    borderWidth: 2,
-    borderColor: colors.grayLinesColor,
-    backgroundColor: '#fff',
   },
   emptyResultsContainer: {
     flex: 1,

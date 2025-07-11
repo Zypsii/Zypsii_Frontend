@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, Dimensions, StatusBar, } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, Dimensions, StatusBar, Modal, AppState, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../utils';
@@ -38,6 +38,9 @@ function SplitDetail() {
   const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [activeTab, setActiveTab] = useState('balance');
+  const [showPaymentConfirmModal, setShowPaymentConfirmModal] = useState(false);
+  const [pendingPayment, setPendingPayment] = useState(null); // { expenseId, memberId, upiUrl }
+  const appState = useRef(AppState.currentState);
 
   const {
     members = [],
@@ -115,11 +118,12 @@ function SplitDetail() {
     }
   };
 
-  const handleMarkAsPaid = async (expenseId, memberId) => {
+  const handleMarkAsPaid = async (expenseId, memberId, paidAt) => {
     try {
       await dispatch(updatePaymentStatus({
         expenseId,
-        memberId
+        memberId,
+        paidAt
       })).unwrap();
 
       // Refresh both balance and expenses data to reflect the changes
@@ -132,6 +136,52 @@ function SplitDetail() {
       console.error('Error marking payment as paid:', error);
       showToast(error.message || 'Failed to mark payment as paid', 'error');
     }
+  };
+
+  // Listen for app state changes to detect return from UPI app
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState) => {
+      if (
+        appState.current.match(/inactive|background/) &&
+        nextAppState === 'active' &&
+        pendingPayment
+      ) {
+        setShowPaymentConfirmModal(true);
+      }
+      appState.current = nextAppState;
+    };
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription.remove();
+  }, [pendingPayment]);
+
+  // Helper to launch UPI intent
+  const launchUpiPayment = (amount, receiverName, receiverUpiId, expenseId, memberId) => {
+    // Use a placeholder UPI ID if not available
+    const upiId = receiverUpiId || 'test@upi';
+    const payeeName = encodeURIComponent(receiverName || 'User');
+    const note = encodeURIComponent('Split Payment');
+    const url = `upi://pay?pa=${upiId}&pn=${payeeName}&am=${amount}&tn=${note}`;
+    setPendingPayment({ expenseId, memberId, upiUrl: url });
+    Linking.openURL(url).catch(() => {
+      showToast('Could not open UPI app', 'error');
+      setPendingPayment(null);
+    });
+  };
+
+  // Handler for Mark as Paid in modal
+  const handleMarkAsPaidAfterUpi = async () => {
+    if (pendingPayment) {
+      // Call your API here (to be implemented later)
+      await handleMarkAsPaid(pendingPayment.expenseId, pendingPayment.memberId, Date.now());
+      setShowPaymentConfirmModal(false);
+      setPendingPayment(null);
+    }
+  };
+
+  // Handler for Cancel in modal
+  const handleCancelPaymentConfirm = () => {
+    setShowPaymentConfirmModal(false);
+    setPendingPayment(null);
   };
 
   const renderTabContent = () => {
@@ -250,49 +300,53 @@ function SplitDetail() {
                   <View style={styles.membersContainer}>
                     <Text style={styles.membersLabel}>Member Balances</Text>
                     <View style={styles.membersList}>
-                      {expense.memberDetails && expense.memberDetails.map((member) => (
-                        <View key={member.memberId} style={styles.memberItem}>
-                          <View style={styles.memberInfo}>
-                            <View style={styles.memberAvatar}>
-                              <Text style={styles.memberAvatarText}>
-                                {member.fullName?.charAt(0)?.toUpperCase() || 'U'}
-                              </Text>
+                      {expense.memberDetails && expense.memberDetails.map((member) => {
+                        const paymentInfo = formatPaymentMessage(member, userInfo, balance?.data);
+                        return (
+                          <View key={member.memberId} style={styles.memberItem}>
+                            <View style={styles.memberInfo}>
+                              <View style={styles.memberAvatar}>
+                                <Text style={styles.memberAvatarText}>
+                                  {member.fullName?.charAt(0)?.toUpperCase() || 'U'}
+                                </Text>
+                              </View>
+                              <View style={styles.memberDetails}>
+                                <Text style={styles.memberName}>{member.fullName}</Text>
+                                <Text style={styles.memberAmount}>{paymentInfo.label}</Text>
+                              </View>
                             </View>
-                            <View style={styles.memberDetails}>
-                              <Text style={styles.memberName}>{member.fullName}</Text>
-                              <Text style={styles.memberAmount}>
-                                {/* {member.status === 'owes' ? '-' : member.status === 'owed' ? '+' : ''} */}
-                                {/* ₹{Math.round(Math.abs(member?.paidAmount || member?.amountNeedToPay || member?.balanceAmountNeedToPay || 0))} */}
-                                {formatPaymentMessage(member, userInfo, balance?.data)}
-                              </Text>
+                            <View style={styles.memberActions}>
+                              {/* Badge/Button logic based on paymentInfo.type */}
+                              {paymentInfo.type === 'need_to_receive' && (
+                                <View style={[styles.paymentStatus, { backgroundColor: colors.success }]}>
+                                  <Text style={styles.paymentStatusText}>Need to receive</Text>
+                                </View>
+                              )}
+                              {paymentInfo.type === 'pay_other' && (
+                                <TouchableOpacity
+                                  style={[styles.paymentStatus, { backgroundColor: colors.btncolor }]}
+                                  onPress={() => launchUpiPayment(paymentInfo.amount, paymentInfo.receiverName, member.upiId, expense.expenseId, member.memberId)}
+                                >
+                                  <Text style={styles.paymentStatusText}>Pay</Text>
+                                </TouchableOpacity>
+                              )}
+                              {paymentInfo.type === 'pay_creator' && (
+                                <TouchableOpacity
+                                  style={[styles.paymentStatus, { backgroundColor: colors.btncolor }]}
+                                  onPress={() => launchUpiPayment(paymentInfo.amount, paymentInfo.receiverName, member.upiId, expense.expenseId, member.memberId)}
+                                >
+                                  <Text style={styles.paymentStatusText}>Pay</Text>
+                                </TouchableOpacity>
+                              )}
+                              {paymentInfo.type === 'paid' && (
+                                <View style={[styles.paymentStatus, { backgroundColor: colors.grayLinesColor }]}>
+                                  <Text style={styles.paymentStatusText}>Paid</Text>
+                                </View>
+                              )}
                             </View>
                           </View>
-                          <View style={styles.memberActions}>
-                            <View style={[
-                              styles.paymentStatus,
-                              {
-                                backgroundColor: member.status === 'owes' ? colors.error :
-                                  member.status === 'owed' ? colors.success :
-                                    colors.grayLinesColor
-                              }
-                            ]}>
-                              <Text style={styles.paymentStatusText}>
-                                {member.status === 'owes' ? 'Owes' :
-                                  member.status === 'owed' ? 'Owed' :
-                                    'Settled'}
-                              </Text>
-                            </View>
-                            {member.status === 'owes' && (
-                              <TouchableOpacity
-                                style={[styles.markAsPaidButton, { backgroundColor: colors.btncolor }]}
-                                onPress={() => handleMarkAsPaid(expense.expenseId, member.memberId)}
-                              >
-                                <Text style={styles.markAsPaidButtonText}>Mark as Paid</Text>
-                              </TouchableOpacity>
-                            )}
-                          </View>
-                        </View>
-                      ))}
+                        );
+                      })}
                     </View>
                   </View>
 
@@ -610,6 +664,37 @@ function SplitDetail() {
         onClose={() => setShowInviteModal(false)}
         existingParticipants={members?.data}
       />
+
+      {/* Payment Confirmation Modal */}
+      <Modal
+        visible={showPaymentConfirmModal}
+        transparent
+        animationType="fade"
+        onRequestClose={handleCancelPaymentConfirm}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ backgroundColor: 'white', borderRadius: 16, padding: 24, width: 300, alignItems: 'center' }}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 12 }}>Confirm Payment</Text>
+            <Text style={{ fontSize: 15, color: colors.fontSecondColor, marginBottom: 24 }}>
+              Did you complete the payment in your UPI app?
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 16 }}>
+              <TouchableOpacity
+                style={{ backgroundColor: colors.btncolor, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8, marginRight: 8 }}
+                onPress={handleMarkAsPaidAfterUpi}
+              >
+                <Text style={{ color: 'white', fontWeight: 'bold' }}>Mark as Paid</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ backgroundColor: colors.grayLinesColor, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 }}
+                onPress={handleCancelPaymentConfirm}
+              >
+                <Text style={{ color: colors.fontMainColor, fontWeight: 'bold' }}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1210,8 +1295,7 @@ const styles = StyleSheet.create({
   },
 });
 
-function formatPaymentMessage(member, userInfo, Split) {
-
+function formatPaymentMessage(member, userInfo, expenseData) {
   const amount = Math.round(Math.abs(
     member?.balanceAmountNeedToPay ??
     member?.amountNeedToPay ??
@@ -1219,25 +1303,53 @@ function formatPaymentMessage(member, userInfo, Split) {
     0
   ));
 
+  // Case 1: Someone needs to pay the logged-in user
   if (member?.balanceAmountReceiver?.memberId === userInfo?._id) {
-    return `₹${amount} Need to pay for you`;
+    return {
+      type: 'need_to_receive',
+      amount,
+      label: `₹${amount} Need to receive`,
+    };
   }
 
+  // Case 2: User needs to pay to another user (not split creator)
   if (member?.balanceAmountReceiver?.memberId !== undefined) {
     if (member?.balanceAmountReceiver?.memberId !== userInfo?._id) {
-      return `₹${amount} reciver ${userInfo?.fullName}`;
+      return {
+        type: 'pay_other',
+        amount,
+        label: `₹${amount} Pay ${member?.balanceAmountReceiver?.fullName || 'User'}`,
+        receiverId: member?.balanceAmountReceiver?.memberId,
+        receiverName: member?.balanceAmountReceiver?.fullName || 'User',
+      };
     }
   }
 
-  if (member?.amountNeedToPay) {
-    return `₹${amount} Need to pay for ${Split[0]?.splitCreated?.fullName}`;
+  // Case 3: User needs to pay to split creator
+  if (member?.amountNeedToPay && expenseData[0]?.splitCreated?._id == userInfo?._id) {
+    return {
+      type: 'pay_creator',
+      amount,
+      label: `₹${amount} Pay to ${userInfo?.fullName}`,
+      receiverId: expenseData[0]?.splitCreated?._id,
+      receiverName: expenseData[0]?.splitCreated?.fullName || 'Creator',
+    };
   }
 
+  // Case 4: Already paid
   if (member?.paidAmount && member?.balanceAmountReceiver === undefined) {
-    return `₹${amount} paid`;
+    return {
+      type: 'paid',
+      amount,
+      label: `₹${amount} Paid`,
+    };
   }
 
-  return '₹0 No balance';
+  return {
+    type: 'none',
+    amount: 0,
+    label: '₹0 No balance',
+  };
 }
 
 
